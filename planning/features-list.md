@@ -15,7 +15,7 @@ Based on research of iconic 1980s-1990s telephone services, reimagined for a loc
 
 ### The Operator (Default AI Mode)
 - Free-form conversation with the AI
-- Dial 0 at any time to reach "the operator"
+- Dial 555-0000 at any time to reach "the operator"
 - Personality: helpful, slightly formal, retro telephone operator demeanor
 - Can transfer to any other service ("Let me connect you to our joke line...")
 
@@ -23,31 +23,32 @@ Based on research of iconic 1980s-1990s telephone services, reimagined for a loc
 
 ## Information Services
 
-### Time & Temperature (Dial: 411 or say "Time")
+### Time & Temperature (767-2676 / POPCORN)
 - Current time with vintage delivery: "At the tone, the time will be 3:45 PM and 20 seconds... *BEEP*"
 - Current temperature and conditions
 - Fake vintage sponsor: "Brought to you by First National Bank of Somewhere"
 - Optional: World clock for other cities
+- *Historic number: POPCORN was the actual time service in many US cities*
 
-### Weather Forecast (Dial: 936 / WEA)
+### Weather Forecast (555-9328 / 555-WEAT)
 - Current conditions
 - Today's forecast
 - Extended forecast
 - Vintage delivery style with sponsor mentions
 - Optional: Marine forecast, ski conditions (as jokes or real data)
 
-### Daily Horoscope (Dial: 467 / HOR)
+### Daily Horoscope (555-4676 / 555-HORO)
 - Ask for zodiac sign
 - AI-generated daily horoscope in vintage style
 - Mystical background music/tones
 - "For your lucky numbers, press 1..."
 
-### News Headlines (Dial: 639 / NEW)
+### News Headlines (555-6397 / 555-NEWS)
 - Top news stories summarized
 - Categories: World, local, sports, entertainment
 - Vintage newsreader delivery style
 
-### Sports Scores (Dial: 776 / SPO)
+### Sports Scores (555-7767 / 555-SPOR)
 - Current scores and standings
 - Yesterday's results
 - Upcoming games
@@ -57,7 +58,7 @@ Based on research of iconic 1980s-1990s telephone services, reimagined for a loc
 
 ## Entertainment Services
 
-### Dial-A-Joke (Dial: 565 / JOK)
+### Dial-A-Joke (555-5653 / 555-JOKE)
 - AI-generated jokes
 - Categories:
   - Clean/family jokes
@@ -67,32 +68,32 @@ Based on research of iconic 1980s-1990s telephone services, reimagined for a loc
   - Classic one-liners
 - "For another joke, press 1. To hear that joke again, press 2."
 
-### Trivia Challenge (Dial: 874 / TRI)
+### Trivia Challenge (555-8748 / 555-TRIV)
 - Multiple choice trivia questions
 - Categories: History, science, pop culture, sports, geography
 - Keep score across multiple questions
 - Different difficulty levels
 - "You got 7 out of 10! You're a trivia champion!"
 
-### Story Time (Dial: 786 / STO)
+### Story Time (555-7867 / 555-STOR)
 - Short AI-generated stories (1-3 minutes)
 - Genres: Mystery, sci-fi, fairy tales, horror, comedy
 - Serialized stories ("Press 1 for the next chapter")
 - Bedtime stories mode (calming delivery)
 
-### Would You Rather (Dial: 968 / WYR)
+### Would You Rather (555-9687 / 555-WRTH)
 - Classic would-you-rather questions
 - AI discusses your choice
 - Tracks popular answers
 
-### Fortune Teller (Dial: 368 / FOR)
+### Fortune Teller (555-3678 / 555-FORT)
 - Mystical AI persona
 - Ask a yes/no question, get a mystical answer
 - Tarot-style readings
 - Magic 8-ball mode
 - Crystal ball predictions
 
-### Mad Libs (Dial: 623 / MAD)
+### Mad Libs (555-6235 / 555-MADL)
 - Interactive word game
 - AI asks for nouns, verbs, adjectives
 - Reads back the silly story
@@ -101,24 +102,24 @@ Based on research of iconic 1980s-1990s telephone services, reimagined for a loc
 
 ## Advice & Assistance
 
-### Dear Abby / Advice Line (Dial: 232 / ADV)
+### Dear Abby / Advice Line (555-2384 / 555-ADVI)
 - Share a problem, get AI advice
 - Relationship, work, life decisions
 - Vintage advice columnist persona
 - "Write back and tell me how it turns out!"
 
-### Compliment Line (Dial: 266 / COM)
+### Compliment Line (555-2667 / 555-COMP)
 - Receive a personalized compliment
 - Motivation and encouragement
 - Daily affirmations
 - "You're doing great, caller!"
 
-### Roast Line (Dial: 762 / ROA)
+### Roast Line (555-7627 / 555-ROAS)
 - Opt-in to be playfully roasted
 - Light, fun insult comedy
 - "Just kidding, you're wonderful"
 
-### Life Coach (Dial: 543 / LIF)
+### Life Coach (555-5433 / 555-LIFE)
 - Goal setting assistance
 - Motivational pep talks
 - Decision-making help
@@ -127,24 +128,25 @@ Based on research of iconic 1980s-1990s telephone services, reimagined for a loc
 
 ## Nostalgic Features
 
-### Moviefone Parody (Dial: 348 / FLM)
+### Moviefone Parody (777-3456 / 777-FILM)
 - "Hello, and welcome to Moviefone!"
 - Actual movie information or parody version
 - Impersonation of the classic Moviefone voice/cadence
 - Local theater showtimes (if integrated) or fictional movies
+- *Historic number: 777-FILM was the actual Moviefone number in most cities*
 
-### Collect Call Simulator (Dial: 255 / COL)
+### Collect Call Simulator (555-2655 / 555-COLL)
 - "You have a collect call from... THE FUTURE. Will you accept the charges?"
 - Novelty experience recreating collect calls
 - AI pretends to be various characters calling collect
 
-### Nintendo Tip Line (Dial: 847 / TIP)
+### Nintendo Tip Line (555-8477 / 555-TIPS)
 - Video game hints and tips
 - Retro game help (NES, SNES, Genesis era)
 - Modern game tips in retro style
 - "Game counselor" persona
 
-### Time Traveler's Line (Dial: 846 / TIM)
+### Time Traveler's Line (555-8463 / 555-TIME)
 - AI pretends to call from different eras
 - 1950s operator, 1980s teenager, future robot
 - Historical "what's happening" in different years
@@ -160,28 +162,28 @@ Based on research of iconic 1980s-1990s telephone services, reimagined for a loc
 
 ## Interactive & Social
 
-### Confession Line (Dial: 263 / CNF)
+### Confession Line (555-2663 / 555-CONF)
 - Anonymous confessions to the AI
 - AI responds with understanding/absolution
 - "Your secret is safe with me, caller"
 
-### Vent Line (Dial: 836 / VEN)
+### Vent Line (555-8368 / 555-VENT)
 - Complain about anything
 - AI listens sympathetically
 - Validates feelings, offers perspective
 - "That does sound frustrating..."
 
-### Debate Partner (Dial: 332 / DEB)
+### Debate Partner (555-3322 / 555-DEBA)
 - Pick a topic, AI takes opposite position
 - Friendly intellectual sparring
 - "Devil's advocate" mode
 
-### 20 Questions (Dial: 209)
+### 20 Questions (555-2090 / 555-20QS)
 - Classic guessing game
 - AI thinks of something, caller guesses
 - Or reverse: caller thinks, AI guesses
 
-### Interview Mode (Dial: 468 / INT)
+### Interview Mode (555-4688 / 555-INTV)
 - AI interviews the caller
 - Topics: Life story, opinions, favorites
 - Makes the caller feel like a celebrity guest
@@ -190,28 +192,28 @@ Based on research of iconic 1980s-1990s telephone services, reimagined for a loc
 
 ## Utility Services
 
-### Calculator (Dial: 225 / CAL)
+### Calculator (555-2252 / 555-CALC)
 - Voice-based calculations
 - "What's 15% of 87?"
 - Tip calculator
 - Unit conversions
 
-### Translator (Dial: 872 / TRA)
+### Translator (555-8726 / 555-TRAN)
 - Translate phrases to other languages
 - AI speaks the translation
 - Common travel phrases
 
-### Spelling Bee (Dial: 773 / SPE)
+### Spelling Bee (555-7735 / 555-SPEL)
 - AI gives a word to spell
 - Different difficulty levels
 - Educational and fun
 
-### Dictionary (Dial: 342 / DIC)
+### Dictionary (555-3428 / 555-DICT)
 - Word definitions
 - Etymology and usage
 - Word of the day
 
-### Recipe Line (Dial: 732 / REC)
+### Recipe Line (555-7324 / 555-RECI)
 - Quick recipes by ingredient
 - Cooking tips and substitutions
 - "What can I make with chicken and rice?"
@@ -222,18 +224,18 @@ Based on research of iconic 1980s-1990s telephone services, reimagined for a loc
 
 The AI can adopt different personalities for extended interactions:
 
-| Persona | Dial Code | Description |
-|---------|-----------|-------------|
-| **The Operator** | 0 | Helpful, professional, vintage phone operator |
-| **Wise Sage** | 924 | Philosophical, contemplative, gives life advice |
-| **Comedian** | 264 | Everything is a joke, quick wit |
-| **Noir Detective** | 338 | Hardboiled 1940s detective voice |
-| **Southern Grandma** | 472 | Warm, folksy, full of sayings |
-| **Robot from Future** | 768 | Stilted speech, "processing" sounds |
-| **Valley Girl (1980s)** | 825 | Like, totally 80s speak |
-| **Beatnik Poet** | 738 | Snaps fingers, speaks in verse |
-| **Game Show Host** | 476 | Enthusiastic, "Come on down!" energy |
-| **Conspiracy Theorist** | 267 | Everything connects (played for comedy) |
+| Persona | Phone Number | Description |
+|---------|--------------|-------------|
+| **The Operator** | 555-0000 | Helpful, professional, vintage phone operator |
+| **Wise Sage** | 555-7243 (SAGE) | Philosophical, contemplative, gives life advice |
+| **Comedian** | 555-5264 (LAFF) | Everything is a joke, quick wit |
+| **Noir Detective** | 555-3383 (DETE) | Hardboiled 1940s detective voice |
+| **Southern Grandma** | 555-4726 (GRAN) | Warm, folksy, full of sayings |
+| **Robot from Future** | 555-2687 (BOTT) | Stilted speech, "processing" sounds |
+| **Valley Girl (1980s)** | 555-8255 (VALL) | Like, totally 80s speak |
+| **Beatnik Poet** | 555-7638 (POET) | Snaps fingers, speaks in verse |
+| **Game Show Host** | 555-4263 (GAME) | Enthusiastic, "Come on down!" energy |
+| **Conspiracy Theorist** | 555-9427 (XFIL) | Everything connects (played for comedy) |
 
 ---
 
@@ -289,13 +291,13 @@ A physical phone book accompanies the payphone, providing an authentic 1990s ref
 ### White Pages Format
 
 ```
-SERVICE NAME                           DIAL CODE
-─────────────────────────────────────────────────
-Advice Line (Dear Abby) .............. 232-ADV
-Calculator ........................... 225-CAL
-Collect Call Simulator ............... 255-COL
-Compliment Line ...................... 266-COM
-Confession Line ...................... 263-CNF
+SERVICE NAME                           PHONE NUMBER
+─────────────────────────────────────────────────────
+Advice Line (Dear Abby) .............. 555-2384 (ADVI)
+Calculator ........................... 555-2252 (CALC)
+Collect Call Simulator ............... 555-2655 (COLL)
+Compliment Line ...................... 555-2667 (COMP)
+Confession Line ...................... 555-2663 (CONF)
 ...
 ```
 
@@ -326,7 +328,8 @@ Confession Line ...................... 263-CNF
 - Hidden numbers in ad phone numbers
 - "Handwritten" notes in margins ("Call 2600 for secrets")
 - Torn/missing page corner revealing partial number
-- Classified ad: "Lost: Magic words. If found, dial 5309"
+- Classified ad: "Lost: Magic words. If found, dial 867-5309"
+- *Historic number: 867-5309 is from the famous 1981 Tommy Tutone song*
 - Fake "Out of Service" numbers that actually connect to hidden features
 
 ### Phone Book Props

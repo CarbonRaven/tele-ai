@@ -387,7 +387,7 @@ payphone-app/
 ├── main.py                 # Entry point, AudioSocket server
 ├── config/
 │   ├── settings.py         # Configuration management
-│   ├── dial_codes.py       # DTMF code mappings
+│   ├── phone_directory.py  # Phone number to feature mappings
 │   └── prompts.py          # System prompts for personas
 ├── core/
 │   ├── session.py          # Call session management
@@ -622,6 +622,147 @@ if feature_class:
 
 ---
 
+## Phone Number Directory
+
+All services are accessible via 7-digit phone numbers. The system intercepts dialed numbers and routes to the appropriate feature.
+
+### Number Format
+
+- **Historic numbers**: Actual numbers from 80s-90s services where known (e.g., 767-2676/POPCORN, 777-FILM)
+- **Internal services**: `555-XXXX` format for original features without historic equivalents
+- **Easter eggs**: Iconic numbers like 867-5309 (Jenny)
+- **Outbound calls**: Requires secret code prefix + external number
+
+### Service Directory
+
+```python
+# config/phone_directory.py
+
+PHONE_DIRECTORY = {
+    # === CORE SERVICES ===
+    "555-0000": {"feature": "operator", "name": "The Operator"},
+
+    # === HISTORIC NUMBERS (actual 80s-90s service numbers) ===
+    "767-2676": {"feature": "time_temp", "name": "Time & Temperature", "alias": "POPCORN", "historic": True},
+    "777-3456": {"feature": "moviefone", "name": "Moviefone", "alias": "777-FILM", "historic": True},
+    "867-5309": {"feature": "easter_jenny", "name": "Jenny", "historic": True},  # The famous song!
+
+    # === INFORMATION ===
+    "555-9328": {"feature": "weather", "name": "Weather Forecast", "alias": "WEAT"},
+    "555-4676": {"feature": "horoscope", "name": "Daily Horoscope", "alias": "HORO"},
+    "555-6397": {"feature": "news", "name": "News Headlines", "alias": "NEWS"},
+    "555-7767": {"feature": "sports", "name": "Sports Scores", "alias": "SPOR"},
+
+    # === ENTERTAINMENT ===
+    "555-5653": {"feature": "jokes", "name": "Dial-A-Joke", "alias": "JOKE"},
+    "555-8748": {"feature": "trivia", "name": "Trivia Challenge", "alias": "TRIV"},
+    "555-7867": {"feature": "stories", "name": "Story Time", "alias": "STOR"},
+    "555-3678": {"feature": "fortune", "name": "Fortune Teller", "alias": "FORT"},
+    "555-6235": {"feature": "madlibs", "name": "Mad Libs", "alias": "MADL"},
+    "555-9687": {"feature": "would_you_rather", "name": "Would You Rather", "alias": "WRTH"},
+    "555-2090": {"feature": "twenty_questions", "name": "20 Questions", "alias": "20QS"},
+
+    # === ADVICE & SUPPORT ===
+    "555-2384": {"feature": "advice", "name": "Advice Line", "alias": "ADVI"},
+    "555-2667": {"feature": "compliment", "name": "Compliment Line", "alias": "COMP"},
+    "555-7627": {"feature": "roast", "name": "Roast Line", "alias": "ROAS"},
+    "555-5433": {"feature": "life_coach", "name": "Life Coach", "alias": "LIFE"},
+    "555-2663": {"feature": "confession", "name": "Confession Line", "alias": "CONF"},
+    "555-8368": {"feature": "vent", "name": "Vent Line", "alias": "VENT"},
+
+    # === NOSTALGIC ===
+    # Moviefone moved to HISTORIC NUMBERS section (777-3456)
+    "555-2655": {"feature": "collect_call", "name": "Collect Call Simulator", "alias": "COLL"},
+    "555-8477": {"feature": "nintendo_tips", "name": "Nintendo Tip Line", "alias": "TIPS"},
+    "555-8463": {"feature": "time_traveler", "name": "Time Traveler's Line", "alias": "TRAV"},
+
+    # === UTILITIES ===
+    "555-2252": {"feature": "calculator", "name": "Calculator", "alias": "CALC"},
+    "555-8726": {"feature": "translator", "name": "Translator", "alias": "TRAN"},
+    "555-7735": {"feature": "spelling", "name": "Spelling Bee", "alias": "SPEL"},
+    "555-3428": {"feature": "dictionary", "name": "Dictionary", "alias": "DICT"},
+    "555-7324": {"feature": "recipe", "name": "Recipe Line", "alias": "RECI"},
+    "555-3322": {"feature": "debate", "name": "Debate Partner", "alias": "DEBA"},
+    "555-4688": {"feature": "interview", "name": "Interview Mode", "alias": "INTV"},
+
+    # === PERSONAS ===
+    "555-7243": {"feature": "persona_sage", "name": "Wise Sage", "alias": "SAGE"},
+    "555-5264": {"feature": "persona_comedian", "name": "Comedian", "alias": "LAFF"},
+    "555-3383": {"feature": "persona_detective", "name": "Noir Detective", "alias": "DETE"},
+    "555-4726": {"feature": "persona_grandma", "name": "Southern Grandma", "alias": "GRAN"},
+    "555-2687": {"feature": "persona_robot", "name": "Robot from Future", "alias": "BOTT"},
+    "555-8255": {"feature": "persona_valley", "name": "Valley Girl", "alias": "VALL"},
+    "555-7638": {"feature": "persona_beatnik", "name": "Beatnik Poet", "alias": "POET"},
+    "555-4263": {"feature": "persona_gameshow", "name": "Game Show Host", "alias": "GAME"},
+    "555-9427": {"feature": "persona_conspiracy", "name": "Conspiracy Theorist", "alias": "XFIL"},
+
+    # === EASTER EGGS ===
+    "555-2600": {"feature": "easter_phreaker", "name": "Blue Box Secret"},
+    # Jenny moved to HISTORIC NUMBERS section (867-5309)
+    "555-1337": {"feature": "easter_hacker", "name": "Hacker Mode"},
+    "555-7492": {"feature": "easter_pizza", "name": "Joe's Pizza"},
+    "555-1313": {"feature": "easter_haunted", "name": "Haunted Booth"},
+}
+
+# Birthday pattern: 555-MMDD routes to birthday feature
+BIRTHDAY_PATTERN = r"^555-[01]\d[0-3]\d$"
+
+# Outbound call pattern (requires admin code first)
+OUTBOUND_PATTERN = r"^[2-9]\d{6,14}$"
+```
+
+### Number Routing Logic
+
+```python
+# core/phone_router.py
+
+import re
+from config.phone_directory import PHONE_DIRECTORY, BIRTHDAY_PATTERN
+
+class PhoneRouter:
+    def __init__(self):
+        self.outbound_enabled = False
+        self.admin_code = None
+
+    def route(self, dialed_number: str, session) -> str:
+        """Route a dialed number to the appropriate handler."""
+        normalized = self.normalize(dialed_number)
+
+        # Check direct match in directory
+        if normalized in PHONE_DIRECTORY:
+            return PHONE_DIRECTORY[normalized]["feature"]
+
+        # Check birthday pattern (555-MMDD)
+        if re.match(BIRTHDAY_PATTERN, normalized):
+            session.birthday = normalized[-4:]  # Store MMDD
+            return "easter_birthday"
+
+        # Check if outbound calling is enabled
+        if self.outbound_enabled and self.is_valid_external(normalized):
+            return "outbound_call"
+
+        # Unknown number
+        return "invalid_number"
+
+    def normalize(self, number: str) -> str:
+        """Normalize phone number format."""
+        # Remove any non-digit characters except dash
+        cleaned = re.sub(r'[^\d-]', '', number)
+        # Ensure XXX-XXXX format
+        if len(cleaned) == 7 and '-' not in cleaned:
+            cleaned = f"{cleaned[:3]}-{cleaned[3:]}"
+        return cleaned
+
+    def enable_outbound(self, admin_code: str) -> bool:
+        """Enable outbound calling with admin code."""
+        if admin_code == self.admin_code:
+            self.outbound_enabled = True
+            return True
+        return False
+```
+
+---
+
 ## Asterisk Integration
 
 ### Dialplan Configuration
@@ -674,6 +815,281 @@ password=secure_password_here
 [payphone-aor]
 type=aor
 max_contacts=1
+```
+
+---
+
+## SIP Trunk for Remote Access (Future)
+
+Allow external callers to access the AI Payphone via SIP.
+
+### Architecture
+
+```
+                    ┌─────────────────────────────────────────┐
+                    │              INTERNET                    │
+                    └─────────────────┬───────────────────────┘
+                                      │
+                                      ▼
+                    ┌─────────────────────────────────────────┐
+                    │         SIP TRUNK PROVIDER              │
+                    │    (Twilio, Telnyx, VoIP.ms, etc.)      │
+                    └─────────────────┬───────────────────────┘
+                                      │ SIP/RTP
+                                      ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      AI PAYPHONE SYSTEM                          │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                      ASTERISK                              │  │
+│  │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    │  │
+│  │  │  Inbound    │    │   Local     │    │  Outbound   │    │  │
+│  │  │  Context    │    │   Context   │    │  Context    │    │  │
+│  │  │ (SIP Trunk) │    │  (HT801)    │    │(Admin only) │    │  │
+│  │  └──────┬──────┘    └──────┬──────┘    └──────┬──────┘    │  │
+│  │         │                  │                  │            │  │
+│  │         └──────────────────┼──────────────────┘            │  │
+│  │                            │                               │  │
+│  │                            ▼                               │  │
+│  │                   ┌─────────────────┐                      │  │
+│  │                   │  AudioSocket    │                      │  │
+│  │                   │  Application    │                      │  │
+│  │                   └─────────────────┘                      │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### SIP Trunk Configuration
+
+```ini
+; pjsip_sip_trunk.conf
+
+; === SIP TRUNK (Example: Twilio) ===
+[sip-trunk-transport]
+type=transport
+protocol=udp
+bind=0.0.0.0:5061
+
+[sip-trunk-auth]
+type=auth
+auth_type=userpass
+username=your_sip_username
+password=your_sip_password
+
+[sip-trunk-aor]
+type=aor
+contact=sip:your-trunk.pstn.twilio.com
+
+[sip-trunk-endpoint]
+type=endpoint
+context=inbound-sip-trunk
+disallow=all
+allow=ulaw
+allow=alaw
+outbound_auth=sip-trunk-auth
+aors=sip-trunk-aor
+direct_media=no
+from_domain=your-trunk.pstn.twilio.com
+
+[sip-trunk-identify]
+type=identify
+endpoint=sip-trunk-endpoint
+match=your-trunk.pstn.twilio.com
+```
+
+### Inbound SIP Context
+
+```ini
+; extensions.conf - Remote caller access
+
+[inbound-sip-trunk]
+; Incoming calls from SIP trunk
+exten => _X.,1,Answer()
+ same => n,Set(CHANNEL(audioreadformat)=slin16)
+ same => n,Set(CHANNEL(audiowriteformat)=slin16)
+ same => n,Set(CALLER_TYPE=remote)
+ same => n,AudioSocket(${UNIQUE_ID},192.168.1.10:9092)
+ same => n,Hangup()
+
+; Optional: PIN authentication for remote callers
+[inbound-sip-authenticated]
+exten => _X.,1,Answer()
+ same => n,Set(MAX_ATTEMPTS=3)
+ same => n,Set(ATTEMPT=0)
+ same => n(getpin),Read(PIN,enter-pin,4)
+ same => n,Set(ATTEMPT=$[${ATTEMPT}+1])
+ same => n,GotoIf($["${PIN}"="1234"]?authenticated)
+ same => n,GotoIf($[${ATTEMPT}>=${MAX_ATTEMPTS}]?failed)
+ same => n,Playback(invalid-pin)
+ same => n,Goto(getpin)
+ same => n(authenticated),Set(CALLER_TYPE=authenticated_remote)
+ same => n,AudioSocket(${UNIQUE_ID},192.168.1.10:9092)
+ same => n,Hangup()
+ same => n(failed),Playback(goodbye)
+ same => n,Hangup()
+```
+
+---
+
+## Outbound Calling (Future)
+
+Allow the payphone to place real outbound calls via SIP trunk.
+
+### Security Model
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    OUTBOUND CALL FLOW                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  1. User dials secret admin code: *99*[ADMIN_PIN]*         │
+│                    │                                        │
+│                    ▼                                        │
+│  2. System verifies PIN against stored hash                 │
+│                    │                                        │
+│                    ▼                                        │
+│  3. "Outbound calling enabled. Please dial number."         │
+│                    │                                        │
+│                    ▼                                        │
+│  4. User dials external number: 1-555-867-5309             │
+│                    │                                        │
+│                    ▼                                        │
+│  5. System validates number (no premium, international)     │
+│                    │                                        │
+│                    ▼                                        │
+│  6. Call placed via SIP trunk                               │
+│                    │                                        │
+│                    ▼                                        │
+│  7. Two-way audio bridged                                   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Outbound Call Configuration
+
+```python
+# config/outbound.py
+
+OUTBOUND_CONFIG = {
+    # Admin PIN hash (SHA256)
+    "admin_pin_hash": "e3b0c44298fc1c149afbf4c8996fb924...",
+
+    # Enable code: *99*PIN*
+    "enable_pattern": r"^\*99\*(\d{4,8})\*$",
+
+    # Allowed number patterns (NANP format)
+    "allowed_patterns": [
+        r"^1[2-9]\d{9}$",        # US/Canada: 1NXXNXXXXXX
+        r"^[2-9]\d{6}$",          # Local 7-digit
+        r"^[2-9]\d{9}$",          # 10-digit without 1
+    ],
+
+    # Blocked patterns (premium, international)
+    "blocked_patterns": [
+        r"^1900",                  # 1-900 premium
+        r"^1976",                  # 1-976 premium
+        r"^011",                   # International
+        r"^00",                    # International alt
+    ],
+
+    # Call limits
+    "max_duration_seconds": 600,   # 10 minute max
+    "cooldown_seconds": 60,        # 1 min between calls
+
+    # Logging
+    "log_outbound_calls": True,
+    "log_dialed_numbers": False,   # Privacy option
+}
+```
+
+### Outbound Dialplan
+
+```ini
+; extensions.conf - Outbound calling
+
+[outbound-authorized]
+; Only reached after PIN verification in application layer
+; Application sets OUTBOUND_NUMBER channel variable
+
+exten => outbound,1,NoOp(Outbound call to ${OUTBOUND_NUMBER})
+ same => n,Set(CALLERID(num)=your_did_number)
+ same => n,Set(CALLERID(name)=AI Payphone)
+ same => n,Set(TIMEOUT(absolute)=600)
+ same => n,Dial(PJSIP/${OUTBOUND_NUMBER}@sip-trunk-endpoint,60,g)
+ same => n,GotoIf($["${DIALSTATUS}"="ANSWER"]?done)
+ same => n,Playback(call-failed)
+ same => n(done),Hangup()
+```
+
+### Outbound Call Handler
+
+```python
+# features/outbound.py
+
+import hashlib
+from config.outbound import OUTBOUND_CONFIG
+
+class OutboundCallHandler:
+    def __init__(self, asterisk_client):
+        self.asterisk = asterisk_client
+        self.enabled_sessions = set()
+        self.last_call_time = {}
+
+    def handle_enable_code(self, session, digits: str) -> bool:
+        """Handle *99*PIN* enable code."""
+        match = re.match(OUTBOUND_CONFIG["enable_pattern"], digits)
+        if not match:
+            return False
+
+        pin = match.group(1)
+        pin_hash = hashlib.sha256(pin.encode()).hexdigest()
+
+        if pin_hash == OUTBOUND_CONFIG["admin_pin_hash"]:
+            self.enabled_sessions.add(session.call_id)
+            return True
+        return False
+
+    def is_allowed_number(self, number: str) -> bool:
+        """Check if number is allowed for outbound calling."""
+        # Check blocked patterns first
+        for pattern in OUTBOUND_CONFIG["blocked_patterns"]:
+            if re.match(pattern, number):
+                return False
+
+        # Check allowed patterns
+        for pattern in OUTBOUND_CONFIG["allowed_patterns"]:
+            if re.match(pattern, number):
+                return True
+
+        return False
+
+    async def place_call(self, session, number: str) -> bool:
+        """Place an outbound call."""
+        if session.call_id not in self.enabled_sessions:
+            await session.play("Outbound calling not enabled.")
+            return False
+
+        if not self.is_allowed_number(number):
+            await session.play("That number cannot be dialed.")
+            return False
+
+        # Check cooldown
+        last_call = self.last_call_time.get(session.call_id, 0)
+        if time.time() - last_call < OUTBOUND_CONFIG["cooldown_seconds"]:
+            await session.play("Please wait before placing another call.")
+            return False
+
+        # Place the call
+        await session.play(f"Dialing {self.format_number(number)}...")
+        success = await self.asterisk.originate_call(
+            session=session,
+            number=number,
+            timeout=60
+        )
+
+        if success:
+            self.last_call_time[session.call_id] = time.time()
+
+        return success
 ```
 
 ---

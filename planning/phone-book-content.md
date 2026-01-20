@@ -37,12 +37,12 @@ Complete content for the physical phone book that accompanies the AI Payphone.
 **Making a Call**
 1. Lift the handset
 2. Wait for dial tone
-3. Dial the service code (see directory listings)
+3. Dial the 7-digit service number (see directory listings)
 4. Follow voice prompts
 
 **Navigation**
 - Press **\*** (star) at any time to return to the main menu
-- Press **0** to reach the Operator
+- Dial **555-0000** to reach the Operator
 - Press **9** to repeat the last message
 - Say "menu" to return to the main menu
 
@@ -69,17 +69,18 @@ You may speak naturally to the Operator, or say the name of any service:
 
 OPERATOR SERVICES
 ─────────────────────────────────────────────────────────────────
-The Operator (AI Assistant) ...................... 0
+The Operator (AI Assistant) .................. 555-0000
   Your helpful guide to all payphone services.
   Available 24 hours. "How may I direct your call?"
 
 INFORMATION SERVICES
 ─────────────────────────────────────────────────────────────────
-Time & Temperature ............................... 411
+Time & Temperature ........................... 767-2676 (POPCORN)
   "At the tone, the time will be..."
   Sponsored by First National Bank
+  *The actual POPCORN service number used in most US cities*
 
-Directory Assistance ............................. 0
+Directory Assistance ......................... 555-0000
   Ask the Operator for help finding any service
 
 EMERGENCY INFORMATION
@@ -98,164 +99,162 @@ For real emergencies, please use another phone to dial 911.
 ║              Complete Service Directory A-Z                   ║
 ╚═══════════════════════════════════════════════════════════════╝
 
-SERVICE                                              DIAL CODE
+SERVICE                                              PHONE NUMBER
 ─────────────────────────────────────────────────────────────────
 
 A
 ───
-Advice Line (Dear Abby) .......................... 232  (ADV)
+Advice Line (Dear Abby) ...................... 555-2384 (ADVI)
   Share your problems, get wise advice.
   "Write back and tell me how it turns out!"
 
 B
 ───
-Beatnik Poet (Persona) ........................... 738  (PET)
+Beatnik Poet (Persona) ....................... 555-7638 (POET)
   *snaps fingers* Speak in verse, daddy-o.
 
 C
 ───
-Calculator ...................................... 225  (CAL)
+Calculator ................................... 555-2252 (CALC)
   Voice-powered math. "What's 15% of 87?"
 
-Collect Call Simulator ........................... 255  (COL)
+Collect Call Simulator ....................... 555-2655 (COLL)
   "You have a collect call from... THE FUTURE"
 
-Comedian (Persona) ............................... 264  (COM)
+Comedian (Persona) ........................... 555-5264 (LAFF)
   Everything's a joke with this character.
 
-Compliment Line .................................. 266  (CMP)
+Compliment Line .............................. 555-2667 (COMP)
   Receive a personalized pick-me-up.
 
-Confession Line .................................. 263  (CNF)
+Confession Line .............................. 555-2663 (CONF)
   Unburden your soul. "Your secret is safe with me."
 
-Conspiracy Theorist (Persona) .................... 267  (CNS)
+Conspiracy Theorist (Persona) ................ 555-9427 (XFIL)
   Everything is connected, man.
 
 D
 ───
-Daily Horoscope .................................. 467  (HOR)
+Daily Horoscope .............................. 555-4676 (HORO)
   What do the stars have in store for you?
 
-Debate Partner ................................... 332  (DEB)
+Debate Partner ............................... 555-3322 (DEBA)
   Pick a topic. I'll argue the other side.
 
-Dictionary ...................................... 342  (DIC)
+Dictionary ................................... 555-3428 (DICT)
   Word definitions, etymology, and usage.
 
 F
 ───
-Fortune Teller ................................... 368  (FOR)
+Fortune Teller ............................... 555-3678 (FORT)
   Mystical answers to your burning questions.
   Tarot readings, Magic 8-Ball, crystal ball.
 
 G
 ───
-Game Show Host (Persona) ......................... 476  (GSH)
+Game Show Host (Persona) ..................... 555-4263 (GAME)
   "Come on down!" High energy fun.
 
 I
 ───
-Interview Mode ................................... 468  (INT)
+Interview Mode ............................... 555-4688 (INTV)
   You're the celebrity guest. Tell us about yourself!
 
 J
 ───
-Jokes (Dial-A-Joke) .............................. 565  (JOK)
+Jokes (Dial-A-Joke) .......................... 555-5653 (JOKE)
   Fresh jokes daily! Press 1 for another.
 
 L
 ───
-Life Coach ....................................... 543  (LIF)
+Life Coach ................................... 555-5433 (LIFE)
   Goals, motivation, decisions - I'm here to help.
 
 M
 ───
-Mad Libs ......................................... 623  (MAD)
+Mad Libs ..................................... 555-6235 (MADL)
   Give me a noun, verb, adjective... hilarity ensues!
 
-Moviefone ........................................ 348  (FLM)
+Moviefone .................................... 777-3456 (777-FILM)
   "Hello, and welcome to Moviefone!"
+  *The actual Moviefone number!*
 
 N
 ───
-News Headlines ................................... 639  (NEW)
+News Headlines ............................... 555-6397 (NEWS)
   Top stories from around the world.
 
-Nintendo Tip Line ................................ 847  (TIP)
+Nintendo Tip Line ............................ 555-8477 (TIPS)
   Video game hints from your Game Counselor.
 
-Noir Detective (Persona) ......................... 338  (DET)
+Noir Detective (Persona) ..................... 555-3383 (DETE)
   It was a dark and stormy night...
 
 O
 ───
-Operator ......................................... 0
+Operator ..................................... 555-0000
   Your guide to all services. Always here to help.
-
-P
-───
-[See Persona Directory on page XX]
 
 R
 ───
-Recipe Line ...................................... 732  (REC)
+Recipe Line .................................. 555-7324 (RECI)
   "What can I make with chicken and rice?"
 
-Roast Line ....................................... 762  (ROA)
+Roast Line ................................... 555-7627 (ROAS)
   Opt-in to be lovingly roasted. (All in good fun!)
 
-Robot from Future (Persona) ...................... 768  (ROB)
+Robot from Future (Persona) .................. 555-2687 (BOTT)
   PROCESSING... GREETINGS HUMAN...
 
 S
 ───
-Southern Grandma (Persona) ....................... 472  (GMA)
+Southern Grandma (Persona) ................... 555-4726 (GRAN)
   "Bless your heart!" Warm and folksy.
 
-Spelling Bee ..................................... 773  (SPE)
+Spelling Bee ................................. 555-7735 (SPEL)
   Test your spelling skills!
 
-Sports Scores .................................... 776  (SPO)
+Sports Scores ................................ 555-7767 (SPOR)
   Scores, standings, and upcoming games.
 
-Story Time ....................................... 786  (STO)
+Story Time ................................... 555-7867 (STOR)
   Short stories in many genres. "Press 1 for next chapter"
 
 T
 ───
-Time & Temperature ............................... 411
+Time & Temperature ........................... 767-2676 (POPCORN)
   Current time and local conditions.
+  *The historic POPCORN service*
 
-Time Traveler's Line ............................. 846  (TIM)
+Time Traveler's Line ......................... 555-8463 (TRAV)
   Calls from the past... and future!
 
-Translator ....................................... 872  (TRA)
+Translator ................................... 555-8726 (TRAN)
   Translate phrases to other languages.
 
-Trivia Challenge ................................. 874  (TRI)
+Trivia Challenge ............................. 555-8748 (TRIV)
   Test your knowledge! Multiple categories.
 
-20 Questions ..................................... 209
+20 Questions ................................. 555-2090 (20QS)
   Classic guessing game. Can you stump the AI?
 
 V
 ───
-Valley Girl (Persona) ............................ 825  (VAL)
+Valley Girl (Persona) ........................ 555-8255 (VALL)
   Like, totally 80s speak!
 
-Vent Line ........................................ 836  (VEN)
+Vent Line .................................... 555-8368 (VENT)
   Need to complain? I'm here to listen.
 
 W
 ───
-Weather Forecast ................................. 936  (WEA)
+Weather Forecast ............................. 555-9328 (WEAT)
   Current conditions and extended forecast.
 
-Wise Sage (Persona) .............................. 924  (SAG)
+Wise Sage (Persona) .......................... 555-7243 (SAGE)
   Philosophical wisdom and life advice.
 
-Would You Rather ................................. 968  (WYR)
+Would You Rather ............................. 555-9687 (WRTH)
   Impossible choices. What would YOU pick?
 ```
 
@@ -275,8 +274,8 @@ Would You Rather ................................. 968  (WYR)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ┌─────────────────────────────────────────────────────────────┐
-│  ★ DIAL-A-JOKE ★                                     565   │
-│                                                             │
+│  ★ DIAL-A-JOKE ★                              555-5653     │
+│                                                (JOKE)       │
 │  Thousands of jokes! Updated daily!                         │
 │  • Clean family humor    • Puns & wordplay                  │
 │  • Dad jokes             • Classic one-liners               │
@@ -284,25 +283,25 @@ Would You Rather ................................. 968  (WYR)
 │  "For another joke, press 1!"                               │
 └─────────────────────────────────────────────────────────────┘
 
-TRIVIA CHALLENGE .................................... 874
+TRIVIA CHALLENGE ................................ 555-8748 (TRIV)
   Categories: History, Science, Pop Culture, Sports, Geography
   Keep score! Different difficulty levels!
 
-STORY TIME .......................................... 786
+STORY TIME ...................................... 555-7867 (STOR)
   Short stories read aloud. Mystery, Sci-Fi, Comedy, Horror.
   Serialized stories - "Press 1 for next chapter"
 
-FORTUNE TELLER ...................................... 368
+FORTUNE TELLER .................................. 555-3678 (FORT)
   ✧ Tarot Readings  ✧ Magic 8-Ball  ✧ Crystal Ball
   Ask your yes/no questions!
 
-MAD LIBS ............................................ 623
+MAD LIBS ........................................ 555-6235 (MADL)
   "Give me a noun!" Interactive word games.
 
-WOULD YOU RATHER .................................... 968
+WOULD YOU RATHER ................................ 555-9687 (WRTH)
   Impossible choices. Discuss with the AI!
 
-20 QUESTIONS ........................................ 209
+20 QUESTIONS .................................... 555-2090 (20QS)
   Think of something. Can the AI guess it?
   Or try to guess what the AI is thinking!
 
@@ -313,8 +312,8 @@ WOULD YOU RATHER .................................... 968
 
 ┌─────────────────────────────────────────────────────────────┐
 │                                                             │
-│     TIME & TEMPERATURE                              411     │
-│                                                             │
+│     TIME & TEMPERATURE                         767-2676     │
+│                                                (POPCORN)    │
 │     "At the tone, the time will be 3:45 PM                  │
 │      and 20 seconds... *BEEP*                               │
 │      The temperature is 72 degrees."                        │
@@ -323,20 +322,22 @@ WOULD YOU RATHER .................................... 968
 │     Brought to you by FIRST NATIONAL BANK                   │
 │     "Your time is money. We help with both."                │
 │                                                             │
+│     *The ACTUAL historic POPCORN service number!*           │
+│                                                             │
 └─────────────────────────────────────────────────────────────┘
 
-WEATHER FORECAST .................................... 936
+WEATHER FORECAST ................................ 555-9328 (WEAT)
   Current conditions • Today's forecast • Extended outlook
   "Tomorrow: Partly cloudy with a chance of insights"
 
-DAILY HOROSCOPE ..................................... 467
+DAILY HOROSCOPE ................................. 555-4676 (HORO)
   All 12 signs! "What's your sign, caller?"
   Lucky numbers included.
 
-NEWS HEADLINES ...................................... 639
+NEWS HEADLINES .................................. 555-6397 (NEWS)
   Top stories: World, Local, Entertainment, Sports
 
-SPORTS SCORES ....................................... 776
+SPORTS SCORES ................................... 555-7767 (SPOR)
   Live scores • Standings • Upcoming games
 
 
@@ -344,27 +345,27 @@ SPORTS SCORES ....................................... 776
                        ADVICE & SUPPORT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-ADVICE LINE (DEAR ABBY) ............................. 232
+ADVICE LINE (DEAR ABBY) ......................... 555-2384 (ADVI)
   Relationship troubles? Work problems? Life decisions?
   Share your situation, get thoughtful advice.
 
-COMPLIMENT LINE ..................................... 266
+COMPLIMENT LINE ................................. 555-2667 (COMP)
   Need a pick-me-up? We've got kind words for you!
   Daily affirmations and encouragement.
 
-LIFE COACH .......................................... 543
+LIFE COACH ...................................... 555-5433 (LIFE)
   Set goals • Get motivated • Make decisions
   Your personal cheerleader!
 
-VENT LINE ........................................... 836
+VENT LINE ....................................... 555-8368 (VENT)
   Need to complain? Go ahead. I'm listening.
   Sometimes you just need someone to hear you.
 
-CONFESSION LINE ..................................... 263
+CONFESSION LINE ................................. 555-2663 (CONF)
   Anonymous. Judgment-free.
   "Your secret is safe with me, caller."
 
-ROAST LINE .......................................... 762
+ROAST LINE ...................................... 555-7627 (ROAS)
   ⚠ OPT-IN ONLY ⚠
   Light-hearted roasts. All in good fun!
   "Just kidding, you're wonderful."
@@ -376,8 +377,8 @@ ROAST LINE .......................................... 762
 
 ┌─────────────────────────────────────────────────────────────┐
 │                                                             │
-│     📞 MOVIEFONE 📞                                 348     │
-│                                                             │
+│     📞 MOVIEFONE 📞                            777-3456     │
+│                                                (777-FILM)   │
 │     "Hello, and welcome to Moviefone!"                      │
 │                                                             │
 │     Press 1 for comedies                                    │
@@ -387,17 +388,19 @@ ROAST LINE .......................................... 762
 │     WHY DON'T YOU JUST TELL ME THE NAME OF THE              │
 │     MOVIE YOU'D LIKE TO SEE?                                │
 │                                                             │
+│     *The REAL 777-FILM number from the 90s!*                │
+│                                                             │
 └─────────────────────────────────────────────────────────────┘
 
-NINTENDO TIP LINE ................................... 847
+NINTENDO TIP LINE ............................... 555-8477 (TIPS)
   Stuck in a video game? Call your Game Counselor!
   Retro classics and modern games.
 
-COLLECT CALL SIMULATOR .............................. 255
+COLLECT CALL SIMULATOR .......................... 555-2655 (COLL)
   "You have a collect call from... THE FUTURE.
    Will you accept the charges?"
 
-TIME TRAVELER'S LINE ................................ 846
+TIME TRAVELER'S LINE ............................ 555-8463 (TRAV)
   Receive calls from different eras!
   1950s operator • 1980s teenager • Future robot
 
@@ -406,19 +409,19 @@ TIME TRAVELER'S LINE ................................ 846
                          UTILITIES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-CALCULATOR .......................................... 225
+CALCULATOR ...................................... 555-2252 (CALC)
   "What's 15% of 87?" • Tip calculator • Unit conversions
 
-TRANSLATOR .......................................... 872
+TRANSLATOR ...................................... 555-8726 (TRAN)
   Translate to Spanish, French, German, and more!
 
-DICTIONARY .......................................... 342
+DICTIONARY ...................................... 555-3428 (DICT)
   Definitions • Etymology • Word of the Day
 
-SPELLING BEE ........................................ 773
+SPELLING BEE .................................... 555-7735 (SPEL)
   Test your spelling! Multiple difficulty levels.
 
-RECIPE LINE ......................................... 732
+RECIPE LINE ..................................... 555-7324 (RECI)
   "What can I make with chicken and rice?"
   Quick recipes and cooking tips.
 
@@ -430,34 +433,34 @@ RECIPE LINE ......................................... 732
 Talk to different AI personalities!
 Ask the Operator to connect you, or dial direct:
 
-THE OPERATOR (Default) .............................. 0
+THE OPERATOR (Default) .......................... 555-0000
   Helpful, professional, vintage telephone demeanor
 
-WISE SAGE ........................................... 924
+WISE SAGE ....................................... 555-7243 (SAGE)
   Philosophical. Contemplative. Ancient wisdom.
 
-COMEDIAN ............................................ 264
+COMEDIAN ........................................ 555-5264 (LAFF)
   Everything's a joke. Quick wit and puns galore.
 
-NOIR DETECTIVE ...................................... 338
+NOIR DETECTIVE .................................. 555-3383 (DETE)
   "She walked into my office like trouble in heels..."
 
-SOUTHERN GRANDMA .................................... 472
+SOUTHERN GRANDMA ................................ 555-4726 (GRAN)
   "Well bless your heart!" Warm and folksy.
 
-ROBOT FROM FUTURE ................................... 768
+ROBOT FROM FUTURE ............................... 555-2687 (BOTT)
   PROCESSING... INITIATING HUMAN INTERACTION PROTOCOL...
 
-VALLEY GIRL (1980s) ................................. 825
+VALLEY GIRL (1980s) ............................. 555-8255 (VALL)
   "Like, oh my god, totally!"
 
-BEATNIK POET ........................................ 738
+BEATNIK POET .................................... 555-7638 (POET)
   *snaps fingers* Everything in verse, daddy-o.
 
-GAME SHOW HOST ...................................... 476
+GAME SHOW HOST .................................. 555-4263 (GAME)
   "Come on down! You're the next contestant!"
 
-CONSPIRACY THEORIST ................................. 267
+CONSPIRACY THEORIST ............................. 555-9427 (XFIL)
   "Think about it... it's all connected, man."
 ```
 
@@ -477,7 +480,7 @@ CONSPIRACY THEORIST ................................. 267
 │                                                             │
 │    "Your time is money. We help with both."                 │
 │                                                             │
-│         Call 411 for the current time!                      │
+│         Call 767-2676 (POPCORN) for the current time!       │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 
@@ -489,7 +492,7 @@ CONSPIRACY THEORIST ................................. 267
 │                                                             │
 │           Tarot • Crystal Ball • Fortunes                   │
 │                                                             │
-│                    DIAL 368-FORT                            │
+│                  Call 555-3678                              │
 │                                                             │
 │        $3.99/min... just kidding, it's FREE!                │
 │                                                             │
@@ -515,7 +518,7 @@ CONSPIRACY THEORIST ................................. 267
 │                                                             │
 │              "Best Slice in Town!"                          │
 │                                                             │
-│                 DIAL 749-PIZA                               │
+│                Call 555-7492                                │
 │                                                             │
 │            Open Late! Free Delivery!*                       │
 │                                                             │
@@ -530,7 +533,7 @@ CONSPIRACY THEORIST ................................. 267
 │                                                             │
 │        Stuck in a game? Call the PROS!                      │
 │                                                             │
-│           NINTENDO TIP LINE: 847                            │
+│           NINTENDO TIP LINE: 555-8477                       │
 │                                                             │
 │     "Our Game Counselors have beaten them ALL"              │
 │                                                             │
@@ -548,47 +551,47 @@ CONSPIRACY THEORIST ................................. 267
 
 LOST & FOUND
 ─────────────────────────────────────────────────────────────────
-LOST: Magic words that unlock secrets. If found, dial 5309.
-      Ask for Jenny.
+LOST: Magic words that unlock secrets. If found, dial 867-5309.
+      Ask for Jenny. *Yes, THAT number!*
 
 FOUND: Blue box near phone booth. Owner can claim by calling
-       2600 and providing the secret frequency.
+       555-2600 and providing the secret frequency.
 
 MISSING: One time traveler. Last seen in 1985. If you have
-         information, dial 846 and leave a message for Doc.
+         information, dial 555-8463 and leave a message for Doc.
 
 
 PERSONALS
 ─────────────────────────────────────────────────────────────────
 SWF seeks meaningful conversation. Must enjoy long talks
-about nothing. Dial 0 and ask for the Operator. - Lonely
+about nothing. Call 555-0000 and ask for the Operator. - Lonely
 
 ROBOT FROM YEAR 2087 seeks human companionship for
-TOTALLY NORMAL ACTIVITIES. Dial 768. - Definitely Human
+TOTALLY NORMAL ACTIVITIES. Dial 555-2687. - Definitely Human
 
 Looking for someone who appreciates dad jokes. Must laugh
-at puns. Call 565 between 9-5. - Pun Enthusiast
+at puns. Call 555-5653 between 9-5. - Pun Enthusiast
 
 
 FOR SALE
 ─────────────────────────────────────────────────────────────────
 VINTAGE PHONE BOOTH - Slightly haunted. $50 OBO.
-Call after midnight. Ask for "The Whisperer."
+Call after midnight. Ask for "The Whisperer." 555-1313
 
 CRYSTAL BALL - Barely used. Shows future but battery dead.
-$25. Dial 368, ask Zelda.
+$25. Call 555-3678, ask Zelda.
 
 
 SERVICES
 ─────────────────────────────────────────────────────────────────
 NEED ADVICE? Don't ask your friends. They don't know either.
-Call a professional: 232-ADVICE
+Call a professional: 555-2384
 
-FEELING DOWN? Let us compliment you! Dial 266.
+FEELING DOWN? Let us compliment you! Dial 555-2667.
 First compliment free. Additional compliments also free.
 
 SECRET DECODER RING CLUB - Members only.
-Dial 7465309 for instructions. Tell them "the eagle flies
+Dial 555-1337 for instructions. Tell them "the eagle flies
 at midnight." (This might not actually work. Or does it?)
 
 
@@ -601,8 +604,8 @@ ATTENTION: If you dial a number and hear modem sounds,
 congratulations! You've found an easter egg. Or you've
 broken something. One of those.
 
-★ SPECIAL ★ Dial your birthday (MMDD) for a surprise!
-  Example: March 15 = 0315
+★ SPECIAL ★ Dial your birthday as 555-MMDD for a surprise!
+  Example: March 15 = 555-0315
 ```
 
 ---
@@ -614,12 +617,13 @@ broken something. One of those.
 │                                                             │
 │                    QUICK REFERENCE                          │
 │                                                             │
-│     OPERATOR .......................... 0                   │
-│     TIME & TEMPERATURE ................ 411                 │
-│     JOKES ............................. 565                 │
-│     WEATHER ........................... 936                 │
-│     TRIVIA ............................ 874                 │
-│     FORTUNE ........................... 368                 │
+│     OPERATOR ........................ 555-0000              │
+│     TIME & TEMPERATURE .............. 767-2676 (POPCORN)    │
+│     JOKES ........................... 555-5653 (JOKE)       │
+│     WEATHER ......................... 555-9328 (WEAT)       │
+│     TRIVIA .......................... 555-8748 (TRIV)       │
+│     MOVIEFONE ....................... 777-3456 (777-FILM)   │
+│     FORTUNE ......................... 555-3678 (FORT)       │
 │                                                             │
 │     ─────────────────────────────────────                   │
 │                                                             │
@@ -644,17 +648,32 @@ broken something. One of those.
 
 *[Internal reference - not printed in actual book]*
 
-| Code | Trigger | Feature |
-|------|---------|---------|
-| 2600 | Phone phreaker reference | Secret menu / hidden features |
-| 5309 | "867-5309 Jenny" song | Jenny easter egg |
-| 7465309 | Longer Jenny reference | Extended Jenny bit |
-| 749 (PIZA) | Joe's Pizza ad | Pizza ordering parody |
-| MMDD | Birthday dial | Birthday greeting |
-| 1337 | Leet speak | Hacker persona |
-| 0000 | All zeros | System test mode |
-| 1234 | Common PIN | "That's the combination an idiot would have on his luggage" |
-| 4815162342 | LOST numbers | Island mystery bit |
+| Number | Reference | Feature |
+|--------|-----------|---------|
+| 555-2600 | Phone phreaker frequency | Secret menu / hidden features |
+| 867-5309 | "867-5309 Jenny" song | Jenny easter egg (the REAL number!) |
+| 555-7492 | Joe's Pizza (PIZA) | Pizza ordering parody |
+| 555-MMDD | Birthday format | Birthday greeting |
+| 555-1337 | Leet speak | Hacker persona |
+| 555-0000 | All zeros (Operator) | Main operator |
+| 555-1234 | Common PIN | "Idiot's luggage" joke |
+| 555-4815 | LOST numbers (partial) | Island mystery bit |
+| 555-1313 | Spooky number | Haunted phone booth |
+
+---
+
+## Future Features (Internal Notes)
+
+### SIP Remote Access
+- External callers can dial in via SIP trunk
+- Same services available remotely
+- Authentication via PIN or caller ID
+
+### Outbound Calling
+- Secret admin code enables outbound calls
+- Route calls through SIP provider
+- Transforms payphone into functional telephone
+- Requires authorization sequence
 
 ---
 
