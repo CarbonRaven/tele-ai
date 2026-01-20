@@ -160,7 +160,7 @@ Based on research of iconic 1980s-1990s telephone services, reimagined for a loc
 
 ## Interactive & Social
 
-### Confession Line (Dial: 266 / CON)
+### Confession Line (Dial: 263 / CNF)
 - Anonymous confessions to the AI
 - AI responds with understanding/absolution
 - "Your secret is safe with me, caller"
@@ -329,30 +329,51 @@ The AI can adopt different personalities for extended interactions:
 
 ## Implementation Priority
 
+### Phase 0 - Minimum Viable Product (MVP)
+**Goal**: Validate the entire voice pipeline works end-to-end before adding features.
+
+1. Basic call answer/hangup detection
+2. Hardcoded greeting playback
+3. DTMF digit detection
+4. **Operator mode only** - test full STT → LLM → TTS pipeline
+5. Graceful hang-up with goodbye message
+
+**Success criteria**: Can pick up phone, have a brief conversation with AI, hang up.
+
 ### Phase 1 - Core Experience
-1. The Operator (main AI conversation)
-2. Time & Temperature
-3. Dial-A-Joke
-4. Weather
-5. Basic menu navigation
+**Goal**: Add navigation and simplest features to validate architecture.
+
+1. Main menu with DTMF navigation
+2. Time & Temperature (no LLM needed - tests TTS/caching)
+3. Dial-A-Joke (tests LLM generation with simple prompts)
+4. Weather (tests external API integration)
+5. Return to menu with `*` key
+
+**Success criteria**: Navigate between features using keypad, each feature works independently.
 
 ### Phase 2 - Entertainment Expansion
-6. Trivia Challenge
-7. Fortune Teller
-8. Story Time
-9. Moviefone Parody
-10. Horoscope
+**Goal**: Expand feature set, refine voice interaction quality.
+
+6. Trivia Challenge (tests multi-turn conversation, scoring)
+7. Fortune Teller (tests persona/voice variation)
+8. Story Time (tests long-form generation, streaming)
+9. Moviefone Parody (tests pre-recorded audio mixing)
+10. Horoscope (tests date-aware content)
 
 ### Phase 3 - Interactive Features
-11. Advice Line
-12. Confession/Vent Line
-13. 20 Questions
-14. Multiple Personas
-15. Interview Mode
+**Goal**: More complex conversational features.
+
+11. Advice Line (tests empathetic responses)
+12. Confession/Vent Line (tests open-ended listening)
+13. 20 Questions (tests game state management)
+14. Multiple Personas (tests prompt switching)
+15. Interview Mode (tests follow-up questions)
 
 ### Phase 4 - Polish & Easter Eggs
+**Goal**: Delight users with discovery and atmosphere.
+
 16. Secret codes and hidden features
-17. Achievements
+17. Achievements system
 18. Holiday modes
-19. Full sound design
-20. Vintage recordings
+19. Full sound design (hold music, vintage sounds)
+20. Vintage recordings as easter eggs
