@@ -271,6 +271,81 @@ The AI can adopt different personalities for extended interactions:
 
 ---
 
+## Phone Book Design
+
+A physical phone book accompanies the payphone, providing an authentic 1990s reference experience.
+
+### Structure
+
+| Section | Content | Color Coding |
+|---------|---------|--------------|
+| **Cover** | Vintage payphone imagery, "AI Payphone Directory" | - |
+| **Instructions** | How to use the payphone, coin slots, basic navigation | - |
+| **White Pages** | Alphabetical listing of all services | White |
+| **Yellow Pages** | Services by category | Yellow |
+| **Blue Pages** | Core services (Operator, Time, Emergency info) | Blue |
+| **Classifieds** | Fake ads with hidden easter egg codes | Newsprint |
+
+### White Pages Format
+
+```
+SERVICE NAME                           DIAL CODE
+─────────────────────────────────────────────────
+Advice Line (Dear Abby) .............. 232-ADV
+Calculator ........................... 225-CAL
+Collect Call Simulator ............... 255-COL
+Compliment Line ...................... 266-COM
+Confession Line ...................... 263-CNF
+...
+```
+
+### Yellow Pages Categories
+
+- **Entertainment**: Jokes, Trivia, Stories, Fortune, Games
+- **Information**: Time, Weather, News, Sports, Horoscope
+- **Advice & Support**: Dear Abby, Compliments, Life Coach, Vent Line
+- **Nostalgia**: Moviefone, Nintendo Tips, Time Traveler, Collect Calls
+- **Utilities**: Calculator, Translator, Dictionary, Recipes
+- **Personas**: Special AI personalities (Dial direct or ask Operator)
+
+### Authentic Design Elements
+
+**Visual Style**
+- Period-appropriate fonts (Helvetica, Times New Roman, Courier)
+- Slightly yellowed/aged paper appearance
+- Red and black ink only (authentic printing limitation)
+- Thin newsprint-style paper
+
+**Advertisements (Fake Sponsors)**
+- "First National Bank - Proud sponsor of Time & Temperature since 1962"
+- "Madame Zelda's Psychic Hotline - She knew you'd call!"
+- "ACME Long Distance - Reach out and save!"
+- "Joe's Pizza - Dial 749-PIZZA" (easter egg: actually works)
+
+**Easter Egg Integration**
+- Hidden numbers in ad phone numbers
+- "Handwritten" notes in margins ("Call 2600 for secrets")
+- Torn/missing page corner revealing partial number
+- Classified ad: "Lost: Magic words. If found, dial 5309"
+- Fake "Out of Service" numbers that actually connect to hidden features
+
+### Phone Book Props
+
+**Wear and Tear**
+- Coffee ring stains
+- Dogeared pages
+- Highlighter marks on popular services
+- Pen scribbles and doodles
+- "For a good time call..." graffiti
+
+**Inserts**
+- Folded paper with "cheat codes"
+- Old calling card (non-functional prop)
+- Faded receipt from fictional business
+- Polaroid photo tucked in pages
+
+---
+
 ## Audio & Atmosphere
 
 ### Sound Design
