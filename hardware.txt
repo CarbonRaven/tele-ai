@@ -1,0 +1,8 @@
+
+### Hardware
+- Raspberry Pi AI HAT+ 2
+- Raspberry Pi 5/16GB
+- Raspberry Pi 5/16GB
+- 5-port gigabit switch
+- Grandstream HT801 v2
+- Payphone
