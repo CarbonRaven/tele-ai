@@ -245,6 +245,54 @@ Video games have featured phone numbers as cheat codes, easter eggs, and plot de
 | **580-504-0879** | *SpongeBob SquarePants* games | 2000s | Krusty Krab number |
 | **707-663-4279** | *SpongeBob* promo | 2019 | REAL "Save Gary" hotline |
 
+### Cyberpunk 2077 (Phantom Liberty)
+
+Dialable numbers on a landline in the Captain Caliente restaurant:
+
+| Phone Number | Effect |
+|--------------|--------|
+| **574-555-2377** | Plays *The Witcher 3* theme |
+| **617-555-6277** | Plays "Never Fade Away" - Johnny Silverhand gives thumbs up |
+| **800-18135** | Plays a juvenile "Boobies" joke |
+
+### Saints Row 2 (Cell Phone Cheats)
+
+| Code | Effect |
+|------|--------|
+| **#1** | Refill Health |
+| **#2274666399** (#cashmoneyz) | Gives $1,000 |
+| **#12** | Heaven Bound (corpses float) |
+| **#78669** | Clear Skies |
+
+### Batman: Arkham Shadow (VR)
+
+| Phone Number | Location |
+|--------------|----------|
+| **(455) 555-8173** | Near the Museum |
+| **(455) 555-7281** | Switch character point in the Bowery |
+| **(455) 555-9112** | Outside TYGER Inmate Behavior Analysis Unit |
+
+### Metal Gear Solid (More Codec Frequencies)
+
+| Frequency | Character |
+|-----------|-----------|
+| **140.85** | Colonel Campbell |
+| **140.96** | Mei Ling (Save Game) |
+| **140.15** | Meryl Silverburgh (famously on back of physical CD case) |
+| **140.48** | Deep Throat (Gray Fox) |
+
+### Other Notable Video Game Numbers
+
+| Phone Number | Game | Description |
+|--------------|------|-------------|
+| **1-888-447-5594** | *God of War* (2005) | REAL number - Kratos and David Jaffe arguing |
+| **270-301-5797** | *Kentucky Route Zero* | REAL "Bureau of Secret Tourism" audio drama extension |
+| **1-661-320-4146** | *Dying Light* | REAL taxi number in Harran - distress signal promo |
+| **1-800-555-TLOU** | *The Last of Us* | Pest control poster (typo once linked to adult line!) |
+| **0451** | *Deus Ex* series | Famous keypad code (*Fahrenheit 451* reference) - immersive sim tradition |
+| **555-3750 / 555-4890** | *Silent Hill 4: The Room* | Bar puzzle numbers |
+| **65810-29** | *Yakuza 0* | Pager code - "Dragon & Tiger Weapon" (*goroawase* wordplay) |
+
 ---
 
 ## Wrestling Hotlines (1-900 Numbers)
