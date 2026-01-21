@@ -2,18 +2,43 @@
 
 Complete setup guide for the AI Payphone voice pipeline.
 
+## Quick Start (Automated Install)
+
+For Raspberry Pi 5 with OS and AI HAT already configured:
+
+```bash
+# Clone the repository
+git clone <repo-url> ~/tele-ai
+cd ~/tele-ai/payphone-app
+
+# Run the install script
+chmod +x install.sh
+./install.sh
+
+# Start the service
+sudo systemctl start payphone
+```
+
+The install script handles everything: system dependencies, Python environment, model downloads, configuration, and systemd service setup.
+
+For manual installation or customization, follow the detailed steps below.
+
+---
+
 ## Table of Contents
 
-1. [Hardware Overview](#hardware-overview)
-2. [Network Architecture](#network-architecture)
-3. [Raspberry Pi Setup](#raspberry-pi-setup)
-4. [Python Environment](#python-environment)
-5. [Model Downloads](#model-downloads)
-6. [Ollama Setup](#ollama-setup)
-7. [FreePBX/Asterisk Setup](#freepbxasterisk-setup)
-8. [Running the Application](#running-the-application)
-9. [Testing](#testing)
-10. [Troubleshooting](#troubleshooting)
+1. [Quick Start](#quick-start-automated-install)
+2. [Hardware Overview](#hardware-overview)
+3. [Network Architecture](#network-architecture)
+4. [Raspberry Pi Setup](#raspberry-pi-setup)
+5. [Python Environment](#python-environment)
+6. [Model Downloads](#model-downloads)
+7. [Ollama Setup](#ollama-setup)
+8. [FreePBX Configuration](#freepbx-configuration)
+9. [HT801 ATA Configuration](#ht801-ata-configuration)
+10. [Running the Application](#running-the-application)
+11. [Testing](#testing)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
