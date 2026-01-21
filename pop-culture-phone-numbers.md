@@ -210,6 +210,9 @@ Video games have featured phone numbers as cheat codes, easter eggs, and plot de
 | **1-999-289-9633** | Spawn Helicopter | BUZZOFF |
 | **1-999-547-861** | Drunk Mode | LIQUOR |
 | **1-999-228-2463** | Fast Run | CATCHME |
+| **1-999-356-2837** | Moon Gravity | FLOATER |
+| **1-999-766-9329** | Slippery Cars (Drifting) | SNOWDAY |
+| **1-999-367-3767** | EMP Drop / Black Phone | - |
 
 **GTA IV (2008)** - Cheat codes:
 
@@ -219,7 +222,13 @@ Video games have featured phone numbers as cheat codes, easter eggs, and plot de
 | **(267) 555-0100** | Clear Wanted Level |
 | **(486) 555-0100** | Advanced Weapons |
 | **(359) 555-0100** | Spawn Annihilator Helicopter |
+| **(486) 555-0150** | Basic Weapons |
+| **(227) 555-0175** | Spawn Comet Sports Car |
+| **(227) 555-0168** | Spawn Super GT |
+| **(938) 555-0100** | Spawn Jetmax Boat |
 | **948-555-0100** | ZiT Song Identification Service |
+| **555-2222** | Roman's Express Car Service |
+| **611-555-0195** | Prank Call Response ("You're a creep") |
 
 ### Other Video Games
 
@@ -229,6 +238,10 @@ Video games have featured phone numbers as cheat codes, easter eggs, and plot de
 | **140.07** | *Metal Gear Solid* | 1998 | Codec frequency for developer commentary |
 | **140.66** | *Metal Gear Solid* | 1998 | Hidden frequency playing "Theme of Solid Snake" |
 | **555-3663 (FONE)** | *Silent Hill: Shattered Memories* | 2009 | Cine-Fone easter egg |
+| **555-4663 (HOME)** | *Silent Hill: Shattered Memories* | 2009 | Calls home (Cheryl) |
+| **555-7399 (SEXY)** | *Silent Hill: Shattered Memories* | 2009 | Dahlia Gillespie |
+| **555-7669 (SNOW)** | *Silent Hill: Shattered Memories* | 2009 | Weather Service |
+| **220-8330 or 573** | *Silent Hill: Shattered Memories* | 2009 | Konami support easter egg: "You are beyond even our help" |
 | **580-504-0879** | *SpongeBob SquarePants* games | 2000s | Krusty Krab number |
 | **707-663-4279** | *SpongeBob* promo | 2019 | REAL "Save Gary" hotline |
 
@@ -356,6 +369,9 @@ The 1-900 psychic hotline industry was worth hundreds of millions annually at it
 | **00100100** | *Futurama* | Bender's apartment (Binary for 36, ASCII for $) |
 | **1729** | *Futurama* | Bender's unit number (Hardy-Ramanujan number) |
 | **555-2868** | *Beavis and Butt-Head* | Their home number |
+| **1-900-LICK** | *Beavis and Butt-Head* | Phone sex hotline they famously called |
+| **401-555-0116** | *Family Guy* | Brian Griffin's cell phone |
+| **1-800-Propane** | *King of the Hill* | Hank Hill's preferred business number |
 
 ---
 
@@ -469,6 +485,8 @@ Before smartphones, millions called these numbers daily to get the exact time.
 | **(323) 310-5332** | *The Substance* | 2024 | Promotional hotline |
 | **1-207-404-2604** | *Carrie* (2013 remake) | 2013 | Would call you back |
 | **090-4444-4444** | *Ringu* (Japan) | 1998 | "Sadako Number" urban legend |
+| **(303) 529-2166** | *The Black Phone* | 2022 | The Grabber's marketing number; Denver area code matches film setting |
+| **1-833-578-0158** | *Five Nights at Freddy's* | 2023 | "Help Wanted" poster number; plays music box melody and scream |
 
 ---
 
