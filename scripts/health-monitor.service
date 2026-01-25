@@ -1,0 +1,15 @@
+[Unit]
+Description=tele-ai Health Monitor
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/tele-ai/scripts/health-monitor.py --watch --log --interval 30
+Restart=always
+RestartSec=10
+StandardOutput=null
+
+# Log rotation handled by logrotate or journald
+
+[Install]
+WantedBy=multi-user.target
