@@ -48,12 +48,14 @@ For manual installation or customization, follow the detailed steps below.
 
 | Component | Model | Purpose |
 |-----------|-------|---------|
-| Compute Node 1 | Raspberry Pi 5 (16GB) | Voice pipeline (STT, TTS, VAD) |
-| Compute Node 2 | Raspberry Pi 5 (16GB) | LLM inference via Ollama |
-| AI Accelerator | Raspberry Pi AI HAT+ 2 (Hailo-10H) | Optional: Hardware acceleration |
+| Pi #1 (pi-voice) | Raspberry Pi 5 (16GB) + **AI HAT+ 2** | Voice pipeline: Hailo-accelerated Whisper STT, Piper TTS, VAD, Asterisk |
+| Pi #2 (pi-ollama) | Raspberry Pi 5 (16GB) | LLM server: Standard Ollama with qwen2.5:3b |
+| AI Accelerator | Raspberry Pi AI HAT+ 2 (Hailo-10H, 40 TOPS) | Whisper STT acceleration on Pi #1 |
 | Network Switch | 5-port Gigabit | Internal network |
 | ATA | Grandstream HT801 v2 | Converts analog phone to SIP |
 | Phone | Payphone | User interface |
+
+**Architecture Note**: The AI HAT+ 2 is used exclusively for Whisper STT acceleration on Pi #1. Standard Ollama runs on Pi #2 for access to larger (3B+) models with better response quality.
 
 ### Physical Connections
 
@@ -71,7 +73,9 @@ For manual installation or customization, follow the detailed steps below.
             │              │              │
      ┌──────▼──────┐ ┌─────▼─────┐ ┌──────▼──────┐
      │   Pi 5 #1   │ │  Pi 5 #2  │ │   Router    │
-     │ (Pipeline)  │ │  (Ollama) │ │ (Optional)  │
+     │  pi-voice   │ │ pi-ollama │ │ (Optional)  │
+     │ + AI HAT+2  │ │           │ │             │
+     │ 192.168.1.10│ │192.168.1.11│ │             │
      └─────────────┘ └───────────┘ └─────────────┘
 ```
 
@@ -81,21 +85,23 @@ For manual installation or customization, follow the detailed steps below.
 
 ### IP Address Assignments
 
-| Device | IP Address | Port(s) |
-|--------|------------|---------|
-| Pi 5 #1 (Pipeline) | 192.168.1.10 | 9092 (AudioSocket) |
-| Pi 5 #2 (Ollama) | 192.168.1.11 | 11434 (Ollama API) |
-| HT801 ATA | 192.168.1.20 | 5060 (SIP) |
-| FreePBX (if separate) | 192.168.1.30 | 5060, 5160 |
+| Device | Hostname | IP Address | Role |
+|--------|----------|------------|------|
+| Pi 5 #1 | pi-voice | 192.168.1.10 | Voice pipeline + Hailo Whisper STT |
+| Pi 5 #2 | pi-ollama | 192.168.1.11 | LLM server (standard Ollama) |
+| HT801 ATA | ata | 192.168.1.20 | Payphone SIP adapter |
 
 ### Port Reference
 
-| Port | Protocol | Service |
-|------|----------|---------|
-| 9092 | TCP | AudioSocket (voice pipeline) |
-| 11434 | HTTP | Ollama API |
-| 5060 | UDP | SIP signaling |
-| 10000-20000 | UDP | RTP media |
+| Port | Protocol | Host | Service |
+|------|----------|------|---------|
+| 9092 | TCP | pi-voice | AudioSocket (voice pipeline entry) |
+| 10300 | TCP | pi-voice | Wyoming Whisper (Hailo-accelerated) |
+| 10200 | TCP | pi-voice | Wyoming Piper TTS |
+| 10400 | TCP | pi-voice | Wyoming openWakeWord |
+| 5060 | UDP | pi-voice | SIP signaling (Asterisk) |
+| 10000-20000 | UDP | pi-voice | RTP media |
+| 11434 | HTTP | pi-ollama | Ollama API (qwen2.5:3b) |
 
 ---
 
@@ -151,18 +157,38 @@ For manual installation or customization, follow the detailed steps below.
    sudo reboot
    ```
 
-### AI HAT+ 2 Setup (Optional - Pi 5 #1)
+### AI HAT+ 2 Setup (Required - Pi 5 #1 only)
 
-If using the Hailo AI HAT+ 2 for hardware acceleration:
+The AI HAT+ 2 provides Hailo-10H NPU acceleration for Whisper STT on Pi #1. This frees the CPU for TTS and audio processing.
 
 ```bash
-# Install Hailo runtime
-wget https://hailo.ai/downloads/hailo-rpi5-runtime.deb
-sudo dpkg -i hailo-rpi5-runtime.deb
+# Enable PCIe Gen 3 for best performance
+sudo raspi-config
+# Advanced Options → PCIe Speed → Gen 3
+# Reboot when prompted
 
-# Verify installation
-hailortcli info
+# Install Hailo runtime and drivers
+sudo apt update
+sudo apt install -y hailo-all
+
+# Verify Hailo device is detected
+lspci | grep Hailo
+hailortcli fw-control identify
+
+# Install Wyoming Hailo Whisper server
+# (This provides the Hailo-accelerated Whisper endpoint on port 10300)
+sudo apt install -y wyoming-hailo-whisper
+
+# Enable and start the service
+sudo systemctl enable wyoming-hailo-whisper
+sudo systemctl start wyoming-hailo-whisper
+
+# Verify Wyoming Whisper is running
+systemctl status wyoming-hailo-whisper
+nc -zv localhost 10300  # Should connect
 ```
+
+**Note**: Pi #2 (pi-ollama) does not need the AI HAT+ 2 - it runs standard Ollama on CPU.
 
 ---
 
@@ -208,29 +234,30 @@ hailortcli info
 
 ## Model Downloads
 
-### Whisper Model (STT)
+### Whisper Model (STT) - Pi #1
 
-The faster-whisper model downloads automatically on first use. To pre-download:
+The recommended setup uses Hailo-accelerated Whisper via the Wyoming protocol. The model is managed by the `wyoming-hailo-whisper` service installed above.
+
+**If Wyoming/Hailo is unavailable**, the application falls back to faster-whisper on CPU:
 
 ```bash
-# Activate venv
+# Activate venv (only needed for CPU fallback)
 source ~/tele-ai/payphone-app/venv/bin/activate
 
-# Pre-download model
+# Pre-download fallback model
 python -c "
 from faster_whisper import WhisperModel
-model = WhisperModel('distil-whisper/distil-large-v3', device='cpu', compute_type='int8')
-print('Whisper model downloaded')
+model = WhisperModel('base', device='cpu', compute_type='int8')
+print('Whisper fallback model downloaded')
 "
 ```
 
-Model sizes:
-| Model | Size | RAM Required |
-|-------|------|--------------|
-| tiny | ~75MB | ~1GB |
-| base | ~145MB | ~1GB |
-| small | ~465MB | ~2GB |
-| distil-large-v3 | ~1.5GB | ~4GB |
+Fallback model sizes:
+| Model | Size | RAM Required | Notes |
+|-------|------|--------------|-------|
+| tiny | ~75MB | ~1GB | Fastest, lower accuracy |
+| base | ~145MB | ~1GB | Good balance (recommended fallback) |
+| small | ~465MB | ~2GB | Better accuracy, slower |
 
 ### Silero VAD
 
@@ -561,20 +588,26 @@ fwconsole reload
    DEBUG=false
    LOG_LEVEL=INFO
 
-   # AudioSocket Server
+   # AudioSocket Server (Pi #1 voice pipeline entry point)
    AUDIO_AUDIOSOCKET_HOST=0.0.0.0
    AUDIO_AUDIOSOCKET_PORT=9092
 
-   # Speech-to-Text
-   STT_MODEL_NAME=distil-whisper/distil-large-v3
-   STT_DEVICE=cpu
+   # Speech-to-Text (Hailo-accelerated via Wyoming on Pi #1)
+   # The app auto-detects Wyoming/Hailo and falls back to faster-whisper
+   STT_DEVICE=hailo
+   STT_WYOMING_HOST=localhost
+   STT_WYOMING_PORT=10300
+   # Fallback settings if Wyoming unavailable:
+   STT_MODEL_NAME=base
    STT_COMPUTE_TYPE=int8
 
-   # LLM (point to Pi 5 #2)
+   # LLM (Standard Ollama on Pi #2)
    LLM_HOST=http://192.168.1.11:11434
    LLM_MODEL=qwen2.5:3b
+   LLM_TEMPERATURE=0.7
+   LLM_MAX_TOKENS=150
 
-   # TTS
+   # TTS (Kokoro on Pi #1)
    TTS_MODEL_PATH=kokoro-v1.0.onnx
    TTS_VOICES_PATH=voices-v1.0.bin
    TTS_VOICE=af_bella
@@ -588,21 +621,29 @@ source venv/bin/activate
 python main.py
 ```
 
-Expected output:
+Expected output (with Hailo-accelerated Whisper):
 
 ```
 2024-01-20 10:00:00 - INFO - Starting AI Payphone application...
 2024-01-20 10:00:00 - INFO - Registered features: ['operator', 'jokes']
 2024-01-20 10:00:01 - INFO - Loading Silero VAD...
 2024-01-20 10:00:02 - INFO - Silero VAD model loaded successfully
-2024-01-20 10:00:02 - INFO - Loading Whisper model: distil-whisper/distil-large-v3...
-2024-01-20 10:00:15 - INFO - faster-whisper model loaded successfully
-2024-01-20 10:00:15 - INFO - Connecting to Ollama: qwen2.5:3b...
-2024-01-20 10:00:16 - INFO - Ollama client initialized
-2024-01-20 10:00:16 - INFO - Loading Kokoro TTS...
-2024-01-20 10:00:18 - INFO - Kokoro TTS model loaded successfully
-2024-01-20 10:00:18 - INFO - All services initialized successfully
-2024-01-20 10:00:18 - INFO - AudioSocket server listening on 0.0.0.0:9092
+2024-01-20 10:00:02 - INFO - Connected to Wyoming Whisper at localhost:10300
+2024-01-20 10:00:02 - INFO - Using Hailo-accelerated Whisper via Wyoming at localhost:10300
+2024-01-20 10:00:02 - INFO - Connecting to Ollama at http://192.168.1.11:11434...
+2024-01-20 10:00:03 - INFO - Ollama client initialized (model: qwen2.5:3b)
+2024-01-20 10:00:03 - INFO - Loading Kokoro TTS...
+2024-01-20 10:00:05 - INFO - Kokoro TTS model loaded successfully
+2024-01-20 10:00:05 - INFO - All services initialized successfully
+2024-01-20 10:00:05 - INFO - AudioSocket server listening on 0.0.0.0:9092
+```
+
+If Wyoming/Hailo is unavailable, you'll see the fallback to faster-whisper:
+
+```
+2024-01-20 10:00:02 - WARNING - Hailo Wyoming unavailable: Cannot connect...
+2024-01-20 10:00:02 - INFO - Loading faster-whisper model: base...
+2024-01-20 10:00:10 - INFO - Using faster-whisper (CPU) for STT
 ```
 
 ### Run as Systemd Service
@@ -749,15 +790,27 @@ sudo systemctl disable avahi-daemon
 
 ## Quick Start Checklist
 
-- [ ] Flash Pi OS on both SD cards
-- [ ] Set static IPs (192.168.1.10, 192.168.1.11)
-- [ ] Install Ollama on Pi #2
-- [ ] Pull qwen2.5:3b model
-- [ ] Clone repo on Pi #1
-- [ ] Create venv and install dependencies
+### Pi #1 (pi-voice) - Voice Pipeline + AI HAT+ 2
+- [ ] Flash Pi OS (64-bit Bookworm)
+- [ ] Set static IP: 192.168.1.10
+- [ ] Enable PCIe Gen 3 (raspi-config)
+- [ ] Install Hailo drivers (`sudo apt install hailo-all`)
+- [ ] Install Wyoming Hailo Whisper (`sudo apt install wyoming-hailo-whisper`)
+- [ ] Verify Hailo with `hailortcli fw-control identify`
+- [ ] Clone repo and run `install.sh`
 - [ ] Download Kokoro model files
-- [ ] Configure .env
-- [ ] Install/configure Asterisk
-- [ ] Configure HT801 ATA
+- [ ] Configure .env (points to Pi #2 for LLM)
+- [ ] Install/configure Asterisk with AudioSocket dialplan
 - [ ] Start payphone service
-- [ ] Test with phone call
+
+### Pi #2 (pi-ollama) - LLM Server
+- [ ] Flash Pi OS (64-bit Bookworm)
+- [ ] Set static IP: 192.168.1.11
+- [ ] Install Ollama (`curl -fsSL https://ollama.com/install.sh | sh`)
+- [ ] Configure Ollama for network access (OLLAMA_HOST=0.0.0.0)
+- [ ] Pull qwen2.5:3b model
+
+### Network & Telephony
+- [ ] Configure HT801 ATA (192.168.1.20)
+- [ ] Test from Pi #1: `curl http://192.168.1.11:11434/api/tags`
+- [ ] Test with phone call to extension 2255

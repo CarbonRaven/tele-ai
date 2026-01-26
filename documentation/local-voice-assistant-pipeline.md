@@ -34,9 +34,13 @@ The pipeline can be deployed as a standalone Python application, integrated with
 | Component | Tool | Port (Wyoming) | Hardware Acceleration |
 |-----------|------|----------------|----------------------|
 | Wake Word | openWakeWord | 10400 | CPU (15-20 models on Pi 3 core) |
-| STT | Whisper | 10300 | Hailo AI HAT+ 2 (optional) |
-| LLM | Ollama | 11434 | Hailo AI HAT+ 2 (optional) |
+| STT | Whisper | 10300 | **Hailo AI HAT+ 2 (recommended)** |
+| LLM | Ollama | 11434 | CPU (dedicated Pi recommended) |
 | TTS | Piper | 10200 | CPU (1.6s voice per second on Pi 4) |
+
+**Recommended Dual-Pi Architecture:**
+- **Pi #1**: Hailo-accelerated Whisper STT + Piper TTS + openWakeWord (frees CPU for audio processing)
+- **Pi #2**: Standard Ollama with 3B+ models (full 16GB RAM available for LLM)
 
 ---
 
@@ -266,8 +270,13 @@ volumes:
 
 ### Adding Ollama for Conversations
 
-1. **Install Ollama**:
+For best performance, run Ollama on a dedicated Pi (Pi #2) separate from the voice pipeline.
+
+1. **Install Ollama on Pi #2**:
 ```bash
+# SSH to Pi #2 (pi-ollama)
+ssh pi@192.168.1.11
+
 curl -fsSL https://ollama.com/install.sh | sh
 ollama pull qwen2.5:3b
 ```
@@ -283,6 +292,11 @@ Environment="OLLAMA_HOST=0.0.0.0"
 
 # Restart
 sudo systemctl restart ollama
+```
+
+3. **Verify from Pi #1**:
+```bash
+curl http://192.168.1.11:11434/api/tags
 ```
 
 3. **Add Ollama Integration in Home Assistant**:
@@ -442,9 +456,33 @@ docker run -d \
   wyoming-hailo-whisper
 ```
 
-### LLM on Hailo
+### LLM Architecture Options
 
-For small LLMs accelerated by Hailo-10H:
+#### Recommended: Standard Ollama on Dedicated Pi
+
+For best model quality and flexibility, run standard Ollama on a separate Raspberry Pi 5:
+
+```bash
+# On Pi #2 (dedicated LLM server)
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Configure for network access
+sudo systemctl edit ollama
+# Add: Environment="OLLAMA_HOST=0.0.0.0"
+
+sudo systemctl restart ollama
+ollama pull qwen2.5:3b  # Or larger models
+```
+
+**Benefits:**
+- Full 16GB RAM available for LLM (no competition with STT/TTS)
+- Support for 3B+ models with better response quality
+- Standard Ollama API compatibility
+- AI HAT+ 2 free for Whisper STT acceleration on Pi #1
+
+#### Alternative: hailo-ollama (Hailo-accelerated LLM)
+
+For single-Pi deployments or smaller models:
 
 ```bash
 # Start hailo-ollama server
@@ -462,6 +500,8 @@ curl http://localhost:8000/api/chat \
     "messages": [{"role": "user", "content": "Hello"}]
   }'
 ```
+
+**Note:** hailo-ollama is limited to ~1.5B models due to Hailo-10H's 8GB LPDDR4X memory. For better response quality, use standard Ollama with 3B+ models on a dedicated Pi.
 
 ---
 
@@ -563,8 +603,13 @@ print(f"Transcribed: {transcript}")
 |-------|----------|------------------|
 | **Budget** | Raspberry Pi 4 (4GB) | 5-10s total |
 | **Balanced** | Raspberry Pi 5 (8GB) | 3-5s total |
-| **Optimal** | Pi 5 + AI HAT+ 2 | 2-4s total |
+| **Optimal** | Pi 5 + AI HAT+ 2 (single Pi) | 2-4s total |
+| **Recommended** | 2x Pi 5 (16GB) + AI HAT+ 2 | 1.5-3s total |
 | **Best** | Mini PC + GPU | <2s total |
+
+**Recommended Dual-Pi Configuration:**
+- **Pi #1 (pi-voice)**: AI HAT+ 2 for Whisper STT + Piper TTS + VAD
+- **Pi #2 (pi-ollama)**: Standard Ollama with qwen2.5:3b (full 16GB for LLM)
 
 ### Optimization Tips
 

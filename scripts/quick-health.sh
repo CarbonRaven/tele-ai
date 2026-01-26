@@ -1,5 +1,6 @@
 #!/bin/bash
 # Quick one-liner health check for tele-ai
+# For Pi #1 (pi-voice) with AI HAT+ 2
 # Usage: ./quick-health.sh
 
 set -e

@@ -54,15 +54,28 @@ class VADSettings(BaseSettings):
 
 
 class STTSettings(BaseSettings):
-    """Speech-to-Text configuration."""
+    """Speech-to-Text configuration.
+
+    Supports two backends:
+    1. Hailo-accelerated Whisper via Wyoming protocol (recommended for Pi #1)
+    2. faster-whisper for CPU-only fallback
+
+    Set device="hailo" to force Wyoming backend, or let it auto-detect.
+    """
 
     model_config = SettingsConfigDict(env_prefix="STT_")
 
-    # faster-whisper model (HuggingFace repo ID or local path)
+    # Device: "hailo" for Wyoming/Hailo, "cpu"/"cuda"/"auto" for faster-whisper
+    device: Literal["cpu", "cuda", "auto", "hailo"] = "hailo"
+
+    # Wyoming server settings (for Hailo-accelerated Whisper on Pi #1)
+    wyoming_host: str = "localhost"
+    wyoming_port: int = 10300
+
+    # faster-whisper model (fallback when Wyoming unavailable)
     # Options: "tiny", "base", "small", "medium", "large-v2", "large-v3"
-    #          or HuggingFace: "distil-whisper/distil-large-v3", "Systran/faster-distil-whisper-large-v3"
-    model_name: str = "distil-whisper/distil-large-v3"
-    device: Literal["cpu", "cuda", "auto"] = "cpu"
+    #          or HuggingFace: "distil-whisper/distil-large-v3"
+    model_name: str = "base"
     compute_type: Literal["int8", "float16", "float32", "auto"] = "int8"
 
     # Transcription settings
@@ -73,12 +86,17 @@ class STTSettings(BaseSettings):
 
 
 class LLMSettings(BaseSettings):
-    """Language Model configuration."""
+    """Language Model configuration.
+
+    Standard Ollama runs on Pi #2 (192.168.1.11) for better model flexibility.
+    Supports 3B+ models with full 16GB RAM available.
+    """
 
     model_config = SettingsConfigDict(env_prefix="LLM_")
 
-    # Ollama settings
-    host: str = "http://localhost:11434"
+    # Ollama settings - default to Pi #2 (pi-ollama)
+    # Change to localhost:11434 if running single-Pi setup
+    host: str = "http://192.168.1.11:11434"
     model: str = "qwen2.5:3b"
 
     # Generation parameters
@@ -87,7 +105,7 @@ class LLMSettings(BaseSettings):
     max_tokens: int = 150  # Keep responses concise for phone
     timeout: float = 10.0  # Timeout in seconds
 
-    # Keep model loaded
+    # Keep model loaded (prevent unloading between calls)
     keep_alive: str = "24h"
 
 

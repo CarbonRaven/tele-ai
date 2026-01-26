@@ -15,9 +15,9 @@ Technical architecture for the AI Payphone project - a self-contained, locally-h
 │   │           │      │Grandstream│      │      Raspberry Pi Cluster     │  │
 │   │  PAYPHONE │─────▶│  HT801    │─────▶│  ┌─────────┐   ┌─────────┐   │  │
 │   │           │ RJ11 │   ATA     │  SIP │  │  Pi 5   │   │  Pi 5   │   │  │
-│   │  Handset  │      │           │      │  │ + HAT+2 │   │(Backup) │   │  │
+│   │  Handset  │      │           │      │  │ + HAT+2 │   │ (LLM)   │   │  │
 │   │  Keypad   │      │           │      │  │         │   │         │   │  │
-│   │  Coin Mech│      └───────────┘      │  │ AI Core │   │ FreePBX │   │  │
+│   │  Coin Mech│      └───────────┘      │  │ Voice   │   │ Ollama  │   │  │
 │   └───────────┘                         │  └─────────┘   └─────────┘   │  │
 │                                         └───────────────────────────────┘  │
 │                                                      │                      │
@@ -35,16 +35,61 @@ Technical architecture for the AI Payphone project - a self-contained, locally-h
 
 | Component | Model | Purpose | Qty |
 |-----------|-------|---------|-----|
-| Single Board Computer | Raspberry Pi 5 (16GB) | AI processing, telephony, voice pipeline | 1 |
-| AI Accelerator | Raspberry Pi AI HAT+ 2 | Hailo-10H NPU for Whisper/LLM | 1 |
+| Pi #1 (Voice Pipeline) | Raspberry Pi 5 (16GB) | Whisper STT, Piper TTS, VAD, Asterisk | 1 |
+| Pi #2 (LLM Server) | Raspberry Pi 5 (16GB) | Ollama with qwen2.5:3b | 1 |
+| AI Accelerator | Raspberry Pi AI HAT+ 2 | Hailo-10H NPU for Whisper STT (Pi #1 only) | 1 |
 | Analog Telephone Adapter | Grandstream HT801 v2 | Payphone to SIP bridge | 1 |
 | Network Switch | 5-port Gigabit | Internal network | 1 |
 | Telephone | Vintage Payphone | User interface | 1 |
-| *Optional: Second Pi* | Raspberry Pi 5 (16GB) | Scale-out for HA/performance | 0-1 |
 
-### Recommended: Single Pi Configuration
+### Recommended: Dual Pi Configuration
 
-The Pi 5 16GB with AI HAT+ 2 has sufficient resources for all services. This is the recommended starting point - simpler to debug, lower latency (no network hops), and more cost-effective.
+Two Pi 5s provide the best balance of performance and model quality. Pi #1 handles voice processing with Hailo-accelerated Whisper, while Pi #2 runs standard Ollama for larger/better LLMs.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│            PI 5 #1 - VOICE PIPELINE (pi-voice)                  │
+│                    (with AI HAT+ 2)                             │
+│                    192.168.1.10                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  • Whisper STT (Hailo-10H accelerated) - port 10300             │
+│  • Silero VAD (CPU)                                             │
+│  • Piper TTS (CPU) - port 10200                                 │
+│  • openWakeWord (CPU) - port 10400                              │
+│  • Asterisk / AudioSocket server - port 9092                    │
+│  • Application logic & feature services                         │
+├─────────────────────────────────────────────────────────────────┤
+│  AI HAT+ 2 Usage: Whisper STT acceleration only                 │
+│  This frees the CPU for TTS, VAD, and audio processing          │
+└─────────────────────────────────────────────────────────────────┘
+           │
+           │ HTTP (LLM queries)
+           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│            PI 5 #2 - LLM SERVER (pi-ollama)                     │
+│                    (no AI HAT needed)                           │
+│                    192.168.1.11                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  • Ollama (standard, CPU-based) - port 11434                    │
+│  • Model: qwen2.5:3b (recommended)                              │
+│  • Full 16GB RAM available for larger models                    │
+├─────────────────────────────────────────────────────────────────┤
+│  Benefits of separate LLM server:                               │
+│  • Can run 3B+ models (better response quality)                 │
+│  • Standard Ollama (stable, well-tested)                        │
+│  • Easy model swapping without affecting voice pipeline         │
+│  • Isolates resource-heavy LLM from latency-sensitive audio     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Why not hailo-ollama?** The AI HAT+ 2 is optimized for 1.5B parameter models. Standard Ollama on a dedicated Pi #2 can run 3B models with better response quality. The Hailo NPU is better utilized accelerating Whisper STT, which benefits more from offloading to the NPU.
+
+### Alternative: Single Pi Configuration
+
+For cost-constrained deployments, a single Pi 5 with AI HAT+ 2 can run everything using hailo-ollama. Trade-offs:
+- Limited to 1.5B parameter LLMs (reduced response quality)
+- hailo-ollama is less mature than standard Ollama
+- CPU contention between TTS and other services
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -54,44 +99,14 @@ The Pi 5 16GB with AI HAT+ 2 has sufficient resources for all services. This is 
 │  Services:                                                      │
 │  • Asterisk (lightweight, no FreePBX GUI needed)                │
 │  • Whisper STT (Hailo-accelerated)                              │
-│  • Ollama LLM (Hailo/CPU hybrid)                                │
-│  • Piper TTS                                                    │
+│  • hailo-ollama LLM (Hailo-accelerated, 1.5B models only)       │
+│  • Piper TTS (CPU)                                              │
 │  • Application service                                          │
-│  • DTMF detection                                               │
 ├─────────────────────────────────────────────────────────────────┤
-│  Benefits:                                                      │
-│  • Lower latency (no network hop between AI and telephony)      │
-│  • Simpler debugging and deployment                             │
-│  • Reduced power consumption and cost                           │
-│  • Fewer failure points                                         │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Alternative: Dual Pi Configuration
-
-Scale to two Pi 5s only if performance proves insufficient or for high-availability requirements:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    PI 5 #1 - AI CORE                            │
-│                    (with AI HAT+ 2)                             │
-├─────────────────────────────────────────────────────────────────┤
-│  • Whisper STT (Hailo-accelerated)                              │
-│  • Ollama LLM (Hailo-accelerated for small models)              │
-│  • Piper TTS                                                    │
-│  • Application logic & feature services                         │
-│  • Audio processing pipeline                                    │
-└─────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────┐
-│                    PI 5 #2 - TELEPHONY                          │
-├─────────────────────────────────────────────────────────────────┤
-│  • Asterisk (or FreePBX if GUI needed)                          │
-│  • SIP server for HT801                                         │
-│  • Call routing & dialplan                                      │
-│  • AudioSocket bridge to AI Core                                │
-│  • DTMF detection                                               │
-│  • Call recording (optional)                                    │
+│  Trade-offs:                                                    │
+│  • Lower LLM quality (1.5B vs 3B models)                        │
+│  • Less mature software stack                                   │
+│  • Lower cost (one fewer Pi)                                    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -126,26 +141,24 @@ Scale to two Pi 5s only if performance proves insufficient or for high-availabil
 
 ### IP Address Allocation
 
-| Device | IP Address | Hostname |
-|--------|------------|----------|
-| Pi 5 #1 (AI Core) | 192.168.1.10 | ai-core |
-| Pi 5 #2 (FreePBX) | 192.168.1.11 | pbx |
-| Grandstream HT801 | 192.168.1.20 | ata |
-| Switch Management | 192.168.1.1 | switch (if managed) |
+| Device | IP Address | Hostname | Role |
+|--------|------------|----------|------|
+| Pi 5 #1 | 192.168.1.10 | pi-voice | Voice pipeline + Hailo STT |
+| Pi 5 #2 | 192.168.1.11 | pi-ollama | LLM server (standard Ollama) |
+| Grandstream HT801 | 192.168.1.20 | ata | Payphone SIP adapter |
+| Switch Management | 192.168.1.1 | switch | (if managed) |
 
 ### Port Assignments
 
-| Service | Port | Protocol | Host |
-|---------|------|----------|------|
-| SIP | 5060 | UDP | pbx |
-| RTP Audio | 10000-20000 | UDP | pbx |
-| AudioSocket | 9092 | TCP | ai-core |
-| Whisper (Wyoming) | 10300 | TCP | ai-core |
-| Piper (Wyoming) | 10200 | TCP | ai-core |
-| openWakeWord (Wyoming) | 10400 | TCP | ai-core |
-| Ollama API | 11434 | TCP | ai-core |
-| Hailo-Ollama API | 8000 | TCP | ai-core |
-| FreePBX Web UI | 80/443 | TCP | pbx |
+| Service | Port | Protocol | Host | Notes |
+|---------|------|----------|------|-------|
+| SIP | 5060 | UDP | pi-voice | Asterisk SIP server |
+| RTP Audio | 10000-20000 | UDP | pi-voice | Media streams |
+| AudioSocket | 9092 | TCP | pi-voice | Voice pipeline entry point |
+| Whisper (Wyoming) | 10300 | TCP | pi-voice | Hailo-accelerated STT |
+| Piper (Wyoming) | 10200 | TCP | pi-voice | TTS service |
+| openWakeWord (Wyoming) | 10400 | TCP | pi-voice | Wake word detection |
+| Ollama API | 11434 | TCP | pi-ollama | LLM inference (qwen2.5:3b) |
 
 ---
 
@@ -167,15 +180,24 @@ Scale to two Pi 5s only if performance proves insufficient or for high-availabil
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                        AI LAYER                                 │
+│                    AI LAYER (Distributed)                       │
 ├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │   Whisper   │  │   Ollama    │  │    Piper    │             │
-│  │    (STT)    │  │    (LLM)    │  │    (TTS)    │             │
-│  │             │  │             │  │             │             │
-│  │ Hailo Accel │  │ Hailo/CPU   │  │    CPU      │             │
-│  └─────────────┘  └─────────────┘  └─────────────┘             │
-└─────────────────────────────────────────────────────────────────┘
+│  Pi #1 (pi-voice)              │  Pi #2 (pi-ollama)             │
+│  ┌─────────────┐ ┌───────────┐ │  ┌─────────────┐               │
+│  │   Whisper   │ │   Piper   │ │  │   Ollama    │               │
+│  │    (STT)    │ │   (TTS)   │ │  │    (LLM)    │               │
+│  │             │ │           │ │  │             │               │
+│  │ Hailo-10H   │ │   CPU     │ │  │ CPU (3B+)   │               │
+│  │ Accelerated │ │           │ │  │ qwen2.5:3b  │               │
+│  └─────────────┘ └───────────┘ │  └─────────────┘               │
+│         ▲              │       │         ▲                      │
+│         │              │       │         │                      │
+│         └──────────────┼───────┼─────────┘                      │
+│                        │       │   HTTP :11434                  │
+└────────────────────────┼───────┼────────────────────────────────┘
+                         │       │
+                         ▼       │
+                    AudioSocket  │
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
@@ -200,36 +222,61 @@ Scale to two Pi 5s only if performance proves insufficient or for high-availabil
 
 ### Container Architecture (Docker)
 
+**Pi #1 (pi-voice) - docker-compose.yml:**
 ```yaml
-# Proposed container structure
+# Voice pipeline services on Pi #1 with AI HAT+ 2
 services:
-  # AI Core Services
   whisper:
-    image: wyoming-hailo-whisper  # or standard whisper
+    image: wyoming-hailo-whisper:latest
     ports: ["10300:10300"]
-    devices: ["/dev/hailo0"]
+    devices: ["/dev/hailo0"]  # AI HAT+ 2 for acceleration
+    restart: unless-stopped
 
   piper:
-    image: rhasspy/wyoming-piper
+    image: rhasspy/wyoming-piper:latest
+    command: --voice en_US-lessac-medium
     ports: ["10200:10200"]
+    volumes:
+      - piper-data:/data
+    restart: unless-stopped
 
-  ollama:
-    image: ollama/ollama  # or hailo-ollama
-    ports: ["11434:11434"]
-    devices: ["/dev/hailo0"]
-
-  # Application
   payphone-app:
     build: ./app
-    depends_on: [whisper, piper, ollama]
+    depends_on: [whisper, piper]
     ports: ["9092:9092"]  # AudioSocket
+    environment:
+      - WHISPER_HOST=whisper:10300
+      - PIPER_HOST=piper:10200
+      - LLM_HOST=http://192.168.1.11:11434  # Pi #2
+    restart: unless-stopped
 
-  # Telephony (if on same host)
   asterisk:
     image: custom-asterisk
+    network_mode: host  # For SIP/RTP
     ports:
       - "5060:5060/udp"
       - "10000-10100:10000-10100/udp"
+    restart: unless-stopped
+
+volumes:
+  piper-data:
+```
+
+**Pi #2 (pi-ollama) - docker-compose.yml:**
+```yaml
+# LLM server on Pi #2 (no AI HAT needed)
+services:
+  ollama:
+    image: ollama/ollama:latest
+    ports: ["11434:11434"]
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0  # Allow network access from Pi #1
+    restart: unless-stopped
+
+volumes:
+  ollama-data:
 ```
 
 ---
@@ -1162,8 +1209,9 @@ CREATE TABLE discoveries (
 
 ## Deployment
 
-### Docker Compose (Full Stack)
+### Docker Compose (Dual Pi Deployment)
 
+**Pi #1 (pi-voice) - Voice Pipeline:**
 ```yaml
 version: '3.8'
 
@@ -1172,7 +1220,7 @@ services:
     image: wyoming-hailo-whisper:latest
     privileged: true
     devices:
-      - /dev/hailo0:/dev/hailo0
+      - /dev/hailo0:/dev/hailo0  # AI HAT+ 2
     ports:
       - "10300:10300"
     restart: unless-stopped
@@ -1186,14 +1234,6 @@ services:
       - piper-data:/data
     restart: unless-stopped
 
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-    restart: unless-stopped
-
   payphone-app:
     build: ./app
     ports:
@@ -1201,18 +1241,15 @@ services:
     environment:
       - WHISPER_HOST=whisper
       - PIPER_HOST=piper
-      - OLLAMA_HOST=ollama
+      - LLM_HOST=http://192.168.1.11:11434  # Remote Pi #2
     depends_on:
       - whisper
       - piper
-      - ollama
     restart: unless-stopped
 
   asterisk:
     build: ./asterisk
-    ports:
-      - "5060:5060/udp"
-      - "10000-10100:10000-10100/udp"
+    network_mode: host
     volumes:
       - ./asterisk/config:/etc/asterisk
     restart: unless-stopped
@@ -1225,7 +1262,27 @@ services:
 
 volumes:
   piper-data:
+```
+
+**Pi #2 (pi-ollama) - LLM Server:**
+```yaml
+version: '3.8'
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    restart: unless-stopped
+
+volumes:
   ollama-data:
+
+# After starting: docker exec -it ollama ollama pull qwen2.5:3b
 ```
 
 ### Systemd Services (Non-Docker)
