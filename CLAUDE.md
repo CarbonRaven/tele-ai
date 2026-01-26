@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**tele-ai** is an AI-powered payphone project. The goal is a self-contained 90s-style payphone running a fully local AI that users can interact with for information, jokes, and services styled after 1990s telephone services.
+**payphone-ai** is an AI-powered payphone project. The goal is a self-contained 90s-style payphone running a fully local AI that users can interact with for information, jokes, and services styled after 1990s telephone services.
+
+**Repository**: https://github.com/CarbonRaven/payphone-ai
 
 ### Target Hardware
 - **Pi #1 (pi-voice)**: Raspberry Pi 5 (16GB) + AI HAT+ 2 (Hailo-10H)
