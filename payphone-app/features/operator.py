@@ -4,8 +4,14 @@ The operator is the main interface when no specific feature is selected.
 It can answer questions, help navigate the system, and make small talk.
 """
 
+from typing import TYPE_CHECKING
+
 from features.base import ConversationalFeature
 from features.registry import register_feature
+
+if TYPE_CHECKING:
+    from core.pipeline import VoicePipeline
+    from core.session import Session
 
 
 @register_feature
@@ -41,11 +47,15 @@ class OperatorFeature(ConversationalFeature):
             "What would you like to do?"
         )
 
-    async def handle(self, session, pipeline) -> None:
+    async def handle(self, session: "Session", pipeline: "VoicePipeline") -> None:
         """Handle operator conversation.
 
         The operator can detect intent and route to other features,
         or engage in general conversation.
+
+        Args:
+            session: Current call session.
+            pipeline: Voice pipeline for audio processing.
         """
         from features.registry import FeatureRegistry
 

@@ -70,19 +70,31 @@ class FeatureRegistry:
 
                 # Find feature classes in module
                 for attr_name in dir(module):
-                    attr = getattr(module, attr_name)
+                    try:
+                        attr = getattr(module, attr_name)
 
-                    if (
-                        isinstance(attr, type)
-                        and issubclass(attr, BaseFeature)
-                        and attr is not BaseFeature
-                        and hasattr(attr, "dial_code")
-                        and attr.dial_code != "0"  # Skip base class default
-                    ):
-                        cls.register(attr)
+                        if (
+                            isinstance(attr, type)
+                            and issubclass(attr, BaseFeature)
+                            and attr is not BaseFeature
+                            and hasattr(attr, "dial_code")
+                            and attr.dial_code != "0"  # Skip base class default
+                        ):
+                            cls.register(attr)
+                    except Exception as e:
+                        logger.error(
+                            f"Error inspecting attribute '{attr_name}' in "
+                            f"module {module_path.stem}: {e}"
+                        )
 
+            except ImportError as e:
+                logger.error(
+                    f"Failed to import feature module {module_path.stem}: {e}"
+                )
             except Exception as e:
-                logger.error(f"Error loading feature module {module_path.stem}: {e}")
+                logger.exception(
+                    f"Unexpected error loading feature module {module_path.stem}: {e}"
+                )
 
         logger.info(f"Discovered {len(cls._features)} features")
 

@@ -81,6 +81,10 @@ class AudioSocketConnection:
     call_id: str | None = None
     peer_address: tuple[str, int] = field(default_factory=lambda: ("unknown", 0))
 
+    # Maximum payload size to prevent memory exhaustion attacks
+    # Audio at 8kHz 16-bit mono: 16KB/sec, so 64KB allows ~4 sec buffer
+    MAX_PAYLOAD_SIZE = 65536  # 64KB
+
     async def read_message(self) -> AudioSocketMessage | None:
         """Read a single message from the AudioSocket stream.
 
@@ -93,6 +97,13 @@ class AudioSocketConnection:
             msg_type = MessageType(header[0])
             length = struct.unpack(">H", header[1:3])[0]
 
+            # Validate payload size to prevent memory exhaustion
+            if length > self.MAX_PAYLOAD_SIZE:
+                logger.error(
+                    f"Payload too large: {length} bytes (max {self.MAX_PAYLOAD_SIZE})"
+                )
+                return None
+
             # Read payload
             payload = b""
             if length > 0:
@@ -100,14 +111,27 @@ class AudioSocketConnection:
 
             return AudioSocketMessage(type=msg_type, payload=payload)
 
+        except asyncio.CancelledError:
+            # Task was cancelled - re-raise to allow proper cleanup
+            raise
         except asyncio.IncompleteReadError:
             logger.debug(f"Connection closed by peer: {self.peer_address}")
             return None
         except ValueError as e:
+            # Invalid message type from enum conversion
             logger.error(f"Invalid message type: {e}")
             return None
+        except (ConnectionError, OSError) as e:
+            # Network-related errors
+            logger.error(f"Connection error reading message: {e}")
+            return None
+        except struct.error as e:
+            # Malformed header
+            logger.error(f"Malformed message header: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Error reading message: {e}")
+            # Unexpected error - log with full traceback
+            logger.exception(f"Unexpected error reading message: {e}")
             return None
 
     async def send_audio(self, audio_data: bytes) -> bool:

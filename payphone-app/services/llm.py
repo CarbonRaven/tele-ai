@@ -45,28 +45,52 @@ class LLMResponse:
 
 @dataclass
 class ConversationContext:
-    """Maintains conversation history for a session."""
+    """Maintains conversation history for a session.
+
+    Optimized to avoid unnecessary list copies during history trimming.
+    System messages are preserved at the front of the list.
+    """
 
     messages: list[Message] = field(default_factory=list)
-    max_history: int = 10  # Keep last N exchanges
+    max_history: int = 10  # Keep last N exchanges (user + assistant pairs)
+    _non_system_count: int = field(default=0, repr=False)
 
     def add_user_message(self, content: str) -> None:
         """Add a user message to history."""
         self.messages.append(Message(role="user", content=content))
+        self._non_system_count += 1
         self._trim_history()
 
     def add_assistant_message(self, content: str) -> None:
         """Add an assistant message to history."""
         self.messages.append(Message(role="assistant", content=content))
+        self._non_system_count += 1
         self._trim_history()
 
     def _trim_history(self) -> None:
-        """Keep only the last max_history messages (excluding system)."""
-        non_system = [m for m in self.messages if m.role != "system"]
-        if len(non_system) > self.max_history * 2:
-            # Keep system messages + last N exchanges
-            system_msgs = [m for m in self.messages if m.role == "system"]
-            self.messages = system_msgs + non_system[-(self.max_history * 2) :]
+        """Keep only the last max_history exchanges (excluding system).
+
+        Optimized to only rebuild list when actually needed, and tracks
+        non-system count incrementally to avoid O(n) counting.
+        """
+        max_non_system = self.max_history * 2  # pairs of user + assistant
+
+        if self._non_system_count <= max_non_system:
+            return  # No trimming needed
+
+        # Find where non-system messages start
+        system_end_idx = 0
+        for i, m in enumerate(self.messages):
+            if m.role != "system":
+                system_end_idx = i
+                break
+
+        # Keep system messages + last N non-system messages
+        keep_count = max_non_system
+        trim_start = len(self.messages) - keep_count
+        if trim_start > system_end_idx:
+            self.messages = self.messages[:system_end_idx] + self.messages[trim_start:]
+            self._non_system_count = keep_count
 
     def get_messages_for_api(self) -> list[dict]:
         """Get messages formatted for Ollama API."""
@@ -74,8 +98,8 @@ class ConversationContext:
 
     def clear(self) -> None:
         """Clear conversation history (keeps system message if present)."""
-        system_msgs = [m for m in self.messages if m.role == "system"]
-        self.messages = system_msgs
+        self.messages = [m for m in self.messages if m.role == "system"]
+        self._non_system_count = 0
 
 
 class OllamaClient:
@@ -295,8 +319,22 @@ class OllamaClient:
             logger.warning(f"LLM streaming timed out after {self.settings.timeout}s")
             yield "I'm sorry, I'm taking too long to respond."
 
+        except asyncio.CancelledError:
+            # Task was cancelled - re-raise to allow proper cleanup
+            raise
+
+        except ConnectionError as e:
+            logger.error(f"Connection error in streaming generation: {e}")
+            yield "I'm sorry, I lost connection. Please try again."
+
+        except (KeyError, TypeError, ValueError) as e:
+            # Malformed response from Ollama
+            logger.error(f"Invalid response in streaming generation: {e}")
+            yield "I'm sorry, I received an invalid response. Please try again."
+
         except Exception as e:
-            logger.error(f"Error in streaming generation: {e}")
+            # Log unexpected errors with full context for debugging
+            logger.exception(f"Unexpected error in streaming generation: {e}")
             yield "I'm sorry, I encountered an error. Please try again."
 
     async def generate_for_feature(

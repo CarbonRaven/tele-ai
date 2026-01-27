@@ -6,8 +6,9 @@ Handles audio conversion, streaming, and telephone filtering.
 
 import asyncio
 import logging
+import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, AsyncIterator
 
 import numpy as np
 import soundfile as sf
@@ -168,7 +169,6 @@ class VoicePipeline:
             debounce_ms: Debounce period in milliseconds to prevent race conditions.
         """
         last_dtmf_time: float = 0.0
-        import time
 
         while session.is_speaking and session.is_active:
             if session.protocol.has_dtmf():
@@ -237,7 +237,6 @@ class VoicePipeline:
             chunk_duration_sec = chunk_size / (self.settings.audio.output_sample_rate * 2)
 
             # Track timing for backpressure-aware pacing
-            import time
             playback_start = time.perf_counter()
             chunks_sent = 0
 
@@ -281,7 +280,7 @@ class VoicePipeline:
     async def speak_streaming(
         self,
         session: "Session",
-        text_generator,
+        text_generator: AsyncIterator[str],
         check_barge_in: bool = True,
     ) -> bool:
         """Synthesize and play streaming text.
@@ -380,8 +379,6 @@ class VoicePipeline:
         Returns:
             True if sent successfully.
         """
-        import time
-
         chunks = self.audio_processor.chunk_audio(audio_bytes)
 
         # Calculate chunk duration for pacing

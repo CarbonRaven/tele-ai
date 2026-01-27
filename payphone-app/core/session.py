@@ -19,6 +19,7 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from config.prompts import get_system_prompt
 from config.settings import Settings
 from services.llm import ConversationContext, Message
 
@@ -87,8 +88,6 @@ class Session:
     def __post_init__(self):
         """Initialize session-specific state."""
         # Set up conversation context with default system prompt
-        from config.prompts import get_system_prompt
-
         system_prompt = get_system_prompt(feature=self.current_feature)
         self.context.messages.insert(0, Message(role="system", content=system_prompt))
 
@@ -111,15 +110,25 @@ class Session:
         self.metrics.end_time = time.time()
         await self.protocol.hangup()
 
+    # Valid DTMF digits and maximum buffer size
+    VALID_DTMF_DIGITS = set("0123456789*#ABCD")
+    MAX_DTMF_BUFFER_SIZE = 32
+
     def add_dtmf(self, digit: str) -> str | None:
         """Add a DTMF digit to the buffer.
 
         Args:
-            digit: Single DTMF digit (0-9, *, #).
+            digit: Single DTMF digit (0-9, *, #, A-D).
 
         Returns:
             Complete number if inter-digit timeout exceeded, None otherwise.
+            Returns None if digit is invalid or buffer is full.
         """
+        # Validate digit
+        if not digit or digit not in self.VALID_DTMF_DIGITS:
+            logger.warning(f"Invalid DTMF digit received: {digit!r}")
+            return None
+
         current_time = time.time()
         self.metrics.dtmf_digits += 1
 
@@ -132,6 +141,11 @@ class Session:
             self.dtmf_buffer = digit
             self.dtmf_last_time = current_time
             return result
+
+        # Check buffer size limit to prevent memory issues
+        if len(self.dtmf_buffer) >= self.MAX_DTMF_BUFFER_SIZE:
+            logger.warning(f"DTMF buffer full ({self.MAX_DTMF_BUFFER_SIZE} digits), dropping oldest")
+            self.dtmf_buffer = self.dtmf_buffer[1:]  # Drop oldest digit
 
         self.dtmf_buffer += digit
         self.dtmf_last_time = current_time
@@ -149,8 +163,6 @@ class Session:
         Args:
             feature: Feature name to switch to.
         """
-        from config.prompts import get_system_prompt
-
         self.current_feature = feature
         self.current_persona = None
         self.metrics.add_feature(feature)
@@ -167,8 +179,6 @@ class Session:
         Args:
             persona: Persona name to switch to.
         """
-        from config.prompts import get_system_prompt
-
         self.current_persona = persona
         self.metrics.add_feature(f"persona_{persona}")
 
@@ -180,8 +190,6 @@ class Session:
 
     def _update_system_prompt(self, system_prompt: str) -> None:
         """Update the system prompt in conversation context."""
-        from services.llm import Message
-
         # Remove existing system message and add new one
         self.context.messages = [
             m for m in self.context.messages if m.role != "system"

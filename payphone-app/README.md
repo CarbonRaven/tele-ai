@@ -211,11 +211,17 @@ The voice pipeline includes several optimizations for low-latency operation:
 |--------------|-------------|
 | **Binary Wyoming Protocol** | Audio sent as binary frames instead of base64, reducing overhead by ~33% |
 | **Exponential Backoff** | Wyoming reconnection uses backoff (0.5s → 4s) to prevent connection storms |
-| **Thread-safe VAD** | Async reset method prevents concurrent access issues in multi-call scenarios |
-| **Streaming Timeout** | LLM streaming protected against hangs with configurable timeout |
+| **Thread-safe VAD** | Async reset with lock-protected state updates prevents race conditions |
+| **Streaming Timeout** | LLM streaming protected with separate first-token and inter-token timeouts |
 | **Regex Sentence Detection** | O(1) amortized sentence boundary detection for TTS chunking |
-| **Dynamic Audio Pacing** | Chunk playback paced based on actual duration, not hardcoded values |
-| **Memory-bounded Buffers** | AudioBuffer limits prevent unbounded growth on long calls (default 60s max) |
+| **Backpressure-aware Pacing** | Audio playback tracks actual vs expected time to prevent drift |
+| **Bounded Queues** | Audio/DTMF queues have max sizes with drop-oldest strategy to prevent memory exhaustion |
+| **O(1) Audio Buffer** | Uses `deque.popleft()` instead of `list.pop(0)` for efficient sample removal |
+| **Incremental Sample Tracking** | STT tracks total samples incrementally, avoiding O(n²) recounting |
+| **Optimized History Trimming** | Conversation context tracks non-system count incrementally |
+| **Input Validation** | DTMF digits and payload sizes validated to prevent injection and memory attacks |
+| **Connection Lifecycle** | Proper connection tracking with graceful shutdown and task cancellation |
+| **Structured Exception Handling** | Specific exception types enable targeted error recovery |
 
 ## Hardware Requirements
 

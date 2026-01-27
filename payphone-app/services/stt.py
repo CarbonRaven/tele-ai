@@ -16,8 +16,8 @@ __all__ = [
 ]
 
 import asyncio
+import json
 import logging
-import socket
 import struct
 from dataclasses import dataclass
 from enum import Enum
@@ -155,14 +155,47 @@ class WyomingSTTClient:
             # Receive transcript
             event = await self._receive_event()
 
-            if event and event.get("type") == "transcript":
-                text = event.get("data", {}).get("text", "")
+            # Validate response structure
+            if not event:
+                logger.warning("Wyoming returned empty response")
+                return TranscriptionResult(
+                    text="",
+                    language=language,
+                    confidence=0.0,
+                    duration_seconds=duration,
+                )
+
+            if not isinstance(event, dict):
+                logger.warning(f"Wyoming returned non-dict response: {type(event)}")
+                return TranscriptionResult(
+                    text="",
+                    language=language,
+                    confidence=0.0,
+                    duration_seconds=duration,
+                )
+
+            event_type = event.get("type")
+            if event_type == "transcript":
+                data = event.get("data", {})
+                if not isinstance(data, dict):
+                    logger.warning(f"Wyoming transcript data is not dict: {type(data)}")
+                    text = ""
+                else:
+                    text = data.get("text", "")
+                    if not isinstance(text, str):
+                        logger.warning(f"Wyoming text is not string: {type(text)}")
+                        text = str(text) if text else ""
+
                 return TranscriptionResult(
                     text=text.strip(),
                     language=language,
                     confidence=0.9,  # Wyoming doesn't provide confidence
                     duration_seconds=duration,
                 )
+
+            elif event_type == "error":
+                error_msg = event.get("data", {}).get("message", "Unknown error")
+                logger.error(f"Wyoming returned error: {error_msg}")
 
             return TranscriptionResult(
                 text="",
@@ -171,8 +204,16 @@ class WyomingSTTClient:
                 duration_seconds=duration,
             )
 
+        except asyncio.CancelledError:
+            raise  # Don't catch cancellation
+
+        except ConnectionError as e:
+            logger.error(f"Wyoming connection error: {e}")
+            await self.disconnect()
+            raise
+
         except Exception as e:
-            logger.error(f"Wyoming transcription error: {e}")
+            logger.exception(f"Wyoming transcription error: {e}")
             # Disconnect and allow reconnect with backoff on next call
             await self.disconnect()
             raise
@@ -190,9 +231,6 @@ class WyomingSTTClient:
 
         Reference: https://github.com/rhasspy/wyoming
         """
-        import json
-        import base64
-
         # Separate binary audio from JSON data
         audio_data = data.pop("audio", None)
 
@@ -223,8 +261,6 @@ class WyomingSTTClient:
         Wyoming events are JSON-lines, optionally followed by binary payloads
         if the JSON includes a "payload_length" field.
         """
-        import json
-
         try:
             line = await asyncio.wait_for(
                 self._reader.readline(),
@@ -466,7 +502,8 @@ class WhisperSTT:
         if not self._initialized:
             raise RuntimeError("STT not initialized. Call initialize() first.")
 
-        audio_buffer = []
+        audio_buffer: list[NDArray[np.float32]] = []
+        total_samples = 0  # Track incrementally to avoid O(n²)
         last_transcription = ""
 
         chunk_duration = 2.0  # seconds
@@ -474,7 +511,7 @@ class WhisperSTT:
 
         async for chunk in audio_stream:
             audio_buffer.append(chunk)
-            total_samples = sum(len(c) for c in audio_buffer)
+            total_samples += len(chunk)  # O(1) instead of sum() which is O(n)
 
             if total_samples >= samples_per_chunk:
                 full_audio = np.concatenate(audio_buffer)

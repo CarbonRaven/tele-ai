@@ -4,8 +4,14 @@ Provides an endless supply of jokes in the style of 1990s
 premium joke hotlines.
 """
 
+from typing import TYPE_CHECKING
+
 from features.base import ConversationalFeature
 from features.registry import register_feature
+
+if TYPE_CHECKING:
+    from core.pipeline import VoicePipeline
+    from core.session import Session
 
 
 @register_feature
@@ -42,7 +48,7 @@ class JokesFeature(ConversationalFeature):
             "I've got jokes for days. Want to hear one?"
         )
 
-    async def handle(self, session, pipeline) -> None:
+    async def handle(self, session: "Session", pipeline: "VoicePipeline") -> None:
         """Handle joke telling interaction."""
         session.switch_feature(self.system_prompt_key)
         self._jokes_told = 0
@@ -163,10 +169,18 @@ class JokesFeature(ConversationalFeature):
         ]
         return any(phrase in text for phrase in exit_phrases)
 
-    async def handle_dtmf(self, digit, session, pipeline) -> bool:
+    async def handle_dtmf(
+        self, digit: str, session: "Session", pipeline: "VoicePipeline"
+    ) -> bool:
         """Handle DTMF in jokes feature.
 
-        Press 1 for another joke, * for menu.
+        Args:
+            digit: DTMF digit pressed.
+            session: Current call session.
+            pipeline: Voice pipeline for audio processing.
+
+        Returns:
+            True to continue in feature, False to return to menu.
         """
         if digit == "1":
             # Tell a joke
