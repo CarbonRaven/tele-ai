@@ -866,6 +866,192 @@ A self-contained payphone running a local AI. Users interact with the AI to get 
 
 ---
 
+---
+
+## Answering Machine Era (Codex Research - Jan 2026)
+
+| Name | Domain Ideas | Notes |
+|------|--------------|-------|
+| **AfterTheBeep** | afterthebeep.ai | Universal answering machine prompt; suggests anticipation |
+| **PhoneTag.ai** | phonetag.ai | 1980s term for missed-call loops; asynchronous AI |
+| **TapeLoop** | tapeloop.io | Micro-cassette loops + infinite AI availability |
+| **RemoteRetrieval** | remoteretrieval.com | Checking messages from afar; vintage tech |
+| **OutgoingMessage** | outgoingmessage.ai | The AI speaks first |
+| **CassetteTone** | cassettetone.io | Magnetic tape nostalgia + dial tone |
+| **VoiceTag** | voicetag.ai | Phone tag + voice-first interface |
+| **TheBeep** | thebeep.io | Minimalist; everyone knows that sound |
+
+---
+
+## Telephone Operator Culture (Codex Research - Jan 2026)
+
+| Name | Domain Ideas | Notes |
+|------|--------------|-------|
+| **NumberPlease** | numberplease.ai | Classic 1950s-60s operator greeting |
+| **HelloGirls** | hellogirls.ai | WWI-era nickname for switchboard operators |
+| **PartyLine** | partyline.ai | Shared circuits where neighbors listened in |
+| **PlugAndCord** | plugandcord.io | Manual switchboard mechanics |
+| **LongDistance** | longdistance.ai | AI bridges vast knowledge gaps |
+| **TrunkCall** | trunkcall.io | British/Commonwealth term; distinctive |
+| **TheOperator** | theoperator.ai | Simple, authoritative, human-era nostalgia |
+| **SwitchboardZero** | switchboardzero.com | Playing on "dial 0 for operator" |
+
+---
+
+## Rotary Phone Aesthetics (Codex Research - Jan 2026)
+
+| Name | Domain Ideas | Notes |
+|------|--------------|-------|
+| **FingerWheel** | fingerwheel.io | The rotating dial component; tactile |
+| **PulseDial** | pulsedial.ai | Loop-disconnect dialing technology |
+| **RecoilSpring** | recoilspring.io | Mechanism that returns the dial |
+| **TenPulsesPerSecond** | 10pps.io, tenpulses.ai | Technical spec as brand |
+| **TheGovernor** | thegovernor.ai | Centrifugal speed regulator |
+| **DecadicDialing** | decadic.ai | 10-pulse scheme technical term |
+| **ClickAndReturn** | clickandreturn.io | The satisfying sound/motion loop |
+
+---
+
+## Phone Booth Pop Culture (Codex Research - Jan 2026)
+
+| Name | Domain Ideas | Notes |
+|------|--------------|-------|
+| **TheBooth** | thebooth.ai | Phone booths as portals/transformative spaces |
+| **RedPhoneBooth** | redphonebooth.ai | Matrix reference; British iconography |
+| **TimeDialer** | timedialer.io | Bill & Ted time-travel booth |
+| **PoliceBox** | policebox.ai | TARDIS reference; bigger on the inside |
+| **BoothPortal** | boothportal.io | Phone booths as gateways |
+| **TheChangeUp** | thechangeup.ai | Superman's quick-change; transformation |
+| **ExcellentAdventure** | excellentadventure.ai | Bill & Ted; playful, upbeat |
+
+---
+
+## International Telephone (Codex Research - Jan 2026)
+
+| Name | Domain Ideas | Notes |
+|------|--------------|-------|
+| **OverseasOperator** | overseasoperator.ai | Pre-IDD human-assisted international calls |
+| **TAT-1** | tat1.ai | First transatlantic telephone cable (1956) |
+| **CountryCode** | countrycode.ai | E.164 international prefix system |
+| **IDD Protocol** | iddprotocol.io | International Direct Dialing |
+| **TransatlanticTone** | transatlantictone.io | Cable-era nostalgia; bridge metaphor |
+| **011-Prefix** | 011prefix.ai | NANP international access code |
+| **TrunkPrefix** | trunkprefix.io | UK/Commonwealth term |
+| **TheGateway** | thegateway.ai | AI as knowledge gateway |
+
+---
+
+## Wrong Number / Misdial (Codex Research - Jan 2026)
+
+| Name | Domain Ideas | Notes |
+|------|--------------|-------|
+| **SorryWrongNumber** | sorrywrongnumber.ai | Classic 1948 film; famous phrase |
+| **CrossedLines** | crossedlines.ai | Accidental call-bridging; unexpected connections |
+| **BeepLine** | beepline.io | 1950s-80s busy-tone party lines |
+| **TheMisdial** | themisdial.ai | Happy accidents; AI you stumble into |
+| **SerendipityCalling** | serendipitycalling.ai | Wrong-number romance stories |
+| **AccidentalConnection** | accidentalconnection.io | Warm, serendipitous |
+| **TransposedDigits** | transposeddigits.ai | How misdialing happens |
+| **867-5309** | 8675309.ai | Tommy Tutone song; instant recognition |
+
+---
+
+## Hold Music Era (Codex Research - Jan 2026)
+
+| Name | Domain Ideas | Notes |
+|------|--------------|-------|
+| **OpusNumberOne** | opusnumberone.ai | Iconic 1989 Cisco hold music |
+| **OnHoldAI** | onhold.ai | AI is always waiting for you |
+| **MuzakMind** | muzakmind.io | Elevator music + intelligence |
+| **BeautifulMusic** | beautifulmusic.ai | 1980s hold-music genre name |
+| **TheWaitingRoom** | thewaitingroom.ai | AI consultation space |
+| **ElevatorTone** | elevatortone.io | Smooth, soothing, omnipresent |
+| **StimulusProgression** | stimulusprogression.io | Muzak's psychological pacing |
+| **BossaNovaBrain** | bossanovabrain.ai | "Girl from Ipanema" hold-music cliché |
+
+---
+
+## Telephone Etymology (Codex Research - Jan 2026)
+
+| Name | Domain Ideas | Notes |
+|------|--------------|-------|
+| **TelePhonic** | telephonic.ai | Straightforward Greek compound |
+| **VoxDistant** | voxdistant.io | Latin "voice" + "distant" |
+| **AkoúōAI** | akouoai.com | Greek "to hear"; scholarly |
+| **Phonḗ Station** | phonestation.ai | "Voice station"; retro sci-fi |
+| **SonusLink** | sonuslink.io | Latin "sound" + connection |
+| **TēleVoice** | televoice.ai | Hyphenating the Greek roots |
+| **CommunisLine** | communisline.io | Latin "common/shared" + phone line |
+| **TheTransmitter** | thetransmitter.ai | Radio-era nostalgia |
+
+---
+
+## Analog Sound Artifacts (Codex Research - Jan 2026)
+
+| Name | Domain Ideas | Notes |
+|------|--------------|-------|
+| **VoiceBand** | voiceband.ai | 300-3400 Hz PSTN frequency range |
+| **LineNoise** | linenoise.io | Hiss, hum, static; lo-fi aesthetic |
+| **EchoReturn** | echoreturn.ai | Long-distance call artifact |
+| **Crosstalk** | crosstalk.ai | Interference from adjacent lines |
+| **LoFiLine** | lofiline.io | Telephone's narrow-band charm |
+| **300to3400** | 300to3400.io | Literal frequency range |
+| **μ-Law** | mulaw.ai | Companding codec used in PSTN |
+| **SidetoneLab** | sidetonelab.io | Hearing your own voice; feedback loop |
+
+---
+
+## Night Shift / Late Night Calls (Codex Research - Jan 2026)
+
+| Name | Domain Ideas | Notes |
+|------|--------------|-------|
+| **MidnightCaller** | midnightcaller.ai | 1988-91 NBC show; nocturnal detective DJ |
+| **CoastToCoastAI** | coasttocoastai.com | Art Bell's overnight paranormal show |
+| **QuietStorm** | quietstorm.ai | 1976 WHUR late-night slow-jam format |
+| **OvernightLine** | overnightline.ai | 24/7 availability; insomnia companion |
+| **TheNightShift** | thenightshift.ai | Always awake |
+| **3amVoice** | 3amvoice.ai | Peak insomnia hour; intimate |
+| **OpenPhoneAmerica** | openphoneamerica.ai | Larry King Show segment |
+| **InsomniaLine** | insomnialine.ai | Sleepless companion |
+
+---
+
+## Codex Top Picks (Jan 2026)
+
+### Most Evocative & Nostalgic
+- **AfterTheBeep** - Universal, everyone knows it
+- **NumberPlease** - Classic operator greeting
+- **FingerWheel** - Tactile rotary phone experience
+- **OpusNumberOne** - Iconic Cisco hold music
+- **MidnightCaller** - Nocturnal, mysterious
+
+### Best Pop Culture Hooks
+- **RedPhoneBooth** - Matrix + British iconography
+- **TimeDialer** - Bill & Ted time travel
+- **SorryWrongNumber** - Classic noir film
+- **867-5309** - Tommy Tutone instant recognition
+- **CoastToCoastAI** - Art Bell overnight radio
+
+### Technical Credibility
+- **VoiceBand** - 300-3400 Hz PSTN range
+- **PulseDial** - Rotary technology
+- **TAT-1** - First transatlantic cable
+- **μ-Law** - PSTN codec (ultra-nerdy)
+
+### Playful & Accessible
+- **PhoneTag.ai** - Missed calls game
+- **TheBeep** - Minimalist, universal
+- **OnHoldAI** - Waiting for you
+- **BeepLine** - Retro party lines
+
+### Emotionally Resonant
+- **LongDistance** - Bridges vast gaps
+- **SerendipityCalling** - Chance encounters
+- **TheWaitingRoom** - Consultation space
+- **InsomniaLine** - Late-night companion
+
+---
+
 ## Notes
 - Check domain availability before finalizing
 - Consider trademark searches for commercial use
