@@ -50,17 +50,23 @@ class AudioSettings(BaseSettings):
 
 
 class VADSettings(BaseSettings):
-    """Voice Activity Detection configuration."""
+    """Voice Activity Detection configuration.
+
+    Uses Silero VAD v5 - optimized for telephony with native 8kHz support.
+    Settings tuned for conversational telephone AI (January 2026 research).
+
+    Alternative: TEN VAD (via sherpa-onnx) for potentially lower latency.
+    """
 
     model_config = SettingsConfigDict(env_prefix="VAD_")
 
-    # Silero VAD settings
-    threshold: float = 0.5
-    min_speech_duration_ms: int = 250
-    min_silence_duration_ms: int = 500
-    speech_pad_ms: int = 100
+    # Silero VAD v5 settings - optimized for telephony
+    threshold: float = 0.5  # Balanced sensitivity for phone audio
+    min_speech_duration_ms: int = 250  # Minimum speech to trigger
+    min_silence_duration_ms: int = 800  # Telephony standard for turn-taking
+    speech_pad_ms: int = 300  # Prevent clipping end of utterance
 
-    # Window size for VAD (30ms chunks)
+    # Window size for VAD (32ms chunks at 16kHz)
     window_size_samples: int = 512  # 512 samples at 16kHz = 32ms
 
     # Maximum utterance duration to prevent runaway recordings
@@ -74,6 +80,12 @@ class STTSettings(BaseSettings):
     1. Hailo-accelerated Whisper via Wyoming protocol (recommended for Pi #1)
     2. faster-whisper for CPU-only fallback
 
+    Recommended models (January 2026):
+    - Speed: "tiny" (~0.7-1.2s latency for 3-5s audio on Pi 5)
+    - Quality: "large-v3-turbo" (8x faster than large-v3, best accuracy)
+    - Balanced: "base" (~1.8-3.0s latency)
+
+    Future: Moonshine offers 5x speed improvement over Whisper Tiny.
     Set device="hailo" to force Wyoming backend, or let it auto-detect.
     """
 
@@ -87,9 +99,10 @@ class STTSettings(BaseSettings):
     wyoming_port: int = 10300
 
     # faster-whisper model (fallback when Wyoming unavailable)
-    # Options: "tiny", "base", "small", "medium", "large-v2", "large-v3"
-    #          or HuggingFace: "distil-whisper/distil-large-v3"
-    model_name: str = "base"
+    # Speed options: "tiny" (fastest), "base" (balanced)
+    # Quality options: "large-v3-turbo" (best accuracy, 8x faster than large-v3)
+    # HuggingFace: "distil-whisper/distil-large-v3" (6x faster, 50% fewer params)
+    model_name: str = "tiny"  # Use tiny for lowest latency in voice apps
     compute_type: Literal["int8", "float16", "float32", "auto"] = "int8"
 
     # Transcription settings
@@ -103,7 +116,13 @@ class LLMSettings(BaseSettings):
     """Language Model configuration.
 
     Standard Ollama runs on Pi #2 (192.168.1.11) for better model flexibility.
-    Supports 7B+ models with full 16GB RAM available.
+
+    Recommended models (January 2026):
+    - Speed priority: llama3.2:3b-instruct-q4_K_M (~5-6 TPS on Pi 5)
+    - Quality priority: ministral:8b (~2-3 TPS, best conversational quality)
+    - Balanced: qwen2.5:7b-instruct-q4_K_M (~2 TPS, strong logic)
+
+    Use Q4_K_M quantization for best speed/quality balance on Pi 5.
     """
 
     model_config = SettingsConfigDict(env_prefix="LLM_")
@@ -111,7 +130,10 @@ class LLMSettings(BaseSettings):
     # Ollama settings - default to Pi #2 (pi-ollama)
     # Change to localhost:11434 if running single-Pi setup
     host: str = "http://192.168.1.11:11434"
-    model: str = "qwen2.5:7b"  # 7B model uses ~8GB RAM, fits in 16GB Pi
+
+    # Default to Llama 3.2 3B for best latency in voice applications
+    # Use ministral:8b for better quality, qwen2.5:7b for strong logic
+    model: str = "llama3.2:3b-instruct-q4_K_M"
 
     # Generation parameters
     temperature: float = 0.7
@@ -135,6 +157,10 @@ class TTSSettings(BaseSettings):
     1. Local: Kokoro-82M runs on Pi #1 (default)
     2. Remote: TTS service runs on Pi #2, reducing Pi #1 CPU load
 
+    Kokoro-82M remains the gold standard for edge TTS (January 2026).
+    For better performance, use Int8 quantized model (2x speedup).
+
+    Future: Qwen3-TTS (0.6B) offers ~97ms latency and voice cloning.
     Set mode="remote" and configure remote_host to offload TTS to Pi #2.
     """
 
@@ -149,6 +175,10 @@ class TTSSettings(BaseSettings):
     remote_timeout: float = 10.0  # Timeout for remote TTS calls
 
     # Kokoro-82M settings (for local mode or remote server)
+    # Use quantized models for better performance:
+    # - kokoro-v1.0.onnx (default, FP32)
+    # - kokoro-v1.0-int8.onnx (2x faster, minimal quality loss)
+    # - kokoro-v1.0-int4.onnx (4x faster, test quality for your use case)
     model_path: str = "kokoro-v1.0.onnx"
     voices_path: str = "voices-v1.0.bin"
     voice: str = "af_bella"  # American female voice (valid: af_bella, af_nicole, af_sarah, af_sky)

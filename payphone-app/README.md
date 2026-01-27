@@ -10,7 +10,7 @@ A fully local AI voice assistant designed for vintage payphones. Connects via As
 - **Concurrent Calls**: Per-session state isolation supports multiple simultaneous calls
 - **Voice Activity Detection**: Silero VAD for accurate speech detection
 - **Speech-to-Text**: Hailo-accelerated Whisper via Wyoming protocol
-- **Language Model**: Ollama with Qwen2.5-7B on dedicated Pi
+- **Language Model**: Ollama with Llama 3.2 3B (speed) or Ministral 8B (quality)
 - **Text-to-Speech**: Kokoro-82M with optional remote offloading
 - **Streaming Pipeline**: Overlapped LLM+TTS for reduced latency
 - **Barge-in Support**: Interrupt AI with DTMF tones
@@ -25,7 +25,7 @@ A fully local AI voice assistant designed for vintage payphones. Connects via As
                                     │           192.168.1.11              │
                                     │                                     │
                                     │    ┌─────────────────────────┐     │
-                                    │    │   Ollama (qwen2.5:7b)   │     │
+                                    │    │  Ollama (llama3.2:3b)   │     │
                                     │    │       Port 11434        │     │
                                     │    └─────────────────────────┘     │
                                     │                                     │
@@ -55,8 +55,8 @@ Payphone → HT801 ATA → Asterisk → AudioSocket ─────┼───�
 
 | Pi #1 (pi-voice) | Pi #2 (pi-ollama) |
 |------------------|-------------------|
-| AudioSocket server | Ollama LLM (7B model) |
-| VAD (CPU) | TTS server (optional) |
+| AudioSocket server | Ollama LLM (3B-8B models) |
+| Silero VAD v5 (CPU) | TTS server (optional) |
 | STT via Hailo NPU | |
 | TTS (local or remote) | |
 
@@ -75,7 +75,7 @@ Payphone → HT801 ATA → Asterisk → AudioSocket ─────┼───�
 - Raspberry Pi 5 (16GB)
 - Raspberry Pi OS 64-bit (Bookworm)
 - Static IP: 192.168.1.11
-- Ollama with qwen2.5:7b model (~8GB RAM)
+- Ollama with llama3.2:3b (~3GB RAM) or ministral:8b (~5GB RAM)
 
 **Telephony:**
 - Grandstream HT801 ATA (or similar)
@@ -112,11 +112,12 @@ cp .env.example .env
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `LLM_HOST` | Ollama server (Pi #2) | `http://192.168.1.11:11434` |
-| `LLM_MODEL` | Language model | `qwen2.5:7b` |
+| `LLM_MODEL` | Language model | `llama3.2:3b-instruct-q4_K_M` |
 | `STT_DEVICE` | STT backend (`hailo` or `auto`) | `hailo` |
-| `STT_WYOMING_PORT` | Wyoming Whisper port | `10300` |
+| `STT_MODEL_NAME` | Whisper model (fallback) | `tiny` |
 | `TTS_MODE` | TTS mode (`local` or `remote`) | `local` |
 | `TTS_VOICE` | Kokoro voice | `af_bella` |
+| `VAD_MIN_SILENCE_DURATION_MS` | End-of-speech detection | `800` |
 | `AUDIO_AUDIOSOCKET_PORT` | AudioSocket port | `9092` |
 
 ### Remote TTS (Optional)
@@ -292,6 +293,45 @@ The voice pipeline includes extensive optimizations for low-latency operation:
 | **Streaming Timeout** | Separate first-token (15s) and inter-token (5s) timeouts |
 | **Structured Exceptions** | Specific exception types enable targeted error recovery |
 
+## AI Model Recommendations (January 2026)
+
+Based on latest research, these models provide optimal performance for the Pi 5 voice pipeline:
+
+### Speech-to-Text (STT)
+
+| Model | Latency (3-5s audio) | Notes |
+|-------|---------------------|-------|
+| **Whisper Tiny** | 0.7-1.2s | Fastest, default for voice apps |
+| Whisper Base | 1.8-3.0s | Balanced accuracy/speed |
+| Whisper Large V3 Turbo | Higher | Best accuracy (8x faster than V3) |
+| Moonshine (future) | <0.5s | 5x faster than Tiny, edge-optimized |
+
+### Language Model (LLM)
+
+| Model | TPS (Pi 5) | RAM | Notes |
+|-------|-----------|-----|-------|
+| **Llama 3.2 3B** | 5-6 | ~3GB | Best latency for voice (default) |
+| Ministral 8B | 2-3 | ~5GB | Best conversational quality (Dec 2025) |
+| Qwen 2.5 7B | 2 | ~5GB | Strong logic and coding |
+| Gemma 2 2B | 6-7 | ~2GB | Maximum speed option |
+
+Use Q4_K_M quantization for best speed/quality balance.
+
+### Text-to-Speech (TTS)
+
+| Model | Latency | Notes |
+|-------|---------|-------|
+| **Kokoro-82M** | <200ms | Gold standard for edge TTS (default) |
+| Kokoro Int8 | <100ms | 2x faster with minimal quality loss |
+| Qwen3-TTS 0.6B | ~97ms | Future option with voice cloning |
+
+### Voice Activity Detection (VAD)
+
+| Model | Latency | Notes |
+|-------|---------|-------|
+| **Silero VAD v5** | <1ms | Production standard, native 8kHz support |
+| TEN VAD | <1ms | Alternative with lower latency (2025) |
+
 ## Hardware Requirements
 
 ### Pi #1 (Voice Pipeline)
@@ -310,7 +350,7 @@ The voice pipeline includes extensive optimizations for low-latency operation:
 | Board | Raspberry Pi 5 (16GB) |
 | Storage | 512GB microSD card |
 | Network | Gigabit Ethernet |
-| RAM Usage | ~8GB for qwen2.5:7b + ~200MB for TTS |
+| RAM Usage | ~3GB for llama3.2:3b (or ~5GB for ministral:8b) + ~200MB for TTS |
 
 ## API Endpoints (TTS Server)
 
