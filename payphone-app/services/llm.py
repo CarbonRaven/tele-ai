@@ -4,6 +4,14 @@ Provides async interface to local LLMs via Ollama with streaming support
 for low-latency responses. Optimized for Qwen2.5-3B for best edge performance.
 """
 
+__all__ = [
+    "Message",
+    "LLMResponse",
+    "ConversationContext",
+    "OllamaClient",
+    "SentenceBuffer",
+]
+
 import asyncio
 import logging
 import re

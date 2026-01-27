@@ -8,10 +8,17 @@ Handles state transitions for the voice assistant including:
 - Barge-in support
 """
 
+__all__ = [
+    "State",
+    "StateTransition",
+    "StateMachine",
+]
+
 import asyncio
 import logging
-from enum import Enum, auto
+import time
 from dataclasses import dataclass
+from enum import Enum, auto
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -170,8 +177,6 @@ class StateMachine:
 
     async def _handle_listening(self, pipeline: "VoicePipeline") -> None:
         """Handle listening state - collect audio until speech ends."""
-        import time
-
         # Start silence timer if not already running
         if self._silence_start is None:
             self._silence_start = time.time()
@@ -336,8 +341,6 @@ class StateMachine:
 
     async def _handle_timeout(self, pipeline: "VoicePipeline") -> None:
         """Handle silence timeout."""
-        import time
-
         if not self._timeout_prompted:
             # First timeout - prompt user
             self._timeout_prompted = True

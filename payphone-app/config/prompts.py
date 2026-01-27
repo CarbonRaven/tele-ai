@@ -1,5 +1,12 @@
 """System prompts for AI personas and features."""
 
+__all__ = [
+    "BASE_SYSTEM_PROMPT",
+    "FEATURE_PROMPTS",
+    "PERSONA_PROMPTS",
+    "get_system_prompt",
+]
+
 # Base system prompt for all personas
 BASE_SYSTEM_PROMPT = """You are an AI payphone operator with a vintage telephone demeanor from the 1990s.
 

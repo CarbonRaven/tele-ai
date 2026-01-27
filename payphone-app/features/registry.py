@@ -4,6 +4,11 @@ The registry auto-discovers feature modules and provides routing
 by dial code or voice trigger.
 """
 
+__all__ = [
+    "FeatureRegistry",
+    "register_feature",
+]
+
 import importlib
 import logging
 from pathlib import Path

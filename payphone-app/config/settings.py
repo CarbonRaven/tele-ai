@@ -1,5 +1,16 @@
 """Application settings using Pydantic Settings for type safety and env var support."""
 
+__all__ = [
+    "AudioSettings",
+    "VADSettings",
+    "STTSettings",
+    "LLMSettings",
+    "TTSSettings",
+    "TimeoutSettings",
+    "Settings",
+    "get_settings",
+]
+
 from functools import lru_cache
 from typing import Literal
 

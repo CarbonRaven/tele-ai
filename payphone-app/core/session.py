@@ -7,12 +7,17 @@ Each incoming call gets a Session that tracks:
 - Audio buffers and timing
 """
 
+__all__ = [
+    "SessionMetrics",
+    "Session",
+    "SessionManager",
+]
+
 import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
-from uuid import uuid4
 
 from config.settings import Settings
 from services.llm import ConversationContext, Message
@@ -227,8 +232,10 @@ class SessionManager:
             logger.info(f"Created session: {call_id}")
             return session
 
-    async def get_session(self, call_id: str) -> Session | None:
+    def get_session(self, call_id: str) -> Session | None:
         """Get a session by call ID.
+
+        Note: This is a simple dict lookup and doesn't require async/lock.
 
         Args:
             call_id: Call identifier.

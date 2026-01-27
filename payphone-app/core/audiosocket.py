@@ -13,6 +13,15 @@ Protocol Format:
   - ERROR (0xFF): Error message
 """
 
+__all__ = [
+    "MessageType",
+    "AudioSocketMessage",
+    "AudioSocketConnection",
+    "AudioSocketProtocol",
+    "AudioSocketServer",
+    "ConnectionHandler",
+]
+
 import asyncio
 import logging
 import struct

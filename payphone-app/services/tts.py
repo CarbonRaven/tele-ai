@@ -7,6 +7,13 @@ Kokoro-82M provides sub-300ms latency TTS:
 - Apache 2.0 license
 """
 
+__all__ = [
+    "TTSResult",
+    "KokoroTTS",
+    "VOICE_MAP",
+    "get_voice_for_feature",
+]
+
 import asyncio
 import logging
 from dataclasses import dataclass

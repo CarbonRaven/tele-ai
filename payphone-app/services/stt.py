@@ -8,6 +8,13 @@ The Hailo backend offloads Whisper inference to the Hailo-10H NPU, freeing
 the CPU for other tasks like TTS and audio processing.
 """
 
+__all__ = [
+    "STTBackend",
+    "TranscriptionResult",
+    "WyomingSTTClient",
+    "WhisperSTT",
+]
+
 import asyncio
 import logging
 import socket

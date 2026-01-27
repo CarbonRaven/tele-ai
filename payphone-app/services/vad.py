@@ -7,6 +7,13 @@ Silero VAD is a lightweight, fast, and accurate voice activity detector:
 - MIT License
 """
 
+__all__ = [
+    "SpeechState",
+    "VADResult",
+    "VADSessionState",
+    "SileroVAD",
+]
+
 import asyncio
 import logging
 from dataclasses import dataclass, field
