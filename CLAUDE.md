@@ -55,9 +55,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Component | Technology | Location | Notes |
 |-----------|------------|----------|-------|
 | Wake Word | openWakeWord | Pi #1 | Wyoming protocol, port 10400 |
-| STT | Whisper (Hailo) | Pi #1 | Hailo-10H accelerated, port 10300 |
+| STT | Moonshine/Whisper | Pi #1 | Moonshine (5x faster) or Hailo-accelerated Whisper |
 | LLM | Ollama | Pi #2 | Standard Ollama, qwen2.5:3b, port 11434 |
-| TTS | Piper | Pi #1 | Fast neural TTS, port 10200 |
+| TTS | Kokoro-82M | Pi #1 | Fast neural TTS, 24kHz output |
 | VAD | Silero VAD | Pi #1 | CPU-based voice activity detection |
 | Telephony | FreePBX/Asterisk | Pi #1 | AudioSocket protocol for AI integration |
 | Protocol | Wyoming | Pi #1 | Home Assistant voice service integration |
@@ -79,7 +79,7 @@ main.py                    # Application entry point, service initialization
 │   └── state_machine.py   # Conversation flow control
 ├── services/
 │   ├── vad.py             # Silero VAD with thread-safe async reset
-│   ├── stt.py             # Wyoming/Hailo + faster-whisper fallback
+│   ├── stt.py             # Moonshine (5x faster) + Wyoming/Hailo + faster-whisper
 │   ├── llm.py             # Ollama client with streaming timeout
 │   └── tts.py             # Kokoro-82M synthesis
 └── features/

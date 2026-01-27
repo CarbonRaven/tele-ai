@@ -76,33 +76,47 @@ class VADSettings(BaseSettings):
 class STTSettings(BaseSettings):
     """Speech-to-Text configuration.
 
-    Supports two backends:
-    1. Hailo-accelerated Whisper via Wyoming protocol (recommended for Pi #1)
-    2. faster-whisper for CPU-only fallback
+    Supports three backends:
+    1. Moonshine - 5x faster than Whisper tiny, optimized for edge (recommended)
+    2. Hailo-accelerated Whisper via Wyoming protocol (for Pi #1 with AI HAT+)
+    3. faster-whisper for CPU-only fallback
 
-    Recommended models (January 2026):
-    - Speed: "tiny" (~0.7-1.2s latency for 3-5s audio on Pi 5)
-    - Quality: "large-v3-turbo" (8x faster than large-v3, best accuracy)
-    - Balanced: "base" (~1.8-3.0s latency)
+    Backend priority (when backend="auto"):
+    1. Moonshine (if installed) - fastest option
+    2. Wyoming/Hailo (if available) - NPU accelerated
+    3. faster-whisper (fallback) - CPU based
 
-    Future: Moonshine offers 5x speed improvement over Whisper Tiny.
-    Set device="hailo" to force Wyoming backend, or let it auto-detect.
+    Moonshine models (January 2026):
+    - "moonshine-tiny" (27M params) - 5x faster than Whisper tiny, recommended
+    - "moonshine-base" (61M params) - better accuracy, still fast
+
+    Whisper models:
+    - "tiny" (~0.7-1.2s latency for 3-5s audio on Pi 5)
+    - "base" (~1.8-3.0s latency)
+    - "large-v3-turbo" (best accuracy)
     """
 
     model_config = SettingsConfigDict(env_prefix="STT_")
 
-    # Device: "hailo" for Wyoming/Hailo, "cpu"/"cuda"/"auto" for faster-whisper
-    device: Literal["cpu", "cuda", "auto", "hailo"] = "hailo"
+    # Backend selection: "moonshine", "hailo", "whisper", or "auto"
+    # "auto" tries moonshine -> hailo/wyoming -> faster-whisper
+    backend: Literal["moonshine", "hailo", "whisper", "auto"] = "auto"
+
+    # Device for model inference: "cpu", "cuda", or "auto"
+    device: Literal["cpu", "cuda", "auto"] = "auto"
+
+    # Moonshine settings (recommended - 5x faster than Whisper tiny)
+    # Models: "UsefulSensors/moonshine-tiny" (27M), "UsefulSensors/moonshine-base" (61M)
+    moonshine_model: str = "UsefulSensors/moonshine-tiny"
 
     # Wyoming server settings (for Hailo-accelerated Whisper on Pi #1)
     wyoming_host: str = "localhost"
     wyoming_port: int = 10300
 
-    # faster-whisper model (fallback when Wyoming unavailable)
+    # faster-whisper model (fallback when other backends unavailable)
     # Speed options: "tiny" (fastest), "base" (balanced)
     # Quality options: "large-v3-turbo" (best accuracy, 8x faster than large-v3)
-    # HuggingFace: "distil-whisper/distil-large-v3" (6x faster, 50% fewer params)
-    model_name: str = "tiny"  # Use tiny for lowest latency in voice apps
+    whisper_model: str = "tiny"
     compute_type: Literal["int8", "float16", "float32", "auto"] = "int8"
 
     # Transcription settings

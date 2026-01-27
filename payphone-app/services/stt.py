@@ -1,11 +1,13 @@
-"""Speech-to-Text service with Hailo NPU acceleration.
+"""Speech-to-Text service with multiple backend support.
 
-Supports two backends:
-1. Hailo-accelerated Whisper via Wyoming protocol (recommended for Pi #1 with AI HAT+ 2)
-2. faster-whisper for CPU-only fallback or development
+Supports three backends:
+1. Moonshine - 5x faster than Whisper tiny, optimized for edge devices (recommended)
+2. Hailo-accelerated Whisper via Wyoming protocol (for Pi #1 with AI HAT+ 2)
+3. faster-whisper for CPU-only fallback or development
 
-The Hailo backend offloads Whisper inference to the Hailo-10H NPU, freeing
-the CPU for other tasks like TTS and audio processing.
+Moonshine (UsefulSensors) uses an encoder-decoder transformer with RoPE
+instead of absolute position embeddings, trained without zero-padding
+for greater encoder efficiency.
 """
 
 __all__ = [
@@ -13,6 +15,7 @@ __all__ = [
     "TranscriptionResult",
     "WyomingSTTClient",
     "WhisperSTT",
+    "STTService",
 ]
 
 import asyncio
@@ -35,6 +38,7 @@ logger = logging.getLogger(__name__)
 class STTBackend(str, Enum):
     """Available STT backends."""
 
+    MOONSHINE = "moonshine"  # Moonshine (5x faster than Whisper tiny)
     HAILO_WYOMING = "hailo_wyoming"  # Hailo-accelerated via Wyoming protocol
     FASTER_WHISPER = "faster_whisper"  # CPU-based faster-whisper
 
@@ -305,10 +309,13 @@ class WyomingSTTClient:
 class WhisperSTT:
     """Speech-to-Text service with pluggable backends.
 
-    Recommended: Use Hailo-accelerated Whisper via Wyoming protocol on Pi #1
-    with AI HAT+ 2 for best performance and CPU efficiency.
+    Backend priority (when backend="auto"):
+    1. Moonshine - 5x faster than Whisper tiny, recommended for edge
+    2. Wyoming/Hailo - NPU accelerated Whisper on AI HAT+ 2
+    3. faster-whisper - CPU-based fallback
 
-    Fallback: faster-whisper for development or systems without AI HAT+ 2.
+    Moonshine uses encoder-decoder transformer with RoPE and no zero-padding,
+    achieving 5x speedup over Whisper tiny with equivalent accuracy.
     """
 
     def __init__(self, settings: STTSettings | None = None):
@@ -317,45 +324,119 @@ class WhisperSTT:
         self.settings = settings
 
         self._backend: STTBackend | None = None
-        self._model = None  # For faster-whisper
+        self._model = None  # For faster-whisper or Moonshine
+        self._processor = None  # For Moonshine
         self._wyoming_client: WyomingSTTClient | None = None
         self._initialized = False
+        self._device: str = "cpu"
 
     async def initialize(self) -> None:
         """Initialize the STT service.
 
-        Attempts to connect to Hailo Wyoming server first.
-        Falls back to faster-whisper if unavailable.
+        Backend selection order (for backend="auto"):
+        1. Moonshine (if transformers available) - fastest
+        2. Wyoming/Hailo (if server reachable) - NPU accelerated
+        3. faster-whisper (always available) - CPU fallback
         """
         if self._initialized:
             return
 
-        # Try Hailo Wyoming first (recommended for Pi #1 with AI HAT+ 2)
-        if self.settings.device == "hailo" or await self._check_wyoming_available():
+        backend = self.settings.backend
+
+        # Determine device
+        self._device = self.settings.device
+        if self._device == "auto":
             try:
-                self._wyoming_client = WyomingSTTClient(
-                    host=self.settings.wyoming_host,
-                    port=self.settings.wyoming_port,
-                )
-                await self._wyoming_client.connect()
-                self._backend = STTBackend.HAILO_WYOMING
-                logger.info(
-                    f"Using Hailo-accelerated Whisper via Wyoming at "
-                    f"{self.settings.wyoming_host}:{self.settings.wyoming_port}"
-                )
-                self._initialized = True
+                import torch
+                self._device = "cuda" if torch.cuda.is_available() else "cpu"
+            except ImportError:
+                self._device = "cpu"
+
+        # Try Moonshine first (fastest option)
+        if backend in ("moonshine", "auto"):
+            if await self._try_moonshine():
                 return
-            except Exception as e:
-                logger.warning(f"Hailo Wyoming unavailable: {e}")
-                self._wyoming_client = None
+
+        # Try Hailo Wyoming (NPU accelerated)
+        if backend in ("hailo", "auto"):
+            if await self._try_wyoming():
+                return
 
         # Fallback to faster-whisper
-        logger.info(f"Loading faster-whisper model: {self.settings.model_name}")
+        if backend in ("whisper", "auto"):
+            await self._load_faster_whisper()
+            return
+
+        raise RuntimeError(f"No STT backend available for backend={backend}")
+
+    async def _try_moonshine(self) -> bool:
+        """Try to initialize Moonshine backend."""
+        try:
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, self._load_moonshine)
+            self._backend = STTBackend.MOONSHINE
+            self._initialized = True
+            logger.info(
+                f"Using Moonshine STT ({self.settings.moonshine_model}) "
+                f"on {self._device} - 5x faster than Whisper tiny"
+            )
+            return True
+        except ImportError as e:
+            logger.warning(f"Moonshine unavailable (install transformers>=4.48): {e}")
+            return False
+        except Exception as e:
+            logger.warning(f"Moonshine initialization failed: {e}")
+            return False
+
+    async def _try_wyoming(self) -> bool:
+        """Try to initialize Wyoming/Hailo backend."""
+        if not await self._check_wyoming_available():
+            return False
+
+        try:
+            self._wyoming_client = WyomingSTTClient(
+                host=self.settings.wyoming_host,
+                port=self.settings.wyoming_port,
+            )
+            await self._wyoming_client.connect()
+            self._backend = STTBackend.HAILO_WYOMING
+            self._initialized = True
+            logger.info(
+                f"Using Hailo-accelerated Whisper via Wyoming at "
+                f"{self.settings.wyoming_host}:{self.settings.wyoming_port}"
+            )
+            return True
+        except Exception as e:
+            logger.warning(f"Hailo Wyoming unavailable: {e}")
+            self._wyoming_client = None
+            return False
+
+    async def _load_faster_whisper(self) -> None:
+        """Load faster-whisper as fallback."""
+        logger.info(f"Loading faster-whisper model: {self.settings.whisper_model}")
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._load_faster_whisper)
+        await loop.run_in_executor(None, self._load_faster_whisper_sync)
         self._backend = STTBackend.FASTER_WHISPER
         self._initialized = True
-        logger.info("Using faster-whisper (CPU) for STT")
+        logger.info(f"Using faster-whisper ({self.settings.whisper_model}) on {self._device}")
+
+    def _load_moonshine(self) -> None:
+        """Load the Moonshine model (blocking)."""
+        from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
+        import torch
+
+        model_id = self.settings.moonshine_model
+        torch_dtype = torch.float16 if self._device == "cuda" else torch.float32
+
+        logger.info(f"Loading Moonshine model: {model_id}")
+
+        self._processor = AutoProcessor.from_pretrained(model_id)
+        self._model = AutoModelForSpeechSeq2Seq.from_pretrained(
+            model_id,
+            torch_dtype=torch_dtype,
+            low_cpu_mem_usage=True,
+        )
+        self._model.to(self._device)
 
     async def _check_wyoming_available(self) -> bool:
         """Check if Wyoming Whisper server is reachable."""
@@ -373,28 +454,19 @@ class WhisperSTT:
         except (ConnectionRefusedError, asyncio.TimeoutError, OSError):
             return False
 
-    def _load_faster_whisper(self) -> None:
+    def _load_faster_whisper_sync(self) -> None:
         """Load the faster-whisper model (blocking)."""
         from faster_whisper import WhisperModel
 
-        device = self.settings.device
-        if device == "auto" or device == "hailo":
-            try:
-                import torch
-
-                device = "cuda" if torch.cuda.is_available() else "cpu"
-            except ImportError:
-                device = "cpu"
-
         compute_type = self.settings.compute_type
         if compute_type == "auto":
-            compute_type = "int8" if device == "cpu" else "float16"
+            compute_type = "int8" if self._device == "cpu" else "float16"
 
-        logger.info(f"faster-whisper using device: {device}, compute_type: {compute_type}")
+        logger.info(f"faster-whisper using device: {self._device}, compute_type: {compute_type}")
 
         self._model = WhisperModel(
-            self.settings.model_name,
-            device=device,
+            self.settings.whisper_model,
+            device=self._device,
             compute_type=compute_type,
         )
 
@@ -404,6 +476,7 @@ class WhisperSTT:
             await self._wyoming_client.disconnect()
             self._wyoming_client = None
         self._model = None
+        self._processor = None
         self._initialized = False
         self._backend = None
 
@@ -417,6 +490,11 @@ class WhisperSTT:
         """Return True if using Hailo NPU acceleration."""
         return self._backend == STTBackend.HAILO_WYOMING
 
+    @property
+    def is_moonshine(self) -> bool:
+        """Return True if using Moonshine backend."""
+        return self._backend == STTBackend.MOONSHINE
+
     async def transcribe(
         self,
         audio: NDArray[np.float32],
@@ -426,7 +504,7 @@ class WhisperSTT:
 
         Args:
             audio: Audio samples as float32 array in range [-1.0, 1.0].
-            sample_rate: Sample rate of audio (must be 16kHz for Whisper).
+            sample_rate: Sample rate of audio (must be 16kHz).
 
         Returns:
             TranscriptionResult with text and metadata.
@@ -435,7 +513,7 @@ class WhisperSTT:
             raise RuntimeError("STT not initialized. Call initialize() first.")
 
         if sample_rate != 16000:
-            raise ValueError(f"Whisper requires 16kHz audio, got {sample_rate}Hz")
+            raise ValueError(f"STT requires 16kHz audio, got {sample_rate}Hz")
 
         if len(audio) == 0:
             return TranscriptionResult(
@@ -446,7 +524,14 @@ class WhisperSTT:
             )
 
         # Route to appropriate backend
-        if self._backend == STTBackend.HAILO_WYOMING:
+        if self._backend == STTBackend.MOONSHINE:
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(
+                None,
+                self._transcribe_moonshine,
+                audio,
+            )
+        elif self._backend == STTBackend.HAILO_WYOMING:
             return await self._wyoming_client.transcribe(
                 audio, sample_rate, self.settings.language
             )
@@ -457,6 +542,45 @@ class WhisperSTT:
                 self._transcribe_faster_whisper,
                 audio,
             )
+
+    def _transcribe_moonshine(
+        self, audio: NDArray[np.float32]
+    ) -> TranscriptionResult:
+        """Synchronous transcription via Moonshine (blocking)."""
+        import torch
+
+        duration = len(audio) / 16000
+
+        # Prepare inputs for Moonshine
+        inputs = self._processor(
+            audio,
+            sampling_rate=16000,
+            return_tensors="pt",
+        )
+
+        # Move to device
+        input_features = inputs.input_features.to(self._device)
+        if self._device == "cuda":
+            input_features = input_features.half()
+
+        # Generate transcription
+        with torch.no_grad():
+            generated_ids = self._model.generate(
+                input_features,
+                max_new_tokens=256,
+            )
+
+        # Decode
+        text = self._processor.batch_decode(
+            generated_ids, skip_special_tokens=True
+        )[0]
+
+        return TranscriptionResult(
+            text=text.strip(),
+            language=self.settings.language,
+            confidence=0.9,  # Moonshine doesn't provide confidence scores
+            duration_seconds=duration,
+        )
 
     def _transcribe_faster_whisper(
         self, audio: NDArray[np.float32]
@@ -613,7 +737,7 @@ class WhisperSTT:
 
     @staticmethod
     def _resample_to_16k(audio: NDArray[np.float32], sample_rate: int) -> NDArray[np.float32]:
-        """Resample audio to 16kHz for Whisper.
+        """Resample audio to 16kHz for STT models.
 
         Args:
             audio: Audio samples as float32 array.
@@ -632,3 +756,7 @@ class WhisperSTT:
         up = 16000 // g
         down = sample_rate // g
         return resample_poly(audio, up, down).astype(np.float32)
+
+
+# Alias for the main STT service class
+STTService = WhisperSTT
