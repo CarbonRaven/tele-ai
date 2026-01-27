@@ -127,12 +127,31 @@ class SileroVAD:
         self.reset()
 
     def reset(self) -> None:
-        """Reset VAD state for a new conversation."""
+        """Reset VAD state for a new conversation.
+
+        Note: This resets the legacy shared state. For thread-safe per-session
+        state, use create_session_state() and pass VADSessionState to process_chunk().
+        """
         self._is_speaking = False
         self._speech_samples = 0
         self._silence_samples = 0
+        # Model state reset is handled synchronously since it's lightweight
+        # and only affects internal RNN hidden states
         if self._model is not None:
             self._model.reset_states()
+
+    async def reset_async(self) -> None:
+        """Thread-safe async reset of VAD state.
+
+        Use this when resetting from an async context to ensure model state
+        reset doesn't interfere with concurrent inference.
+        """
+        async with self._lock:
+            self._is_speaking = False
+            self._speech_samples = 0
+            self._silence_samples = 0
+            if self._model is not None:
+                self._model.reset_states()
 
     def _samples_to_ms(self, samples: int, sample_rate: int = 16000) -> int:
         """Convert samples to milliseconds."""

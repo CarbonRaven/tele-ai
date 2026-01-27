@@ -52,6 +52,8 @@ class WyomingSTTClient:
 
     Connects to a Wyoming Whisper server (e.g., wyoming-hailo-whisper)
     running on port 10300.
+
+    Uses proper Wyoming binary protocol for audio data to avoid base64 overhead.
     """
 
     def __init__(self, host: str = "localhost", port: int = 10300):
@@ -59,19 +61,35 @@ class WyomingSTTClient:
         self.port = port
         self._reader = None
         self._writer = None
+        self._reconnect_attempts = 0
+        self._max_reconnect_attempts = 5
+        self._base_reconnect_delay = 0.5  # seconds
 
     async def connect(self) -> None:
-        """Connect to Wyoming server."""
-        try:
-            self._reader, self._writer = await asyncio.open_connection(
-                self.host, self.port
-            )
-            logger.info(f"Connected to Wyoming Whisper at {self.host}:{self.port}")
-        except ConnectionRefusedError:
-            raise RuntimeError(
-                f"Cannot connect to Wyoming Whisper at {self.host}:{self.port}. "
-                "Ensure wyoming-hailo-whisper is running."
-            )
+        """Connect to Wyoming server with exponential backoff."""
+        while self._reconnect_attempts < self._max_reconnect_attempts:
+            try:
+                self._reader, self._writer = await asyncio.open_connection(
+                    self.host, self.port
+                )
+                self._reconnect_attempts = 0  # Reset on successful connection
+                logger.info(f"Connected to Wyoming Whisper at {self.host}:{self.port}")
+                return
+            except (ConnectionRefusedError, OSError) as e:
+                self._reconnect_attempts += 1
+                if self._reconnect_attempts >= self._max_reconnect_attempts:
+                    raise RuntimeError(
+                        f"Cannot connect to Wyoming Whisper at {self.host}:{self.port} "
+                        f"after {self._max_reconnect_attempts} attempts. "
+                        "Ensure wyoming-hailo-whisper is running."
+                    )
+                # Exponential backoff: 0.5s, 1s, 2s, 4s...
+                delay = self._base_reconnect_delay * (2 ** (self._reconnect_attempts - 1))
+                logger.warning(
+                    f"Wyoming connection failed ({e}), retrying in {delay:.1f}s "
+                    f"(attempt {self._reconnect_attempts}/{self._max_reconnect_attempts})"
+                )
+                await asyncio.sleep(delay)
 
     async def disconnect(self) -> None:
         """Disconnect from Wyoming server."""
@@ -148,25 +166,43 @@ class WyomingSTTClient:
 
         except Exception as e:
             logger.error(f"Wyoming transcription error: {e}")
-            # Reconnect on error
+            # Disconnect and allow reconnect with backoff on next call
             await self.disconnect()
             raise
 
+    def reset_reconnect_attempts(self) -> None:
+        """Reset reconnection attempt counter (call after successful operations)."""
+        self._reconnect_attempts = 0
+
     async def _send_event(self, event_type: str, data: dict) -> None:
-        """Send a Wyoming protocol event."""
+        """Send a Wyoming protocol event.
+
+        Uses binary framing for audio data to avoid base64 overhead (33% savings).
+        Protocol: 4-byte length prefix (big-endian) + JSON header + binary payload
+        """
         import json
 
-        # Wyoming uses JSON lines protocol
+        # Separate binary audio from JSON data
+        audio_data = data.pop("audio", None)
+
+        # Wyoming uses JSON lines protocol for events
         event = {"type": event_type, "data": data}
 
-        # Handle binary audio data specially
-        if "audio" in data:
-            import base64
+        if audio_data is not None:
+            # Binary protocol: length-prefixed frame
+            # Format: [4 bytes: total length][JSON header][binary audio]
+            header = json.dumps(event).encode("utf-8")
+            total_length = len(header) + len(audio_data)
 
-            event["data"]["audio"] = base64.b64encode(data["audio"]).decode("ascii")
+            # Write length prefix + header + binary audio
+            self._writer.write(struct.pack(">I", total_length))
+            self._writer.write(header)
+            self._writer.write(audio_data)
+        else:
+            # Standard JSON lines for non-audio events
+            message = json.dumps(event) + "\n"
+            self._writer.write(message.encode("utf-8"))
 
-        message = json.dumps(event) + "\n"
-        self._writer.write(message.encode("utf-8"))
         await self._writer.drain()
 
     async def _receive_event(self, timeout: float = 30.0) -> dict | None:

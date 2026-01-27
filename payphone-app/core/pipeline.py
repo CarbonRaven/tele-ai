@@ -68,8 +68,8 @@ class VoicePipeline:
         protocol = session.protocol
         audio_buffer = AudioBuffer(sample_rate=16000)
 
-        # Reset VAD state for new utterance
-        self.vad.reset()
+        # Reset VAD state for new utterance (thread-safe)
+        await self.vad.reset_async()
 
         speech_started = False
         max_duration_samples = 30 * 16000  # 30 second max utterance
@@ -361,6 +361,10 @@ class VoicePipeline:
         """
         chunks = self.audio_processor.chunk_audio(audio_bytes)
 
+        # Calculate chunk duration for pacing
+        chunk_size = self.settings.audio.chunk_size
+        chunk_duration_sec = chunk_size / (self.settings.audio.output_sample_rate * 2)
+
         for chunk in chunks:
             if not protocol.is_active:
                 return False
@@ -369,8 +373,8 @@ class VoicePipeline:
             if not success:
                 return False
 
-            # Pace the sending
-            await asyncio.sleep(0.02)
+            # Pace the sending based on actual chunk duration
+            await asyncio.sleep(chunk_duration_sec)
 
         return True
 
