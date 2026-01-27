@@ -1016,6 +1016,121 @@ A self-contained payphone running a local AI. Users interact with the AI to get 
 
 ---
 
+---
+
+## Retrophone-Style Compound Names (Codex Research - Jan 2026)
+
+### Retro + Phone Variations
+| Name | Domain Ideas | Notes |
+|------|--------------|-------|
+| **RetroBell** | retrobell.ai | Payphone bell nostalgia; clean, memorable |
+| **RetroRing** | retroring.io | Classic ring sound |
+| **RetroLine** | retroline.ai | Vintage phone line |
+| **VintageCall** | vintagecall.ai | Straightforward nostalgic |
+| **ClassicDial** | classicdial.io | Rotary dial era |
+| **ThrowbackTone** | throwbacktone.ai | Nostalgic sound |
+| **HeritageLine** | heritageline.ai | Premium vintage feel |
+
+### Tech Nostalgia Mashups
+| Name | Domain Ideas | Notes |
+|------|--------------|-------|
+| **NeonDial** | neondial.ai | Neon-lit 90s arcade vibe; highly brandable |
+| **ModemTone** | modemtone.ai | Dial-up sound reference |
+| **CopperLine** | copperline.ai | Copper phone line heritage |
+| **VinylDial** | vinyldial.io | Vinyl record + rotary dial crossover |
+| **ArcadeRing** | arcadering.ai | 90s arcade nostalgia |
+| **LofiLine** | lofiline.io | Lo-fi aesthetic; chill vibes |
+| **Y2KConnect** | y2kconnect.ai | Y2K era twist |
+| **PixelTone** | pixeltone.ai | 8-bit meets telephone |
+| **CassetteCall** | cassettecall.io | Cassette tape era |
+| **StaticLine** | staticline.ai | Analog static nostalgia |
+
+### Premium Vintage Compounds
+| Name | Domain Ideas | Notes |
+|------|--------------|-------|
+| **BrassRing** | brassring.ai | Antique phone aesthetics |
+| **IvoryDial** | ivorydial.io | Classic rotary dial color |
+| **BakeliteCall** | bakelitecall.ai | Material of vintage phones |
+| **ChromeTone** | chrometone.ai | Shiny payphone aesthetic |
+| **EbonyLine** | ebonyline.ai | Classic black phone |
+
+---
+
+## Fictional Phone Companies from Movies & TV (Codex Research - Jan 2026)
+
+### Movies
+| Fictional Company | Source | Notes |
+|-------------------|--------|-------|
+| **The Phone Company (TPC)** | The President's Analyst (1967) | Iconic Ma Bell satire; kidnaps people |
+| **Network 23** | Max Headroom (1985) | Dystopian TV megacorp; lethal ads |
+| **Cable 54** | They Live (1988) | Alien-controlled network |
+| **Omni Consumer Products** | RoboCop (1987) | Owns everything including telecom |
+| **Tyrell Corporation** | Blade Runner (1982) | Megacorp aesthetic |
+| **Weyland-Yutani** | Alien franchise | "Building Better Worlds" tagline |
+
+### TV Shows
+| Fictional Company | Source | Notes |
+|-------------------|--------|-------|
+| **"The Phone Company"** | SNL (Lily Tomlin) | "We don't care. We don't have to." |
+| **Corey Hotline** | The Simpsons | 1-900 service parody |
+| **Duff Telecom** | The Simpsons | Beer company diversification |
+| **Globex Corporation** | The Simpsons | Hank Scorpio's conglomerate |
+| **Initech** | Office Space (1999) | Cubicle culture icon |
+| **Massive Dynamic** | Fringe | Mysterious tech conglomerate |
+| **Hooli** | Silicon Valley | Tech giant parody |
+
+### Video Games
+| Fictional Company | Source | Notes |
+|-------------------|--------|-------|
+| **WorldSat Communications** | Cyberpunk 2077 | Satellite monopoly; dystopian |
+| **Erika** | Shadowrun | Telecom giant |
+| **Aquinas Network** | Deus Ex | Global protocol system |
+| **Nook Inc.** | Animal Crossing | Covers all communications |
+
+### Anime & Comics
+| Fictional Company | Source | Notes |
+|-------------------|--------|-------|
+| **Tachibana General Labs** | Serial Experiments Lain | Wired network backbone |
+| **Megatech Body Corp** | Ghost in the Shell | Cyberbrain communications |
+| **Hero Hotline (555-HERO)** | DC Comics | For-profit superhero dispatch |
+| **Daily Planet** | Superman | Classic media tie-in |
+
+---
+
+## Famous Phone Moments & Numbers (Codex Research - Jan 2026)
+
+### Iconic Phone Booth Scenes
+| Scene/Reference | Source | Potential Name |
+|-----------------|--------|----------------|
+| Time-travel booth | Bill & Ted | **CircuitsOfTime**, **ExcellentBooth** |
+| Hardline exit | The Matrix | **HardlineExit**, **ExitCode** |
+| Superman transformation | Superman films | **TheChangeUp**, **BoothTransform** |
+| TARDIS | Doctor Who | **PoliceBox**, **BiggerInside** |
+| Mojave phone booth | Real/cult classic | **MojaveRing**, **DesertDial** |
+
+### Legendary Fictional Phone Numbers
+| Number | Source | Potential Name |
+|--------|--------|----------------|
+| **555-2368** | Ghostbusters | **GhostLine**, **2368Hotline** |
+| **KL5-3226** | The Simpsons (Mr. Plow) | **KLondike5** (already listed) |
+| **867-5309** | Tommy Tutone | **JennyLine**, **8675309** |
+| **555-FILK** | Bruce Almighty | **GodLine** |
+| **0118 999 881 999 119 7253** | IT Crowd | **EmergencyServices** (joke) |
+
+### Inspired Compound Names
+| Name | Domain Ideas | Notes |
+|------|--------------|-------|
+| **Network23** | network23.ai | Max Headroom dystopian vibe |
+| **HardlineExit** | hardlineexit.ai | Matrix reference; escape to AI |
+| **CircuitsOfTime** | circuitsoftime.ai | Bill & Ted booth |
+| **GhostLine** | ghostline.ai | Ghostbusters + paranormal |
+| **MojaveRing** | mojavering.ai | Cult desert phone booth |
+| **ExitCode** | exitcode.ai | Matrix + programming |
+| **Channel54** | channel54.ai | They Live reference |
+| **HeroHotline** | herohotline.ai | DC Comics dispatch service |
+
+---
+
 ## Codex Top Picks (Jan 2026)
 
 ### Most Evocative & Nostalgic
