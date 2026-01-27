@@ -6,11 +6,13 @@ A fully local AI voice assistant designed for vintage payphones. Connects via As
 
 - **Fully Local Processing**: All AI runs on-premise (dual Raspberry Pi 5 setup)
 - **Hailo NPU Acceleration**: Whisper STT accelerated by AI HAT+ 2
-- **Low Latency**: 1.5-2.0s end-to-end response time target
+- **Low Latency**: ~1.5s end-to-end response time with streaming optimizations
+- **Concurrent Calls**: Per-session state isolation supports multiple simultaneous calls
 - **Voice Activity Detection**: Silero VAD for accurate speech detection
 - **Speech-to-Text**: Hailo-accelerated Whisper via Wyoming protocol
-- **Language Model**: Ollama with Qwen2.5-3B on dedicated Pi
-- **Text-to-Speech**: Kokoro-82M for natural voice synthesis
+- **Language Model**: Ollama with Qwen2.5-7B on dedicated Pi
+- **Text-to-Speech**: Kokoro-82M with optional remote offloading
+- **Streaming Pipeline**: Overlapped LLM+TTS for reduced latency
 - **Barge-in Support**: Interrupt AI with DTMF tones
 - **Multiple Personas**: Operator, Detective, Grandma, Robot
 - **Extensible Features**: Dial-A-Joke, Fortune, Horoscope, Trivia
@@ -23,8 +25,13 @@ A fully local AI voice assistant designed for vintage payphones. Connects via As
                                     │           192.168.1.11              │
                                     │                                     │
                                     │    ┌─────────────────────────┐     │
-                                    │    │   Ollama (qwen2.5:3b)   │     │
+                                    │    │   Ollama (qwen2.5:7b)   │     │
                                     │    │       Port 11434        │     │
+                                    │    └─────────────────────────┘     │
+                                    │                                     │
+                                    │    ┌─────────────────────────┐     │
+                                    │    │  TTS Server (optional)  │     │
+                                    │    │       Port 10200        │     │
                                     │    └─────────────────────────┘     │
                                     └──────────────▲──────────────────────┘
                                                    │ HTTP API
@@ -37,12 +44,21 @@ Payphone → HT801 ATA → Asterisk → AudioSocket ─────┼───�
                     │               │              │     + AI HAT+ 2         │
                     ▼               ▼              ▼                         │
               Silero VAD    Hailo Whisper    Kokoro TTS                     │
-              (CPU)         (NPU :10300)     (CPU)                          │
+              (CPU)         (NPU :10300)     (local/remote)                 │
                     │               │              ▲                         │
                     └───────────────┴──────────────┘                         │
                                                                              │
                     └────────────────────────────────────────────────────────┘
 ```
+
+### Dual-Pi Benefits
+
+| Pi #1 (pi-voice) | Pi #2 (pi-ollama) |
+|------------------|-------------------|
+| AudioSocket server | Ollama LLM (7B model) |
+| VAD (CPU) | TTS server (optional) |
+| STT via Hailo NPU | |
+| TTS (local or remote) | |
 
 ## Quick Start
 
@@ -59,7 +75,7 @@ Payphone → HT801 ATA → Asterisk → AudioSocket ─────┼───�
 - Raspberry Pi 5 (16GB)
 - Raspberry Pi OS 64-bit (Bookworm)
 - Static IP: 192.168.1.11
-- Ollama with qwen2.5:3b model
+- Ollama with qwen2.5:7b model (~8GB RAM)
 
 **Telephony:**
 - Grandstream HT801 ATA (or similar)
@@ -68,7 +84,7 @@ Payphone → HT801 ATA → Asterisk → AudioSocket ─────┼───�
 
 ```bash
 # Clone repository
-git clone <repo-url> ~/tele-ai
+git clone https://github.com/CarbonRaven/payphone-ai.git ~/tele-ai
 cd ~/tele-ai/payphone-app
 
 # Run automated installer
@@ -91,16 +107,31 @@ Copy `.env.example` to `.env` and customize:
 cp .env.example .env
 ```
 
-Key settings:
+### Core Settings
 
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `LLM_HOST` | Ollama server (Pi #2) | `http://192.168.1.11:11434` |
-| `LLM_MODEL` | Language model | `qwen2.5:3b` |
+| `LLM_MODEL` | Language model | `qwen2.5:7b` |
 | `STT_DEVICE` | STT backend (`hailo` or `auto`) | `hailo` |
 | `STT_WYOMING_PORT` | Wyoming Whisper port | `10300` |
+| `TTS_MODE` | TTS mode (`local` or `remote`) | `local` |
 | `TTS_VOICE` | Kokoro voice | `af_bella` |
 | `AUDIO_AUDIOSOCKET_PORT` | AudioSocket port | `9092` |
+
+### Remote TTS (Optional)
+
+Offload TTS to Pi #2 to reduce Pi #1 CPU load by ~30%:
+
+```bash
+# On Pi #2: Install and run TTS server
+pip install ".[tts-server]"
+python tts_server.py
+
+# On Pi #1: Configure remote TTS
+TTS_MODE=remote
+TTS_REMOTE_HOST=http://192.168.1.11:10200
+```
 
 The STT service auto-detects Wyoming/Hailo and falls back to faster-whisper CPU if unavailable.
 
@@ -123,6 +154,8 @@ Then reload: `asterisk -rx "dialplan reload"`
 payphone-app/
 ├── main.py                 # Application entry point
 ├── install.sh              # Automated installer
+├── tts_server.py           # Remote TTS server (for Pi #2)
+├── tts-server.service      # Systemd unit for TTS server
 ├── config/
 │   ├── settings.py         # Pydantic settings
 │   └── prompts.py          # System prompts for personas
@@ -134,9 +167,9 @@ payphone-app/
 │   └── state_machine.py    # Conversation state machine
 ├── services/
 │   ├── vad.py              # Silero VAD wrapper
-│   ├── stt.py              # Hailo Whisper (Wyoming) + faster-whisper fallback
-│   ├── llm.py              # Ollama client (connects to Pi #2)
-│   └── tts.py              # Kokoro TTS
+│   ├── stt.py              # Hailo Whisper (Wyoming) + fallback
+│   ├── llm.py              # Ollama client with streaming
+│   └── tts.py              # Kokoro TTS (local + remote)
 └── features/
     ├── base.py             # Feature base classes
     ├── registry.py         # Auto-discovery registry
@@ -184,16 +217,32 @@ journalctl -u payphone -f
 sudo systemctl status payphone
 ```
 
+### TTS Server (Pi #2, Optional)
+
+```bash
+# Install
+sudo cp tts-server.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable tts-server
+
+# Start
+sudo systemctl start tts-server
+
+# View logs
+journalctl -u tts-server -f
+```
+
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
 | No audio | Check AudioSocket port, verify FreePBX dialplan |
-| Slow responses | Use smaller Whisper model, check Ollama performance |
+| Slow responses | Enable remote TTS, check Ollama performance |
 | Connection refused | Verify service is running, check firewall |
 | Poor transcription | Adjust VAD thresholds, check audio quality |
 | Wyoming connection fails | Check wyoming-hailo-whisper service, will auto-retry with backoff |
 | LLM streaming hangs | Timeout protection auto-recovers after configured timeout |
+| Concurrent call issues | Per-session VAD state isolates calls automatically |
 
 Enable debug logging:
 
@@ -205,23 +254,43 @@ LOG_LEVEL=DEBUG
 
 ## Performance Optimizations
 
-The voice pipeline includes several optimizations for low-latency operation:
+The voice pipeline includes extensive optimizations for low-latency operation:
+
+### Streaming & Concurrency
 
 | Optimization | Description |
 |--------------|-------------|
-| **Binary Wyoming Protocol** | Audio sent as binary frames instead of base64, reducing overhead by ~33% |
-| **Exponential Backoff** | Wyoming reconnection uses backoff (0.5s → 4s) to prevent connection storms |
-| **Thread-safe VAD** | Async reset with lock-protected state updates prevents race conditions |
-| **Streaming Timeout** | LLM streaming protected with separate first-token and inter-token timeouts |
-| **Regex Sentence Detection** | O(1) amortized sentence boundary detection for TTS chunking |
+| **Overlapped LLM+TTS** | Producer-consumer pattern streams sentences to TTS while LLM generates |
+| **Per-session VAD State** | Each call tracks speech independently, enabling 3+ concurrent calls |
+| **Thread-safe TTS** | asyncio.Lock prevents model corruption with concurrent synthesis |
+| **Bounded Sentence Queue** | Max 5 sentences queued to balance latency and memory |
+
+### Protocol & I/O
+
+| Optimization | Description |
+|--------------|-------------|
+| **Binary Wyoming Protocol** | Audio sent as binary frames instead of base64 (~33% less overhead) |
+| **Exponential Backoff** | Wyoming reconnection uses backoff (0.5s → 4s) to prevent storms |
 | **Backpressure-aware Pacing** | Audio playback tracks actual vs expected time to prevent drift |
-| **Bounded Queues** | Audio/DTMF queues have max sizes with drop-oldest strategy to prevent memory exhaustion |
-| **O(1) Audio Buffer** | Uses `deque.popleft()` instead of `list.pop(0)` for efficient sample removal |
-| **Incremental Sample Tracking** | STT tracks total samples incrementally, avoiding O(n²) recounting |
+| **Connection Lifecycle** | Proper tracking with graceful shutdown and task cancellation |
+
+### Memory & CPU
+
+| Optimization | Description |
+|--------------|-------------|
+| **O(1) Audio Buffer** | Uses `deque.popleft()` instead of `list.pop(0)` |
+| **Incremental Sample Tracking** | STT tracks samples incrementally, avoiding O(n²) |
 | **Optimized History Trimming** | Conversation context tracks non-system count incrementally |
-| **Input Validation** | DTMF digits and payload sizes validated to prevent injection and memory attacks |
-| **Connection Lifecycle** | Proper connection tracking with graceful shutdown and task cancellation |
-| **Structured Exception Handling** | Specific exception types enable targeted error recovery |
+| **Bounded Queues** | Audio/DTMF queues have max sizes with drop-oldest strategy |
+| **Remote TTS Option** | Offload synthesis to Pi #2, reducing Pi #1 CPU by ~30% |
+
+### Validation & Security
+
+| Optimization | Description |
+|--------------|-------------|
+| **Input Validation** | DTMF digits and payload sizes validated |
+| **Streaming Timeout** | Separate first-token (15s) and inter-token (5s) timeouts |
+| **Structured Exceptions** | Specific exception types enable targeted error recovery |
 
 ## Hardware Requirements
 
@@ -234,13 +303,31 @@ The voice pipeline includes several optimizations for low-latency operation:
 | Storage | 64GB+ SD card |
 | Network | Gigabit Ethernet |
 
-### Pi #2 (LLM Server)
+### Pi #2 (LLM + Optional TTS Server)
 
 | Component | Requirement |
 |-----------|-------------|
 | Board | Raspberry Pi 5 (16GB) |
 | Storage | 64GB+ SD card |
 | Network | Gigabit Ethernet |
+| RAM Usage | ~8GB for qwen2.5:7b + ~200MB for TTS |
+
+## API Endpoints (TTS Server)
+
+When running `tts_server.py` on Pi #2:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check, returns sample rate and voices |
+| `/synthesize` | POST | Synthesize text to audio |
+
+Example:
+```bash
+curl http://192.168.1.11:10200/health
+curl -X POST http://192.168.1.11:10200/synthesize \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hello world", "voice": "af_bella", "speed": 1.0}'
+```
 
 ## License
 
@@ -253,3 +340,4 @@ MIT License - See LICENSE file for details.
 - [Ollama](https://ollama.com/) - Local LLM inference
 - [Kokoro](https://github.com/thewh1teagle/kokoro-onnx) - Fast TTS synthesis
 - [Asterisk](https://www.asterisk.org/) - Telephony platform
+- [FastAPI](https://fastapi.tiangolo.com/) - TTS server framework
