@@ -300,7 +300,7 @@ The voice pipeline includes extensive optimizations for low-latency operation:
 |-----------|-------------|
 | Board | Raspberry Pi 5 (16GB) |
 | Accelerator | AI HAT+ 2 (Hailo-10H, 40 TOPS) |
-| Storage | 64GB+ SD card |
+| Storage | 512GB microSD card |
 | Network | Gigabit Ethernet |
 
 ### Pi #2 (LLM + Optional TTS Server)
@@ -308,7 +308,7 @@ The voice pipeline includes extensive optimizations for low-latency operation:
 | Component | Requirement |
 |-----------|-------------|
 | Board | Raspberry Pi 5 (16GB) |
-| Storage | 64GB+ SD card |
+| Storage | 512GB microSD card |
 | Network | Gigabit Ethernet |
 | RAM Usage | ~8GB for qwen2.5:7b + ~200MB for TTS |
 
