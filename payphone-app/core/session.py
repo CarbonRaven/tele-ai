@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 from config.prompts import get_system_prompt
 from config.settings import Settings
 from services.llm import ConversationContext, Message
+from services.vad import VADSessionState
 
 if TYPE_CHECKING:
     from core.audiosocket import AudioSocketProtocol
@@ -60,6 +61,7 @@ class Session:
     """Represents an active call session.
 
     Manages all state and context for a single phone call.
+    Each session has its own VAD state for concurrent call support.
     """
 
     call_id: str
@@ -73,6 +75,10 @@ class Session:
 
     # Conversation context
     context: ConversationContext = field(default_factory=ConversationContext)
+
+    # Per-session VAD state for concurrent call support
+    # This allows multiple calls to track speech independently
+    vad_state: VADSessionState = field(default_factory=VADSessionState)
 
     # Metrics
     metrics: SessionMetrics = field(default_factory=SessionMetrics)
@@ -205,6 +211,14 @@ class Session:
     def clear_barge_in(self) -> None:
         """Clear barge-in request."""
         self.barge_in_requested = False
+
+    def reset_vad_state(self) -> None:
+        """Reset VAD state for a new utterance.
+
+        Call this before listening for new speech to clear
+        previous speech/silence tracking.
+        """
+        self.vad_state.reset()
 
 
 class SessionManager:

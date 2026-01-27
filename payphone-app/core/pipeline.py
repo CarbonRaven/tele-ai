@@ -62,6 +62,9 @@ class VoicePipeline:
     ) -> tuple[NDArray[np.float32] | None, str | None]:
         """Listen for speech and transcribe it.
 
+        Uses per-session VAD state for concurrent call support.
+        Each call tracks speech/silence independently.
+
         Args:
             session: Current call session.
 
@@ -71,8 +74,9 @@ class VoicePipeline:
         protocol = session.protocol
         audio_buffer = AudioBuffer(sample_rate=16000)
 
-        # Reset VAD state for new utterance (thread-safe)
-        await self.vad.reset_async()
+        # Reset per-session VAD state for new utterance
+        # This uses session-local state, not the global VAD lock
+        session.reset_vad_state()
 
         speech_started = False
         # Max utterance duration from settings to prevent runaway recordings
@@ -95,13 +99,19 @@ class VoicePipeline:
             # Process audio: 8kHz bytes → 16kHz float32
             audio_float = self.audio_processor.process_for_stt(audio_bytes)
 
-            # Run VAD
-            vad_result = await self.vad.process_chunk(audio_float, sample_rate=16000)
+            # Run VAD with per-session state for concurrent call support
+            # The VAD model inference is still serialized by lock, but state
+            # tracking is per-session, allowing overlapped processing
+            vad_result = await self.vad.process_chunk(
+                audio_float,
+                sample_rate=16000,
+                session_state=session.vad_state,
+            )
 
             if vad_result.state == SpeechState.SPEECH_START:
                 speech_started = True
                 audio_buffer.add(audio_float)
-                logger.debug("Speech started")
+                logger.debug(f"Speech started (call {session.call_id})")
 
             elif vad_result.state == SpeechState.SPEECH:
                 if speech_started:
@@ -112,7 +122,8 @@ class VoicePipeline:
                     # Add final chunk with padding
                     audio_buffer.add(audio_float)
                     logger.debug(
-                        f"Speech ended, duration: {audio_buffer.get_duration_ms():.0f}ms"
+                        f"Speech ended (call {session.call_id}), "
+                        f"duration: {audio_buffer.get_duration_ms():.0f}ms"
                     )
                     break
 
