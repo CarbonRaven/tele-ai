@@ -47,11 +47,13 @@
 | Component | Technology | Port | Location |
 |-----------|------------|------|----------|
 | Wake Word | openWakeWord | 10400 | Pi #1 |
-| STT | Hailo Whisper (Wyoming) | 10300 | Pi #1 |
+| STT | Moonshine (5x faster) / Whisper | 10300 | Pi #1 |
 | LLM | Ollama (qwen2.5:3b) | 11434 | Pi #2 |
 | TTS | Kokoro-82M | - | Pi #1 |
 | VAD | Silero VAD | - | Pi #1 |
 | Entry Point | AudioSocket | 9092 | Pi #1 |
+
+**STT Backend Priority** (auto mode): Moonshine → Wyoming/Hailo → faster-whisper
 
 ## Repository Structure
 
@@ -71,7 +73,7 @@ tele-ai/
 │   │   └── state_machine.py     # Conversation state machine
 │   ├── services/
 │   │   ├── vad.py               # Silero VAD
-│   │   ├── stt.py               # Hailo Whisper + faster-whisper fallback
+│   │   ├── stt.py               # Moonshine / Hailo Whisper / faster-whisper
 │   │   ├── llm.py               # Ollama client
 │   │   └── tts.py               # Kokoro TTS
 │   └── features/
@@ -92,12 +94,13 @@ tele-ai/
 ## Features
 
 - **Fully Local**: No cloud services, all processing on-device
-- **Hailo NPU Acceleration**: Whisper STT offloaded to AI HAT+ 2
+- **Moonshine STT**: 5x faster than Whisper tiny with equivalent accuracy
+- **Hailo NPU Fallback**: Whisper STT can use AI HAT+ 2 acceleration
 - **Multiple Personas**: Operator, Detective, Grandma, Robot
 - **Extensible Features**: Dial-A-Joke, Fortune, Horoscope, Trivia
 - **Barge-in Support**: Interrupt AI with DTMF tones
 - **Telephony Integration**: FreePBX/Asterisk via AudioSocket
-- **Optimized Pipeline**: Binary Wyoming protocol, streaming timeouts, memory-bounded buffers
+- **Optimized Pipeline**: O(n) algorithms, batched I/O, memory-bounded buffers
 
 ## Quick Start
 
@@ -117,12 +120,12 @@ See [payphone-app/SETUP.md](payphone-app/SETUP.md) for detailed installation ins
 
 ## Target Latency
 
-| Stage | Target |
-|-------|--------|
-| VAD → STT | <500ms |
-| STT → LLM | <1s |
-| LLM → TTS | <500ms |
-| **Total** | **1.5-2s** |
+| Stage | Target (Moonshine) | Target (Whisper) |
+|-------|-------------------|------------------|
+| VAD → STT | <100ms | <500ms |
+| STT → LLM | <1s | <1s |
+| LLM → TTS | <500ms | <500ms |
+| **Total** | **1-1.5s** | **1.5-2s** |
 
 ## Documentation
 

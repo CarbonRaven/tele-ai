@@ -9,7 +9,7 @@ A fully local AI voice assistant designed for vintage payphones. Connects via As
 - **Low Latency**: ~1.5s end-to-end response time with streaming optimizations
 - **Concurrent Calls**: Per-session state isolation supports multiple simultaneous calls
 - **Voice Activity Detection**: Silero VAD for accurate speech detection
-- **Speech-to-Text**: Hailo-accelerated Whisper via Wyoming protocol
+- **Speech-to-Text**: Moonshine (5x faster than Whisper) with Hailo/Whisper fallback
 - **Language Model**: Ollama with Llama 3.2 3B (speed) or Ministral 8B (quality)
 - **Text-to-Speech**: Kokoro-82M with optional remote offloading
 - **Streaming Pipeline**: Overlapped LLM+TTS for reduced latency
@@ -113,12 +113,18 @@ cp .env.example .env
 |---------|-------------|---------|
 | `LLM_HOST` | Ollama server (Pi #2) | `http://192.168.1.11:11434` |
 | `LLM_MODEL` | Language model | `llama3.2:3b-instruct-q4_K_M` |
-| `STT_DEVICE` | STT backend (`hailo` or `auto`) | `hailo` |
-| `STT_MODEL_NAME` | Whisper model (fallback) | `tiny` |
+| `STT_BACKEND` | STT backend (`moonshine`, `hailo`, `whisper`, `auto`) | `auto` |
+| `STT_MOONSHINE_MODEL` | Moonshine model | `UsefulSensors/moonshine-tiny` |
+| `STT_WHISPER_MODEL` | Whisper model (fallback) | `tiny` |
 | `TTS_MODE` | TTS mode (`local` or `remote`) | `local` |
 | `TTS_VOICE` | Kokoro voice | `af_bella` |
 | `VAD_MIN_SILENCE_DURATION_MS` | End-of-speech detection | `800` |
 | `AUDIO_AUDIOSOCKET_PORT` | AudioSocket port | `9092` |
+
+**STT Backend Priority** (when `STT_BACKEND=auto`):
+1. **Moonshine** - If `transformers>=4.48` installed (5x faster than Whisper tiny)
+2. **Wyoming/Hailo** - If server reachable at configured host:port
+3. **faster-whisper** - CPU fallback (always available)
 
 ### Remote TTS (Optional)
 
@@ -168,7 +174,7 @@ payphone-app/
 │   └── state_machine.py    # Conversation state machine
 ├── services/
 │   ├── vad.py              # Silero VAD wrapper
-│   ├── stt.py              # Hailo Whisper (Wyoming) + fallback
+│   ├── stt.py              # Moonshine / Wyoming Whisper / faster-whisper
 │   ├── llm.py              # Ollama client with streaming
 │   └── tts.py              # Kokoro TTS (local + remote)
 └── features/
@@ -301,10 +307,16 @@ Based on latest research, these models provide optimal performance for the Pi 5 
 
 | Model | Latency (3-5s audio) | Notes |
 |-------|---------------------|-------|
-| **Whisper Tiny** | 0.7-1.2s | Fastest, default for voice apps |
+| **Moonshine Tiny** | <100ms | **Recommended** - 5x faster than Whisper tiny |
+| Moonshine Base | ~150ms | Better accuracy, still very fast |
+| Whisper Tiny | 0.7-1.2s | Hailo NPU accelerated option |
 | Whisper Base | 1.8-3.0s | Balanced accuracy/speed |
 | Whisper Large V3 Turbo | Higher | Best accuracy (8x faster than V3) |
-| Moonshine (future) | <0.5s | 5x faster than Tiny, edge-optimized |
+
+**Note**: Moonshine requires `transformers>=4.48`. Install with:
+```bash
+pip install "transformers>=4.48" torch
+```
 
 ### Language Model (LLM)
 

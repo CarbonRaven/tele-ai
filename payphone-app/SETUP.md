@@ -234,29 +234,60 @@ nc -zv localhost 10300  # Should connect
 
 ## Model Downloads
 
-### Whisper Model (STT) - Pi #1
+### Speech-to-Text (STT) - Pi #1
 
-The recommended setup uses Hailo-accelerated Whisper via the Wyoming protocol. The model is managed by the `wyoming-hailo-whisper` service installed above.
+The application supports three STT backends with automatic fallback:
 
-**If Wyoming/Hailo is unavailable**, the application falls back to faster-whisper on CPU:
+#### 1. Moonshine (Recommended - 5x faster than Whisper tiny)
+
+Moonshine is a lightweight STT model optimized for edge devices:
 
 ```bash
-# Activate venv (only needed for CPU fallback)
+source ~/tele-ai/payphone-app/venv/bin/activate
+
+# Install transformers (required for Moonshine)
+pip install "transformers>=4.48"
+
+# Pre-download Moonshine model (~27MB)
+python -c "
+from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
+model_id = 'UsefulSensors/moonshine-tiny'
+processor = AutoProcessor.from_pretrained(model_id)
+model = AutoModelForSpeechSeq2Seq.from_pretrained(model_id)
+print('Moonshine model downloaded')
+"
+```
+
+Moonshine models:
+| Model | Size | Latency | Notes |
+|-------|------|---------|-------|
+| moonshine-tiny | 27MB | <100ms | **Recommended** - fastest |
+| moonshine-base | 61MB | ~150ms | Better accuracy |
+
+#### 2. Hailo-accelerated Whisper (Wyoming)
+
+The Hailo NPU provides hardware-accelerated Whisper. The model is managed by the `wyoming-hailo-whisper` service installed above.
+
+#### 3. faster-whisper (CPU Fallback)
+
+If neither Moonshine nor Wyoming/Hailo is available:
+
+```bash
 source ~/tele-ai/payphone-app/venv/bin/activate
 
 # Pre-download fallback model
 python -c "
 from faster_whisper import WhisperModel
-model = WhisperModel('base', device='cpu', compute_type='int8')
+model = WhisperModel('tiny', device='cpu', compute_type='int8')
 print('Whisper fallback model downloaded')
 "
 ```
 
-Fallback model sizes:
+Whisper model sizes:
 | Model | Size | RAM Required | Notes |
 |-------|------|--------------|-------|
-| tiny | ~75MB | ~1GB | Fastest, lower accuracy |
-| base | ~145MB | ~1GB | Good balance (recommended fallback) |
+| tiny | ~75MB | ~1GB | Fastest Whisper option |
+| base | ~145MB | ~1GB | Good balance |
 | small | ~465MB | ~2GB | Better accuracy, slower |
 
 ### Silero VAD
@@ -592,13 +623,16 @@ fwconsole reload
    AUDIO_AUDIOSOCKET_HOST=0.0.0.0
    AUDIO_AUDIOSOCKET_PORT=9092
 
-   # Speech-to-Text (Hailo-accelerated via Wyoming on Pi #1)
-   # The app auto-detects Wyoming/Hailo and falls back to faster-whisper
-   STT_DEVICE=hailo
+   # Speech-to-Text
+   # Backend: "moonshine" (fastest), "hailo", "whisper", or "auto" (tries all)
+   STT_BACKEND=auto
+   # Moonshine settings (recommended - 5x faster than Whisper tiny)
+   STT_MOONSHINE_MODEL=UsefulSensors/moonshine-tiny
+   # Wyoming/Hailo settings (fallback if Moonshine unavailable)
    STT_WYOMING_HOST=localhost
    STT_WYOMING_PORT=10300
-   # Fallback settings if Wyoming unavailable:
-   STT_MODEL_NAME=base
+   # faster-whisper settings (CPU fallback)
+   STT_WHISPER_MODEL=tiny
    STT_COMPUTE_TYPE=int8
 
    # LLM (Standard Ollama on Pi #2)
@@ -621,29 +655,38 @@ source venv/bin/activate
 python main.py
 ```
 
-Expected output (with Hailo-accelerated Whisper):
+Expected output (with Moonshine - recommended):
 
 ```
 2024-01-20 10:00:00 - INFO - Starting AI Payphone application...
 2024-01-20 10:00:00 - INFO - Registered features: ['operator', 'jokes']
 2024-01-20 10:00:01 - INFO - Loading Silero VAD...
 2024-01-20 10:00:02 - INFO - Silero VAD model loaded successfully
+2024-01-20 10:00:02 - INFO - Loading Moonshine model: UsefulSensors/moonshine-tiny
+2024-01-20 10:00:04 - INFO - Using Moonshine STT (UsefulSensors/moonshine-tiny) on cpu - 5x faster than Whisper tiny
+2024-01-20 10:00:04 - INFO - Connecting to Ollama at http://192.168.1.11:11434...
+2024-01-20 10:00:05 - INFO - Ollama client initialized (model: qwen2.5:3b)
+2024-01-20 10:00:05 - INFO - Loading Kokoro TTS...
+2024-01-20 10:00:07 - INFO - Kokoro TTS model loaded successfully
+2024-01-20 10:00:07 - INFO - All services initialized successfully
+2024-01-20 10:00:07 - INFO - AudioSocket server listening on 0.0.0.0:9092
+```
+
+If Moonshine unavailable, falls back to Wyoming/Hailo:
+
+```
+2024-01-20 10:00:02 - WARNING - Moonshine unavailable (install transformers>=4.48): No module named 'transformers'
 2024-01-20 10:00:02 - INFO - Connected to Wyoming Whisper at localhost:10300
 2024-01-20 10:00:02 - INFO - Using Hailo-accelerated Whisper via Wyoming at localhost:10300
-2024-01-20 10:00:02 - INFO - Connecting to Ollama at http://192.168.1.11:11434...
-2024-01-20 10:00:03 - INFO - Ollama client initialized (model: qwen2.5:3b)
-2024-01-20 10:00:03 - INFO - Loading Kokoro TTS...
-2024-01-20 10:00:05 - INFO - Kokoro TTS model loaded successfully
-2024-01-20 10:00:05 - INFO - All services initialized successfully
-2024-01-20 10:00:05 - INFO - AudioSocket server listening on 0.0.0.0:9092
 ```
 
-If Wyoming/Hailo is unavailable, you'll see the fallback to faster-whisper:
+If both unavailable, falls back to faster-whisper:
 
 ```
+2024-01-20 10:00:02 - WARNING - Moonshine unavailable...
 2024-01-20 10:00:02 - WARNING - Hailo Wyoming unavailable: Cannot connect...
-2024-01-20 10:00:02 - INFO - Loading faster-whisper model: base...
-2024-01-20 10:00:10 - INFO - Using faster-whisper (CPU) for STT
+2024-01-20 10:00:02 - INFO - Loading faster-whisper model: tiny...
+2024-01-20 10:00:10 - INFO - Using faster-whisper (tiny) on cpu
 ```
 
 ### Run as Systemd Service
@@ -796,12 +839,12 @@ sudo systemctl disable avahi-daemon
 - [ ] Flash Pi OS (64-bit Bookworm)
 - [ ] Set static IP: 192.168.1.10
 - [ ] Enable PCIe Gen 3 (raspi-config)
-- [ ] Install Hailo drivers (`sudo apt install hailo-all`)
-- [ ] Install Wyoming Hailo Whisper (`sudo apt install wyoming-hailo-whisper`)
-- [ ] Verify Hailo with `hailortcli fw-control identify`
+- [ ] Install Hailo drivers (`sudo apt install hailo-all`) - optional if using Moonshine
+- [ ] Install Wyoming Hailo Whisper (`sudo apt install wyoming-hailo-whisper`) - optional
 - [ ] Clone repo and run `install.sh`
+- [ ] Install Moonshine: `pip install "transformers>=4.48"` (recommended)
 - [ ] Download Kokoro model files
-- [ ] Configure .env (points to Pi #2 for LLM)
+- [ ] Configure .env (STT_BACKEND=auto, points to Pi #2 for LLM)
 - [ ] Install/configure Asterisk with AudioSocket dialplan
 - [ ] Start payphone service
 
