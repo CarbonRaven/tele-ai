@@ -22,6 +22,15 @@ dev = [
     "black>=23.0",
     "ruff>=0.1.0",
 ]
+# For remote TTS client (Pi #1 calling Pi #2)
+remote-tts = [
+    "aiohttp>=3.9.0",
+]
+# For TTS server (run on Pi #2)
+tts-server = [
+    "fastapi>=0.109.0",
+    "uvicorn>=0.27.0",
+]
 
 [build-system]
 requires = ["setuptools>=61.0"]

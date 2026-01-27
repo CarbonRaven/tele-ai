@@ -1,0 +1,23 @@
+[Unit]
+Description=Kokoro TTS Server for AI Payphone
+After=network.target
+
+[Service]
+Type=simple
+User=payphone
+Group=payphone
+WorkingDirectory=/home/payphone/tele-ai/payphone-app
+Environment=TTS_SERVER_HOST=0.0.0.0
+Environment=TTS_SERVER_PORT=10200
+Environment=TTS_MODEL_PATH=kokoro-v1.0.onnx
+Environment=TTS_VOICES_PATH=voices-v1.0.bin
+ExecStart=/home/payphone/tele-ai/payphone-app/.venv/bin/python tts_server.py
+Restart=on-failure
+RestartSec=5
+
+# Resource limits
+MemoryMax=2G
+CPUQuota=80%
+
+[Install]
+WantedBy=multi-user.target

@@ -129,11 +129,26 @@ class LLMSettings(BaseSettings):
 
 
 class TTSSettings(BaseSettings):
-    """Text-to-Speech configuration."""
+    """Text-to-Speech configuration.
+
+    Supports two modes:
+    1. Local: Kokoro-82M runs on Pi #1 (default)
+    2. Remote: TTS service runs on Pi #2, reducing Pi #1 CPU load
+
+    Set mode="remote" and configure remote_host to offload TTS to Pi #2.
+    """
 
     model_config = SettingsConfigDict(env_prefix="TTS_")
 
-    # Kokoro-82M settings
+    # TTS mode: "local" or "remote"
+    mode: Literal["local", "remote"] = "local"
+
+    # Remote TTS server (when mode="remote")
+    # Run tts_server.py on Pi #2 to handle synthesis
+    remote_host: str = "http://192.168.1.11:10200"
+    remote_timeout: float = 10.0  # Timeout for remote TTS calls
+
+    # Kokoro-82M settings (for local mode or remote server)
     model_path: str = "kokoro-v1.0.onnx"
     voices_path: str = "voices-v1.0.bin"
     voice: str = "af_bella"  # American female voice (valid: af_bella, af_nicole, af_sarah, af_sky)

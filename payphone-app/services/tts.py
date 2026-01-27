@@ -5,20 +5,27 @@ Kokoro-82M provides sub-300ms latency TTS:
 - Built on StyleTTS2 + ISTFTNet
 - CPU-friendly, runs on embedded devices
 - Apache 2.0 license
+
+Supports two modes:
+- Local: Model runs on Pi #1 (default)
+- Remote: Calls TTS server on Pi #2 to offload CPU
 """
 
 __all__ = [
     "TTSResult",
     "KokoroTTS",
+    "RemoteTTS",
+    "create_tts",
     "VOICE_MAP",
     "get_voice_for_feature",
 ]
 
 import asyncio
+import base64
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import AsyncIterator
+from typing import AsyncIterator, Protocol
 
 import numpy as np
 from numpy.typing import NDArray
@@ -26,6 +33,18 @@ from numpy.typing import NDArray
 from config.settings import TTSSettings
 
 logger = logging.getLogger(__name__)
+
+
+class TTSProtocol(Protocol):
+    """Protocol for TTS implementations."""
+
+    async def initialize(self) -> None: ...
+    async def cleanup(self) -> None: ...
+    async def synthesize(
+        self, text: str, voice: str | None = None, speed: float | None = None
+    ) -> NDArray[np.float32]: ...
+    @property
+    def sample_rate(self) -> int: ...
 
 
 @dataclass
@@ -251,6 +270,161 @@ class KokoroTTS:
         if self._model is not None:
             return self._model.get_voices()
         return []
+
+
+class RemoteTTS:
+    """Remote TTS client that calls a TTS server on Pi #2.
+
+    Offloads CPU-intensive synthesis to a remote server, reducing
+    Pi #1 CPU load by ~30% during speech output.
+
+    The remote server should run tts_server.py and expose an HTTP endpoint.
+    """
+
+    def __init__(self, settings: TTSSettings | None = None):
+        if settings is None:
+            settings = TTSSettings()
+        self.settings = settings
+
+        self._session = None
+        self._initialized = False
+        self._sample_rate = 24000  # Kokoro outputs 24kHz
+
+    async def initialize(self) -> None:
+        """Initialize the HTTP client session."""
+        if self._initialized:
+            return
+
+        try:
+            import aiohttp
+
+            # Create persistent session for connection reuse
+            timeout = aiohttp.ClientTimeout(total=self.settings.remote_timeout)
+            self._session = aiohttp.ClientSession(timeout=timeout)
+
+            # Test connection to remote server
+            async with self._session.get(f"{self.settings.remote_host}/health") as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    self._sample_rate = data.get("sample_rate", 24000)
+                    logger.info(
+                        f"Connected to remote TTS server at {self.settings.remote_host}"
+                    )
+                else:
+                    raise ConnectionError(f"TTS server returned status {resp.status}")
+
+            self._initialized = True
+
+        except ImportError:
+            raise RuntimeError(
+                "aiohttp required for remote TTS. Install with: pip install aiohttp"
+            )
+        except Exception as e:
+            logger.error(f"Failed to connect to remote TTS server: {e}")
+            raise
+
+    async def cleanup(self) -> None:
+        """Clean up HTTP session."""
+        if self._session:
+            await self._session.close()
+            self._session = None
+        self._initialized = False
+
+    async def synthesize(
+        self,
+        text: str,
+        voice: str | None = None,
+        speed: float | None = None,
+    ) -> NDArray[np.float32]:
+        """Synthesize text via remote TTS server.
+
+        Args:
+            text: Text to synthesize.
+            voice: Optional voice override.
+            speed: Optional speed override.
+
+        Returns:
+            Audio samples as float32 array at 24kHz.
+        """
+        if not self._initialized:
+            raise RuntimeError("Remote TTS not initialized. Call initialize() first.")
+
+        if not text or not text.strip():
+            return np.array([], dtype=np.float32)
+
+        voice = voice or self.settings.voice
+        speed = speed or self.settings.speed
+
+        try:
+            async with self._session.post(
+                f"{self.settings.remote_host}/synthesize",
+                json={"text": text, "voice": voice, "speed": speed},
+            ) as resp:
+                if resp.status != 200:
+                    error_text = await resp.text()
+                    logger.error(f"Remote TTS error: {error_text}")
+                    return np.array([], dtype=np.float32)
+
+                data = await resp.json()
+
+                # Decode base64 audio data
+                audio_bytes = base64.b64decode(data["audio"])
+                audio = np.frombuffer(audio_bytes, dtype=np.float32)
+
+                return audio
+
+        except asyncio.TimeoutError:
+            logger.error(
+                f"Remote TTS timed out after {self.settings.remote_timeout}s"
+            )
+            return np.array([], dtype=np.float32)
+
+        except Exception as e:
+            logger.error(f"Remote TTS request failed: {e}")
+            return np.array([], dtype=np.float32)
+
+    async def synthesize_to_result(
+        self,
+        text: str,
+        voice: str | None = None,
+        speed: float | None = None,
+    ) -> TTSResult:
+        """Synthesize text to TTSResult with metadata."""
+        audio = await self.synthesize(text, voice, speed)
+
+        return TTSResult(
+            audio=audio,
+            sample_rate=self._sample_rate,
+            duration_seconds=len(audio) / self._sample_rate if len(audio) > 0 else 0,
+            text=text,
+        )
+
+    @property
+    def sample_rate(self) -> int:
+        """Get the output sample rate."""
+        return self._sample_rate
+
+
+def create_tts(settings: TTSSettings | None = None) -> KokoroTTS | RemoteTTS:
+    """Factory function to create the appropriate TTS instance.
+
+    Creates either local KokoroTTS or RemoteTTS based on settings.mode.
+
+    Args:
+        settings: TTS settings. If None, uses defaults.
+
+    Returns:
+        TTS instance (KokoroTTS or RemoteTTS).
+    """
+    if settings is None:
+        settings = TTSSettings()
+
+    if settings.mode == "remote":
+        logger.info("Using remote TTS mode (Pi #2)")
+        return RemoteTTS(settings)
+    else:
+        logger.info("Using local TTS mode (Kokoro)")
+        return KokoroTTS(settings)
 
 
 # Mapping of persona/feature to voice preferences
