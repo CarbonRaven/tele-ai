@@ -266,7 +266,8 @@ class OllamaClient:
 
         messages.append({"role": "user", "content": prompt})
 
-        full_response = ""
+        # Use list for O(n) collection instead of O(n²) string concatenation
+        response_parts: list[str] = []
         last_token_time = time.perf_counter()
         is_first_token = True
 
@@ -308,13 +309,13 @@ class OllamaClient:
                 last_token_time = current_time
                 is_first_token = False
                 token = part["message"]["content"]
-                full_response += token
+                response_parts.append(token)
                 yield token
 
             # Update context after complete generation
             if context:
                 context.add_user_message(prompt)
-                context.add_assistant_message(full_response)
+                context.add_assistant_message("".join(response_parts))
 
         except asyncio.TimeoutError:
             logger.warning(f"LLM streaming timed out after {self.settings.timeout}s")
@@ -408,7 +409,8 @@ class SentenceBuffer:
     This enables streaming TTS by yielding complete sentences as they
     form from the token stream.
 
-    Uses regex for O(1) amortized sentence detection instead of O(n) per token.
+    Uses incremental search position tracking to achieve O(n) total complexity
+    instead of O(n²) from searching the entire buffer on each token.
     """
 
     def __init__(
@@ -432,10 +434,13 @@ class SentenceBuffer:
         Returns:
             Complete sentence if available, None otherwise.
         """
+        # Track position before adding token - search from just before new content
+        # to catch delimiters at word boundaries
+        search_from = max(0, len(self._buffer) - 1)
         self._buffer += token
 
-        # Use regex to find first sentence delimiter (O(n) once, not per-char)
-        match = self._sentence_pattern.search(self._buffer)
+        # Search only from where new content was added (O(token_len) not O(buffer_len))
+        match = self._sentence_pattern.search(self._buffer, search_from)
         if match and match.end() >= self.min_length:
             # Extract sentence up to and including delimiter
             sentence = self._buffer[: match.end()].strip()

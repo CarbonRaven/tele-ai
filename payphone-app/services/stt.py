@@ -143,11 +143,15 @@ class WyomingSTTClient:
                 },
             )
 
-            # Send audio chunks (Wyoming expects chunks)
+            # Batch audio chunks without draining after each one
+            # This reduces syscalls from O(n) to O(1) for the audio send phase
             chunk_size = 4096  # bytes
             for i in range(0, len(pcm_data), chunk_size):
                 chunk = pcm_data[i : i + chunk_size]
-                await self._send_event("audio-chunk", {"audio": chunk})
+                self._write_event_no_drain("audio-chunk", {"audio": chunk})
+
+            # Single drain after all chunks are written
+            await self._writer.drain()
 
             # Send audio-stop
             await self._send_event("audio-stop", {})
@@ -222,14 +226,10 @@ class WyomingSTTClient:
         """Reset reconnection attempt counter (call after successful operations)."""
         self._reconnect_attempts = 0
 
-    async def _send_event(self, event_type: str, data: dict) -> None:
-        """Send a Wyoming protocol event.
+    def _write_event_no_drain(self, event_type: str, data: dict) -> None:
+        """Write a Wyoming protocol event without draining.
 
-        Wyoming protocol uses JSON-lines format where each message is a JSON object
-        followed by a newline. Audio data uses a special format:
-        - For audio-chunk: payload_length (4 bytes BE) + audio bytes, then JSON event
-
-        Reference: https://github.com/rhasspy/wyoming
+        Use this for batching multiple writes, then call drain() once at the end.
         """
         # Separate binary audio from JSON data
         audio_data = data.pop("audio", None)
@@ -253,6 +253,16 @@ class WyomingSTTClient:
             message = json.dumps(event) + "\n"
             self._writer.write(message.encode("utf-8"))
 
+    async def _send_event(self, event_type: str, data: dict) -> None:
+        """Send a Wyoming protocol event.
+
+        Wyoming protocol uses JSON-lines format where each message is a JSON object
+        followed by a newline. Audio data uses a special format:
+        - For audio-chunk: payload_length (4 bytes BE) + audio bytes, then JSON event
+
+        Reference: https://github.com/rhasspy/wyoming
+        """
+        self._write_event_no_drain(event_type, data)
         await self._writer.drain()
 
     async def _receive_event(self, timeout: float = 30.0) -> dict | None:
@@ -492,6 +502,9 @@ class WhisperSTT:
         Note: Whisper is not a true streaming model, so this collects
         audio in chunks and transcribes periodically.
 
+        Uses pre-allocated array with doubling strategy for O(n) total
+        complexity instead of O(n²) from repeated concatenation.
+
         Args:
             audio_stream: Async iterator of audio chunks.
             sample_rate: Sample rate of audio (must be 16kHz).
@@ -502,20 +515,31 @@ class WhisperSTT:
         if not self._initialized:
             raise RuntimeError("STT not initialized. Call initialize() first.")
 
-        audio_buffer: list[NDArray[np.float32]] = []
-        total_samples = 0  # Track incrementally to avoid O(n²)
-        last_transcription = ""
-
         chunk_duration = 2.0  # seconds
         samples_per_chunk = int(chunk_duration * sample_rate)
 
-        async for chunk in audio_stream:
-            audio_buffer.append(chunk)
-            total_samples += len(chunk)  # O(1) instead of sum() which is O(n)
+        # Pre-allocate array with doubling strategy for O(n) total copies
+        # Initial size: 4 transcription chunks worth of audio
+        audio_array = np.zeros(samples_per_chunk * 4, dtype=np.float32)
+        write_pos = 0
+        last_transcription = ""
 
-            if total_samples >= samples_per_chunk:
-                full_audio = np.concatenate(audio_buffer)
-                result = await self.transcribe(full_audio, sample_rate)
+        async for chunk in audio_stream:
+            chunk_len = len(chunk)
+
+            # Resize array if needed (doubling strategy: O(log n) resizes total)
+            if write_pos + chunk_len > len(audio_array):
+                new_size = max(len(audio_array) * 2, write_pos + chunk_len)
+                new_array = np.zeros(new_size, dtype=np.float32)
+                new_array[:write_pos] = audio_array[:write_pos]
+                audio_array = new_array
+
+            # Copy chunk into pre-allocated array (O(chunk_len))
+            audio_array[write_pos : write_pos + chunk_len] = chunk
+            write_pos += chunk_len
+
+            if write_pos >= samples_per_chunk:
+                result = await self.transcribe(audio_array[:write_pos], sample_rate)
 
                 if result.text and result.text != last_transcription:
                     new_text = result.text
@@ -525,9 +549,8 @@ class WhisperSTT:
                         yield new_text
                     last_transcription = result.text
 
-        if audio_buffer:
-            full_audio = np.concatenate(audio_buffer)
-            result = await self.transcribe(full_audio, sample_rate)
+        if write_pos > 0:
+            result = await self.transcribe(audio_array[:write_pos], sample_rate)
             if result.text and result.text != last_transcription:
                 yield result.text
 

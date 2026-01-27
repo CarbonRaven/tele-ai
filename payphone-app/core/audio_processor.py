@@ -125,7 +125,10 @@ class AudioProcessor:
         down = from_rate // g
 
         # Use polyphase resampling
-        resampled = resample_poly(samples.astype(np.float64), up, down)
+        # Stay in float32 for audio processing (sufficient precision, half the memory)
+        # Only use float64 if input requires it
+        working_dtype = np.float64 if samples.dtype == np.float64 else np.float32
+        resampled = resample_poly(samples.astype(working_dtype), up, down)
 
         # Preserve dtype
         if samples.dtype == np.int16:

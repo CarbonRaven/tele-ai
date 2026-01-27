@@ -186,7 +186,9 @@ class KokoroTTS:
             speed=speed,
         )
 
-        # Kokoro returns float32 audio
+        # Avoid unnecessary copy if already float32
+        if samples.dtype == np.float32:
+            return samples
         return samples.astype(np.float32)
 
     async def synthesize_to_result(
