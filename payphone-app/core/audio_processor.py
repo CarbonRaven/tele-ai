@@ -260,8 +260,10 @@ class AudioProcessor:
 class AudioBuffer:
     """Buffer for accumulating audio chunks."""
 
-    def __init__(self, sample_rate: int = 16000):
+    def __init__(self, sample_rate: int = 16000, max_duration_seconds: float = 60.0):
         self.sample_rate = sample_rate
+        self.max_duration_seconds = max_duration_seconds
+        self._max_samples = int(sample_rate * max_duration_seconds)
         self._buffer: list[NDArray[np.float32]] = []
         self._total_samples = 0
 
@@ -270,9 +272,18 @@ class AudioBuffer:
 
         Args:
             samples: Float32 audio samples to add.
+
+        Note:
+            If adding samples would exceed max_duration_seconds, oldest samples
+            are discarded to make room.
         """
         self._buffer.append(samples)
         self._total_samples += len(samples)
+
+        # Enforce max duration limit to prevent unbounded memory growth
+        while self._total_samples > self._max_samples and len(self._buffer) > 1:
+            removed = self._buffer.pop(0)
+            self._total_samples -= len(removed)
 
     def get_all(self) -> NDArray[np.float32]:
         """Get all buffered audio as a single array.

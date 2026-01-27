@@ -6,6 +6,8 @@ for low-latency responses. Optimized for Qwen2.5-3B for best edge performance.
 
 import asyncio
 import logging
+import re
+import time
 from dataclasses import dataclass, field
 from typing import AsyncIterator
 
@@ -232,19 +234,34 @@ class OllamaClient:
         messages.append({"role": "user", "content": prompt})
 
         full_response = ""
+        last_token_time = time.perf_counter()
+        token_timeout = self.settings.timeout  # Reuse overall timeout for token timeout
 
         try:
-            async for part in await self._client.chat(
-                model=self.settings.model,
-                messages=messages,
-                stream=True,
-                options={
-                    "temperature": self.settings.temperature,
-                    "top_p": self.settings.top_p,
-                    "num_predict": self.settings.max_tokens,
-                },
-                keep_alive=self.settings.keep_alive,
-            ):
+            stream = await asyncio.wait_for(
+                self._client.chat(
+                    model=self.settings.model,
+                    messages=messages,
+                    stream=True,
+                    options={
+                        "temperature": self.settings.temperature,
+                        "top_p": self.settings.top_p,
+                        "num_predict": self.settings.max_tokens,
+                    },
+                    keep_alive=self.settings.keep_alive,
+                ),
+                timeout=self.settings.timeout,
+            )
+
+            async for part in stream:
+                # Check for token timeout (no tokens received for too long)
+                current_time = time.perf_counter()
+                if current_time - last_token_time > token_timeout:
+                    logger.warning(f"Streaming timed out after {token_timeout}s between tokens")
+                    yield " I need to pause here."
+                    break
+
+                last_token_time = current_time
                 token = part["message"]["content"]
                 full_response += token
                 yield token
@@ -253,6 +270,10 @@ class OllamaClient:
             if context:
                 context.add_user_message(prompt)
                 context.add_assistant_message(full_response)
+
+        except asyncio.TimeoutError:
+            logger.warning(f"LLM streaming timed out after {self.settings.timeout}s")
+            yield "I'm sorry, I'm taking too long to respond."
 
         except Exception as e:
             logger.error(f"Error in streaming generation: {e}")
@@ -327,6 +348,8 @@ class SentenceBuffer:
 
     This enables streaming TTS by yielding complete sentences as they
     form from the token stream.
+
+    Uses regex for O(1) amortized sentence detection instead of O(n) per token.
     """
 
     def __init__(
@@ -335,7 +358,10 @@ class SentenceBuffer:
         delimiters: str = ".!?,",
     ):
         self.min_length = min_length
-        self.delimiters = set(delimiters)
+        self.delimiters = delimiters
+        # Pre-compile regex for efficient sentence boundary detection
+        escaped_delims = re.escape(delimiters)
+        self._sentence_pattern = re.compile(f"[{escaped_delims}]")
         self._buffer = ""
 
     def add_token(self, token: str) -> str | None:
@@ -349,15 +375,15 @@ class SentenceBuffer:
         """
         self._buffer += token
 
-        # Check for sentence delimiter
-        for i, char in enumerate(self._buffer):
-            if char in self.delimiters and i >= self.min_length - 1:
-                # Extract sentence up to and including delimiter
-                sentence = self._buffer[: i + 1].strip()
-                self._buffer = self._buffer[i + 1 :].lstrip()
+        # Use regex to find first sentence delimiter (O(n) once, not per-char)
+        match = self._sentence_pattern.search(self._buffer)
+        if match and match.end() >= self.min_length:
+            # Extract sentence up to and including delimiter
+            sentence = self._buffer[: match.end()].strip()
+            self._buffer = self._buffer[match.end() :].lstrip()
 
-                if len(sentence) >= self.min_length:
-                    return sentence
+            if len(sentence) >= self.min_length:
+                return sentence
 
         return None
 

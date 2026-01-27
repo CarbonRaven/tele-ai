@@ -155,17 +155,27 @@ class VoicePipeline:
 
         return response.text
 
-    async def _monitor_dtmf_for_barge_in(self, session: "Session") -> None:
+    async def _monitor_dtmf_for_barge_in(
+        self, session: "Session", debounce_ms: float = 100.0
+    ) -> None:
         """Monitor for DTMF input during speech and trigger barge-in.
 
         Args:
             session: Current call session.
+            debounce_ms: Debounce period in milliseconds to prevent race conditions.
         """
+        last_dtmf_time: float = 0.0
+        import time
+
         while session.is_speaking and session.is_active:
             if session.protocol.has_dtmf():
-                session.request_barge_in()
-                logger.debug("DTMF detected during speech - requesting barge-in")
-                break
+                current_time = time.perf_counter() * 1000  # Convert to ms
+                # Debounce: only trigger if enough time has passed since last DTMF
+                if current_time - last_dtmf_time >= debounce_ms:
+                    session.request_barge_in()
+                    logger.debug("DTMF detected during speech - requesting barge-in")
+                    break
+                last_dtmf_time = current_time
             await asyncio.sleep(0.05)  # Check every 50ms
 
     async def speak(
@@ -218,6 +228,11 @@ class VoicePipeline:
             # Send in chunks
             chunks = self.audio_processor.chunk_audio(output_bytes)
 
+            # Calculate chunk duration for pacing: chunk_size bytes / (sample_rate * bytes_per_sample)
+            # At 8kHz with 16-bit (2 bytes) samples: chunk_size / (8000 * 2) seconds
+            chunk_size = self.settings.audio.chunk_size
+            chunk_duration_sec = chunk_size / (self.settings.audio.output_sample_rate * 2)
+
             for chunk in chunks:
                 if check_barge_in and session.barge_in_requested:
                     logger.debug("Playback interrupted by barge-in")
@@ -228,8 +243,8 @@ class VoicePipeline:
 
                 await session.send_audio(chunk)
 
-                # Small delay to pace playback
-                await asyncio.sleep(0.02)  # 20ms per chunk
+                # Pace playback based on actual chunk duration
+                await asyncio.sleep(chunk_duration_sec)
 
             return True
 
