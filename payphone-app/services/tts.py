@@ -43,6 +43,9 @@ class KokoroTTS:
 
     Provides fast, high-quality TTS optimized for real-time voice applications.
     Outputs 24kHz audio by default.
+
+    Thread-safe: Uses asyncio.Lock to prevent concurrent synthesis calls
+    from corrupting model state during multi-call scenarios.
     """
 
     def __init__(self, settings: TTSSettings | None = None):
@@ -54,6 +57,7 @@ class KokoroTTS:
         self._voices = None
         self._initialized = False
         self._sample_rate = 24000  # Kokoro outputs 24kHz
+        self._lock: asyncio.Lock | None = None  # Created on first use
 
     async def initialize(self) -> None:
         """Initialize the Kokoro TTS model."""
@@ -106,6 +110,9 @@ class KokoroTTS:
     ) -> NDArray[np.float32]:
         """Synthesize text to audio.
 
+        Thread-safe: Acquires lock to prevent concurrent synthesis calls
+        from corrupting model state.
+
         Args:
             text: Text to synthesize.
             voice: Optional voice override.
@@ -123,22 +130,27 @@ class KokoroTTS:
         voice = voice or self.settings.voice
         speed = speed or self.settings.speed
 
-        # Run synthesis in executor
-        loop = asyncio.get_running_loop()
+        # Lazy-create lock on first use (must be in async context)
+        if self._lock is None:
+            self._lock = asyncio.Lock()
 
-        if self._model is not None:
-            audio = await loop.run_in_executor(
-                None,
-                self._synthesize_kokoro,
-                text,
-                voice,
-                speed,
-            )
-        else:
-            # Fallback to silent audio (for testing without model)
-            logger.warning("Using silent fallback - no TTS model loaded")
-            duration = len(text) * 0.05  # ~50ms per character estimate
-            audio = np.zeros(int(duration * self._sample_rate), dtype=np.float32)
+        # Acquire lock to prevent concurrent synthesis corrupting model state
+        async with self._lock:
+            loop = asyncio.get_running_loop()
+
+            if self._model is not None:
+                audio = await loop.run_in_executor(
+                    None,
+                    self._synthesize_kokoro,
+                    text,
+                    voice,
+                    speed,
+                )
+            else:
+                # Fallback to silent audio (for testing without model)
+                logger.warning("Using silent fallback - no TTS model loaded")
+                duration = len(text) * 0.05  # ~50ms per character estimate
+                audio = np.zeros(int(duration * self._sample_rate), dtype=np.float32)
 
         return audio
 

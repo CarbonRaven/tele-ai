@@ -103,7 +103,7 @@ class LLMSettings(BaseSettings):
     """Language Model configuration.
 
     Standard Ollama runs on Pi #2 (192.168.1.11) for better model flexibility.
-    Supports 3B+ models with full 16GB RAM available.
+    Supports 7B+ models with full 16GB RAM available.
     """
 
     model_config = SettingsConfigDict(env_prefix="LLM_")
@@ -111,7 +111,7 @@ class LLMSettings(BaseSettings):
     # Ollama settings - default to Pi #2 (pi-ollama)
     # Change to localhost:11434 if running single-Pi setup
     host: str = "http://192.168.1.11:11434"
-    model: str = "qwen2.5:3b"
+    model: str = "qwen2.5:7b"  # 7B model uses ~8GB RAM, fits in 16GB Pi
 
     # Generation parameters
     temperature: float = 0.7
