@@ -747,6 +747,8 @@ asyncio.run(test())
 | "Out of memory" | Use smaller model or add swap |
 | "No audio from payphone" | Check HT801 SIP registration |
 | "Slow response" | Check network latency, consider smaller models |
+| "Wyoming connection retry" | Normal behavior - auto-reconnects with exponential backoff (0.5s → 4s) |
+| "LLM streaming timeout" | Check Ollama health; timeout auto-recovers with graceful message |
 
 ### Debug Commands
 

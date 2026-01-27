@@ -97,6 +97,7 @@ tele-ai/
 - **Extensible Features**: Dial-A-Joke, Fortune, Horoscope, Trivia
 - **Barge-in Support**: Interrupt AI with DTMF tones
 - **Telephony Integration**: FreePBX/Asterisk via AudioSocket
+- **Optimized Pipeline**: Binary Wyoming protocol, streaming timeouts, memory-bounded buffers
 
 ## Quick Start
 

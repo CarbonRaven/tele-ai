@@ -192,6 +192,8 @@ sudo systemctl status payphone
 | Slow responses | Use smaller Whisper model, check Ollama performance |
 | Connection refused | Verify service is running, check firewall |
 | Poor transcription | Adjust VAD thresholds, check audio quality |
+| Wyoming connection fails | Check wyoming-hailo-whisper service, will auto-retry with backoff |
+| LLM streaming hangs | Timeout protection auto-recovers after configured timeout |
 
 Enable debug logging:
 
@@ -200,6 +202,20 @@ Enable debug logging:
 DEBUG=true
 LOG_LEVEL=DEBUG
 ```
+
+## Performance Optimizations
+
+The voice pipeline includes several optimizations for low-latency operation:
+
+| Optimization | Description |
+|--------------|-------------|
+| **Binary Wyoming Protocol** | Audio sent as binary frames instead of base64, reducing overhead by ~33% |
+| **Exponential Backoff** | Wyoming reconnection uses backoff (0.5s → 4s) to prevent connection storms |
+| **Thread-safe VAD** | Async reset method prevents concurrent access issues in multi-call scenarios |
+| **Streaming Timeout** | LLM streaming protected against hangs with configurable timeout |
+| **Regex Sentence Detection** | O(1) amortized sentence boundary detection for TTS chunking |
+| **Dynamic Audio Pacing** | Chunk playback paced based on actual duration, not hardcoded values |
+| **Memory-bounded Buffers** | AudioBuffer limits prevent unbounded growth on long calls (default 60s max) |
 
 ## Hardware Requirements
 

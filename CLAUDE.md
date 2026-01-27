@@ -62,6 +62,51 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Telephony | FreePBX/Asterisk | Pi #1 | AudioSocket protocol for AI integration |
 | Protocol | Wyoming | Pi #1 | Home Assistant voice service integration |
 
+## Code Architecture
+
+### Voice Pipeline (`payphone-app/`)
+
+```
+main.py                    # Application entry point, service initialization
+├── config/
+│   ├── settings.py        # Pydantic Settings v2 with env var support
+│   └── prompts.py         # System prompts for personas/features
+├── core/
+│   ├── audiosocket.py     # Asterisk AudioSocket protocol handler
+│   ├── audio_processor.py # Sample rate conversion, telephone filter
+│   ├── pipeline.py        # VAD → STT → LLM → TTS orchestration
+│   ├── session.py         # Per-call state management
+│   └── state_machine.py   # Conversation flow control
+├── services/
+│   ├── vad.py             # Silero VAD with thread-safe async reset
+│   ├── stt.py             # Wyoming/Hailo + faster-whisper fallback
+│   ├── llm.py             # Ollama client with streaming timeout
+│   └── tts.py             # Kokoro-82M synthesis
+└── features/
+    ├── base.py            # Feature base classes
+    ├── registry.py        # Auto-discovery decorator pattern
+    ├── operator.py        # Default operator persona
+    └── jokes.py           # Dial-A-Joke feature
+```
+
+### Key Patterns
+
+| Pattern | Location | Purpose |
+|---------|----------|---------|
+| Pydantic Settings | `config/settings.py` | Type-safe config with env var support |
+| Feature Registry | `features/registry.py` | `@FeatureRegistry.register()` decorator |
+| Wyoming Protocol | `services/stt.py` | Binary framing for audio, JSON for events |
+| Sentence Buffer | `services/llm.py` | Regex-based streaming TTS chunking |
+| Audio Buffer | `core/audio_processor.py` | Memory-bounded sample accumulation |
+
+### Performance Optimizations
+
+- **Wyoming binary protocol**: Audio sent as binary frames (not base64) for 33% less overhead
+- **Exponential backoff**: Wyoming reconnection with 0.5s → 4s backoff
+- **Thread-safe VAD**: `reset_async()` acquires lock before model state reset
+- **Streaming timeout**: LLM protected against indefinite hangs
+- **Dynamic pacing**: Audio playback paced by actual chunk duration
+
 ## Documentation Standards
 
 All documentation uses Markdown with:
