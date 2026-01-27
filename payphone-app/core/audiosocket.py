@@ -156,10 +156,20 @@ ConnectionHandler = Callable[["AudioSocketConnection"], Awaitable[None]]
 class AudioSocketProtocol:
     """High-level AudioSocket protocol handler for a single connection."""
 
+    # Queue size limits to prevent unbounded memory growth
+    # Audio queue: ~100 chunks at 20ms each = 2 seconds of buffered audio
+    # DTMF queue: 32 digits should be more than enough for any input sequence
+    AUDIO_QUEUE_MAXSIZE = 100
+    DTMF_QUEUE_MAXSIZE = 32
+
     def __init__(self, connection: AudioSocketConnection):
         self.connection = connection
-        self._audio_queue: asyncio.Queue[bytes] = asyncio.Queue()
-        self._dtmf_queue: asyncio.Queue[str] = asyncio.Queue()
+        self._audio_queue: asyncio.Queue[bytes] = asyncio.Queue(
+            maxsize=self.AUDIO_QUEUE_MAXSIZE
+        )
+        self._dtmf_queue: asyncio.Queue[str] = asyncio.Queue(
+            maxsize=self.DTMF_QUEUE_MAXSIZE
+        )
         self._running = False
         self._read_task: asyncio.Task | None = None
 
@@ -209,12 +219,26 @@ class AudioSocketProtocol:
                 break
 
             if msg.type == MessageType.AUDIO:
-                await self._audio_queue.put(msg.payload)
+                try:
+                    # Use put_nowait to avoid blocking; if queue is full,
+                    # drop oldest audio to make room (prevents memory buildup)
+                    if self._audio_queue.full():
+                        try:
+                            self._audio_queue.get_nowait()
+                            logger.warning("Audio queue full, dropping oldest chunk")
+                        except asyncio.QueueEmpty:
+                            pass
+                    self._audio_queue.put_nowait(msg.payload)
+                except asyncio.QueueFull:
+                    logger.warning("Audio queue full, dropping incoming chunk")
             elif msg.type == MessageType.DTMF:
                 digit = msg.as_dtmf
                 if digit:
                     logger.debug(f"DTMF received: {digit}")
-                    await self._dtmf_queue.put(digit)
+                    try:
+                        self._dtmf_queue.put_nowait(digit)
+                    except asyncio.QueueFull:
+                        logger.warning("DTMF queue full, dropping digit")
             elif msg.type == MessageType.HANGUP:
                 logger.info("Hangup received")
                 self._running = False
@@ -292,7 +316,8 @@ class AudioSocketServer:
         self.port = port
         self.handler = handler
         self._server: asyncio.Server | None = None
-        self._connections: dict[str, AudioSocketProtocol] = {}
+        self._connections: dict[str, asyncio.Task] = {}
+        self._connections_lock = asyncio.Lock()
 
     def set_handler(self, handler: ConnectionHandler) -> None:
         """Set the connection handler callback."""
@@ -310,10 +335,21 @@ class AudioSocketServer:
 
     async def stop(self) -> None:
         """Stop the server and close all connections."""
-        # Close all active connections
-        for protocol in self._connections.values():
-            await protocol.stop()
-        self._connections.clear()
+        # Cancel all active connection handler tasks
+        async with self._connections_lock:
+            for conn_id, task in self._connections.items():
+                if not task.done():
+                    task.cancel()
+                    logger.debug(f"Cancelling connection handler: {conn_id}")
+
+            # Wait for all tasks to complete with timeout
+            if self._connections:
+                tasks = list(self._connections.values())
+                done, pending = await asyncio.wait(tasks, timeout=5.0)
+                for task in pending:
+                    logger.warning(f"Connection handler did not terminate gracefully")
+
+            self._connections.clear()
 
         # Stop server
         if self._server:
@@ -342,12 +378,27 @@ class AudioSocketServer:
             await connection.close()
             return
 
+        # Generate unique connection ID for tracking
+        conn_id = f"{peer[0]}:{peer[1]}:{id(connection)}" if peer else f"unknown:{id(connection)}"
+
+        # Track this connection's handler task
+        current_task = asyncio.current_task()
+        async with self._connections_lock:
+            self._connections[conn_id] = current_task
+
         try:
             await self.handler(connection)
+        except asyncio.CancelledError:
+            logger.info(f"Connection handler cancelled: {conn_id}")
+            raise
         except Exception as e:
             logger.exception(f"Error in connection handler: {e}")
         finally:
+            # Remove from tracking and close connection
+            async with self._connections_lock:
+                self._connections.pop(conn_id, None)
             await connection.close()
+            logger.debug(f"Connection closed: {conn_id}")
 
     async def serve_forever(self) -> None:
         """Run the server until cancelled."""

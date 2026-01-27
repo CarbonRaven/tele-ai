@@ -6,11 +6,12 @@ Handles:
 - Audio format conversions
 """
 
+from collections import deque
+
 import numpy as np
 from numpy.typing import NDArray
 from scipy import signal
 from scipy.signal import resample_poly
-from typing import Literal
 
 from config.settings import AudioSettings
 
@@ -24,13 +25,17 @@ class AudioProcessor:
         self.settings = settings
 
         # Pre-compute filter coefficients for telephone bandpass
-        self._telephone_filter = self._create_telephone_filter()
+        # Using SOS (second-order sections) for better numerical stability
+        self._telephone_filter_sos = self._create_telephone_filter()
 
-    def _create_telephone_filter(self) -> tuple[NDArray, NDArray]:
+    def _create_telephone_filter(self) -> NDArray:
         """Create Butterworth bandpass filter for telephone audio (300-3400 Hz).
 
+        Uses second-order sections (SOS) format for better numerical stability,
+        especially important for narrow bandpass filters and real-time processing.
+
         Returns:
-            Tuple of (b, a) filter coefficients.
+            SOS filter coefficients array.
         """
         nyquist = self.settings.output_sample_rate / 2
         low = self.settings.telephone_lowcut / nyquist
@@ -40,9 +45,10 @@ class AudioProcessor:
         low = max(0.001, min(low, 0.99))
         high = max(low + 0.001, min(high, 0.99))
 
-        # 4th order Butterworth bandpass
-        b, a = signal.butter(4, [low, high], btype="band")
-        return b, a
+        # 4th order Butterworth bandpass using SOS format
+        # SOS provides better numerical stability than transfer function (b, a)
+        sos = signal.butter(4, [low, high], btype="band", output="sos")
+        return sos
 
     def bytes_to_samples(self, audio_bytes: bytes) -> NDArray[np.int16]:
         """Convert raw audio bytes to numpy array.
@@ -165,6 +171,7 @@ class AudioProcessor:
         """Apply telephone bandpass filter (300-3400 Hz).
 
         Simulates the frequency response of the PSTN for authentic telephone audio.
+        Uses SOS (second-order sections) filtering for better numerical stability.
 
         Args:
             samples: Audio samples (should be at output sample rate, e.g., 8kHz).
@@ -172,13 +179,12 @@ class AudioProcessor:
         Returns:
             Filtered audio samples.
         """
-        b, a = self._telephone_filter
-
         # Convert to float for filtering
         float_samples = samples.astype(np.float64)
 
-        # Apply filter
-        filtered = signal.filtfilt(b, a, float_samples)
+        # Apply filter using sosfiltfilt for zero-phase filtering with SOS
+        # This is more numerically stable than filtfilt with b, a coefficients
+        filtered = signal.sosfiltfilt(self._telephone_filter_sos, float_samples)
 
         # Preserve original dtype
         if samples.dtype == np.int16:
@@ -258,13 +264,16 @@ class AudioProcessor:
 
 
 class AudioBuffer:
-    """Buffer for accumulating audio chunks."""
+    """Buffer for accumulating audio chunks.
+
+    Uses deque for O(1) removal of oldest chunks when enforcing max duration.
+    """
 
     def __init__(self, sample_rate: int = 16000, max_duration_seconds: float = 60.0):
         self.sample_rate = sample_rate
         self.max_duration_seconds = max_duration_seconds
         self._max_samples = int(sample_rate * max_duration_seconds)
-        self._buffer: list[NDArray[np.float32]] = []
+        self._buffer: deque[NDArray[np.float32]] = deque()
         self._total_samples = 0
 
     def add(self, samples: NDArray[np.float32]) -> None:
@@ -281,8 +290,9 @@ class AudioBuffer:
         self._total_samples += len(samples)
 
         # Enforce max duration limit to prevent unbounded memory growth
+        # Using deque.popleft() for O(1) removal instead of list.pop(0) which is O(n)
         while self._total_samples > self._max_samples and len(self._buffer) > 1:
-            removed = self._buffer.pop(0)
+            removed = self._buffer.popleft()
             self._total_samples -= len(removed)
 
     def get_all(self) -> NDArray[np.float32]:
@@ -305,7 +315,7 @@ class AudioBuffer:
 
     def clear(self) -> None:
         """Clear the buffer."""
-        self._buffer = []
+        self._buffer.clear()
         self._total_samples = 0
 
     @property

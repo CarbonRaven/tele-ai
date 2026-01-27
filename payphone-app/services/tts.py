@@ -63,7 +63,7 @@ class KokoroTTS:
         logger.info("Loading Kokoro TTS model...")
 
         # Load model in executor to avoid blocking
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._load_model)
 
         self._initialized = True
@@ -124,7 +124,7 @@ class KokoroTTS:
         speed = speed or self.settings.speed
 
         # Run synthesis in executor
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         if self._model is not None:
             audio = await loop.run_in_executor(

@@ -184,36 +184,45 @@ class WyomingSTTClient:
     async def _send_event(self, event_type: str, data: dict) -> None:
         """Send a Wyoming protocol event.
 
-        Uses binary framing for audio data to avoid base64 overhead (33% savings).
-        Protocol: 4-byte length prefix (big-endian) + JSON header + binary payload
+        Wyoming protocol uses JSON-lines format where each message is a JSON object
+        followed by a newline. Audio data uses a special format:
+        - For audio-chunk: payload_length (4 bytes BE) + audio bytes, then JSON event
+
+        Reference: https://github.com/rhasspy/wyoming
         """
         import json
+        import base64
 
         # Separate binary audio from JSON data
         audio_data = data.pop("audio", None)
 
-        # Wyoming uses JSON lines protocol for events
-        event = {"type": event_type, "data": data}
-
         if audio_data is not None:
-            # Binary protocol: length-prefixed frame
-            # Format: [4 bytes: total length][JSON header][binary audio]
-            header = json.dumps(event).encode("utf-8")
-            total_length = len(header) + len(audio_data)
-
-            # Write length prefix + header + binary audio
-            self._writer.write(struct.pack(">I", total_length))
-            self._writer.write(header)
+            # Wyoming audio-chunk format:
+            # 1. Send the audio payload length (4 bytes big-endian)
+            # 2. Send the raw audio bytes
+            # 3. Send the JSON event header
+            payload_length = len(audio_data)
+            self._writer.write(struct.pack(">I", payload_length))
             self._writer.write(audio_data)
+
+            # Send JSON header for the audio chunk
+            event = {"type": event_type, "data": data, "payload_length": payload_length}
+            message = json.dumps(event) + "\n"
+            self._writer.write(message.encode("utf-8"))
         else:
             # Standard JSON lines for non-audio events
+            event = {"type": event_type, "data": data}
             message = json.dumps(event) + "\n"
             self._writer.write(message.encode("utf-8"))
 
         await self._writer.drain()
 
     async def _receive_event(self, timeout: float = 30.0) -> dict | None:
-        """Receive a Wyoming protocol event."""
+        """Receive a Wyoming protocol event.
+
+        Wyoming events are JSON-lines, optionally followed by binary payloads
+        if the JSON includes a "payload_length" field.
+        """
         import json
 
         try:
@@ -221,10 +230,26 @@ class WyomingSTTClient:
                 self._reader.readline(),
                 timeout=timeout,
             )
-            if line:
-                return json.loads(line.decode("utf-8"))
+            if not line:
+                return None
+
+            event = json.loads(line.decode("utf-8"))
+
+            # Check if there's a binary payload to read
+            payload_length = event.get("data", {}).get("payload_length", 0)
+            if payload_length > 0:
+                payload = await asyncio.wait_for(
+                    self._reader.readexactly(payload_length),
+                    timeout=timeout,
+                )
+                event["payload"] = payload
+
+            return event
+
         except asyncio.TimeoutError:
             logger.warning("Wyoming response timeout")
+        except asyncio.IncompleteReadError as e:
+            logger.error(f"Wyoming incomplete read: {e}")
         except json.JSONDecodeError as e:
             logger.error(f"Wyoming JSON decode error: {e}")
 
@@ -280,7 +305,7 @@ class WhisperSTT:
 
         # Fallback to faster-whisper
         logger.info(f"Loading faster-whisper model: {self.settings.model_name}")
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._load_faster_whisper)
         self._backend = STTBackend.FASTER_WHISPER
         self._initialized = True
@@ -380,7 +405,7 @@ class WhisperSTT:
                 audio, sample_rate, self.settings.language
             )
         else:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             return await loop.run_in_executor(
                 None,
                 self._transcribe_faster_whisper,
@@ -486,16 +511,7 @@ class WhisperSTT:
         samples = np.frombuffer(audio_bytes, dtype=np.int16)
         audio = samples.astype(np.float32) / 32768.0
 
-        if sample_rate != 16000:
-            from math import gcd
-
-            from scipy.signal import resample_poly
-
-            g = gcd(sample_rate, 16000)
-            up = 16000 // g
-            down = sample_rate // g
-            audio = resample_poly(audio, up, down).astype(np.float32)
-
+        audio = self._resample_to_16k(audio, sample_rate)
         return await self.transcribe(audio, 16000)
 
     async def transcribe_from_file(self, file_path: str | Path) -> TranscriptionResult:
@@ -514,23 +530,14 @@ class WhisperSTT:
         if not file_path.exists():
             raise FileNotFoundError(f"Audio file not found: {file_path}")
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         audio, sample_rate = await loop.run_in_executor(
             None,
             self._read_audio_file,
             file_path,
         )
 
-        if sample_rate != 16000:
-            from math import gcd
-
-            from scipy.signal import resample_poly
-
-            g = gcd(sample_rate, 16000)
-            up = 16000 // g
-            down = sample_rate // g
-            audio = resample_poly(audio, up, down).astype(np.float32)
-
+        audio = self._resample_to_16k(audio, sample_rate)
         return await self.transcribe(audio, 16000)
 
     def _read_audio_file(self, file_path: Path) -> tuple[NDArray[np.float32], int]:
@@ -543,3 +550,25 @@ class WhisperSTT:
             audio = audio.mean(axis=1)
 
         return audio, sample_rate
+
+    @staticmethod
+    def _resample_to_16k(audio: NDArray[np.float32], sample_rate: int) -> NDArray[np.float32]:
+        """Resample audio to 16kHz for Whisper.
+
+        Args:
+            audio: Audio samples as float32 array.
+            sample_rate: Current sample rate of audio.
+
+        Returns:
+            Resampled audio at 16kHz.
+        """
+        if sample_rate == 16000:
+            return audio
+
+        from math import gcd
+        from scipy.signal import resample_poly
+
+        g = gcd(sample_rate, 16000)
+        up = 16000 // g
+        down = sample_rate // g
+        return resample_poly(audio, up, down).astype(np.float32)

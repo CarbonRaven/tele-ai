@@ -6,9 +6,11 @@ Handles audio conversion, streaming, and telephone filtering.
 
 import asyncio
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
+import soundfile as sf
 from numpy.typing import NDArray
 
 from config.settings import Settings
@@ -72,7 +74,8 @@ class VoicePipeline:
         await self.vad.reset_async()
 
         speech_started = False
-        max_duration_samples = 30 * 16000  # 30 second max utterance
+        # Max utterance duration from settings to prevent runaway recordings
+        max_duration_samples = self.settings.vad.max_utterance_seconds * 16000
 
         while protocol.is_active and audio_buffer.num_samples < max_duration_samples:
             # Check for barge-in request (user pressed key during playback)
@@ -233,6 +236,11 @@ class VoicePipeline:
             chunk_size = self.settings.audio.chunk_size
             chunk_duration_sec = chunk_size / (self.settings.audio.output_sample_rate * 2)
 
+            # Track timing for backpressure-aware pacing
+            import time
+            playback_start = time.perf_counter()
+            chunks_sent = 0
+
             for chunk in chunks:
                 if check_barge_in and session.barge_in_requested:
                     logger.debug("Playback interrupted by barge-in")
@@ -242,9 +250,22 @@ class VoicePipeline:
                     return False
 
                 await session.send_audio(chunk)
+                chunks_sent += 1
 
-                # Pace playback based on actual chunk duration
-                await asyncio.sleep(chunk_duration_sec)
+                # Backpressure-aware pacing: calculate how long we should have
+                # taken vs how long we actually took, and only sleep the difference
+                expected_elapsed = chunks_sent * chunk_duration_sec
+                actual_elapsed = time.perf_counter() - playback_start
+                sleep_time = expected_elapsed - actual_elapsed
+
+                if sleep_time > 0:
+                    await asyncio.sleep(sleep_time)
+                elif sleep_time < -0.5:
+                    # We're more than 500ms behind - network is congested
+                    logger.warning(
+                        f"Audio send falling behind by {-sleep_time:.2f}s, "
+                        "network may be congested"
+                    )
 
             return True
 
@@ -359,11 +380,17 @@ class VoicePipeline:
         Returns:
             True if sent successfully.
         """
+        import time
+
         chunks = self.audio_processor.chunk_audio(audio_bytes)
 
         # Calculate chunk duration for pacing
         chunk_size = self.settings.audio.chunk_size
         chunk_duration_sec = chunk_size / (self.settings.audio.output_sample_rate * 2)
+
+        # Track timing for backpressure-aware pacing
+        playback_start = time.perf_counter()
+        chunks_sent = 0
 
         for chunk in chunks:
             if not protocol.is_active:
@@ -373,8 +400,15 @@ class VoicePipeline:
             if not success:
                 return False
 
-            # Pace the sending based on actual chunk duration
-            await asyncio.sleep(chunk_duration_sec)
+            chunks_sent += 1
+
+            # Backpressure-aware pacing
+            expected_elapsed = chunks_sent * chunk_duration_sec
+            actual_elapsed = time.perf_counter() - playback_start
+            sleep_time = expected_elapsed - actual_elapsed
+
+            if sleep_time > 0:
+                await asyncio.sleep(sleep_time)
 
         return True
 
@@ -392,9 +426,6 @@ class VoicePipeline:
         Returns:
             True if played successfully.
         """
-        from pathlib import Path
-        import soundfile as sf
-
         sound_path = Path("audio/sounds") / f"{sound_name}.wav"
         if not sound_path.exists():
             logger.warning(f"Sound not found: {sound_path}")

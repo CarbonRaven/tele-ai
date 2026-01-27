@@ -29,17 +29,32 @@ logger = logging.getLogger(__name__)
 
 
 class State(Enum):
-    """Conversation states."""
+    """Conversation states.
+
+    State transitions:
+        IDLE -> GREETING (call_start)
+        GREETING -> LISTENING (greeting_complete)
+        LISTENING -> PROCESSING (transcript_ready)
+        LISTENING -> TIMEOUT (silence_timeout)
+        PROCESSING -> SPEAKING (response_ready)
+        SPEAKING -> LISTENING (response_complete)
+        SPEAKING -> BARGE_IN (user_interrupt)
+        BARGE_IN -> LISTENING (barge_in)
+        TIMEOUT -> LISTENING (timeout_prompt)
+        TIMEOUT -> GOODBYE (extended_silence)
+        GOODBYE -> HANGUP (goodbye_complete)
+        * -> HANGUP (remote_hangup)
+    """
 
     IDLE = auto()  # Waiting for call
     GREETING = auto()  # Playing welcome message
     MAIN_MENU = auto()  # Awaiting input at main menu
     LISTENING = auto()  # Recording user speech
     PROCESSING = auto()  # STT -> LLM processing
-    SPEAKING = auto()  # TTS playback
+    SPEAKING = auto()  # TTS playback (managed externally by pipeline)
     BARGE_IN = auto()  # User interrupted TTS
     TIMEOUT = auto()  # Silence timeout prompt
-    FEATURE = auto()  # In a specific feature
+    FEATURE = auto()  # In a specific feature (reserved for future use)
     GOODBYE = auto()  # Playing farewell message
     HANGUP = auto()  # Call ended
 
@@ -131,8 +146,11 @@ class StateMachine:
             await self._handle_processing(pipeline)
 
         elif self._state == State.SPEAKING:
-            # TTS playback (handled by pipeline)
-            pass
+            # TTS playback is handled externally by VoicePipeline.speak()
+            # This state is set before calling speak() and transitions happen
+            # after speak() returns. No action needed here - just wait for
+            # the speaking operation to complete and transition us out.
+            logger.debug(f"Session {self.session.call_id}: In SPEAKING state, waiting for TTS")
 
         elif self._state == State.BARGE_IN:
             # User interrupted, cancel TTS and listen

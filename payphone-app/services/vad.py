@@ -98,7 +98,7 @@ class SileroVAD:
         logger.info("Loading Silero VAD model...")
 
         # Load model in executor to avoid blocking
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._load_model)
 
         self._initialized = True
@@ -127,11 +127,16 @@ class SileroVAD:
         self._collect_chunks = utils[4]
 
     async def cleanup(self) -> None:
-        """Clean up resources."""
+        """Clean up resources.
+
+        Uses async reset to ensure thread-safe cleanup even if
+        other coroutines are still processing.
+        """
+        # Use async reset to safely clear state under lock
+        await self.reset_async()
         self._model = None
         self._utils = None
         self._initialized = False
-        self.reset()
 
     def reset(self) -> None:
         """Reset VAD state for a new conversation.
@@ -195,9 +200,11 @@ class SileroVAD:
         if not self._initialized:
             raise RuntimeError("VAD not initialized. Call initialize() first.")
 
-        # Run inference with lock to prevent concurrent model access
+        # Run inference AND state update with lock to prevent race conditions.
+        # Both operations must be atomic to prevent concurrent calls from
+        # corrupting shared state.
         async with self._lock:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             prob = await loop.run_in_executor(
                 None,
                 self._run_inference,
@@ -205,11 +212,14 @@ class SileroVAD:
                 sample_rate,
             )
 
-        # Determine state transition using appropriate state object
-        if session_state is not None:
-            state = self._update_session_state(session_state, prob, len(audio), sample_rate)
-        else:
-            state = self._update_state(prob, len(audio), sample_rate)
+            # Determine state transition inside the lock
+            if session_state is not None:
+                # Per-session state doesn't need lock protection, but keeping
+                # it inside for consistency and because inference must complete first
+                state = self._update_session_state(session_state, prob, len(audio), sample_rate)
+            else:
+                # Legacy shared state - MUST be inside lock to prevent race conditions
+                state = self._update_state(prob, len(audio), sample_rate)
 
         return VADResult(
             state=state,

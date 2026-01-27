@@ -63,6 +63,9 @@ class VADSettings(BaseSettings):
     # Window size for VAD (30ms chunks)
     window_size_samples: int = 512  # 512 samples at 16kHz = 32ms
 
+    # Maximum utterance duration to prevent runaway recordings
+    max_utterance_seconds: int = 30
+
 
 class STTSettings(BaseSettings):
     """Speech-to-Text configuration.
@@ -114,7 +117,12 @@ class LLMSettings(BaseSettings):
     temperature: float = 0.7
     top_p: float = 0.9
     max_tokens: int = 150  # Keep responses concise for phone
-    timeout: float = 10.0  # Timeout in seconds
+    timeout: float = 10.0  # Overall timeout in seconds
+
+    # Streaming timeout settings
+    # First token can take longer due to model loading/prompt processing
+    first_token_timeout: float = 15.0  # Timeout for first token
+    inter_token_timeout: float = 5.0  # Timeout between subsequent tokens
 
     # Keep model loaded (prevent unloading between calls)
     keep_alive: str = "24h"

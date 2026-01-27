@@ -243,7 +243,7 @@ class OllamaClient:
 
         full_response = ""
         last_token_time = time.perf_counter()
-        token_timeout = self.settings.timeout  # Reuse overall timeout for token timeout
+        is_first_token = True
 
         try:
             stream = await asyncio.wait_for(
@@ -258,18 +258,30 @@ class OllamaClient:
                     },
                     keep_alive=self.settings.keep_alive,
                 ),
-                timeout=self.settings.timeout,
+                timeout=self.settings.first_token_timeout,
             )
 
             async for part in stream:
-                # Check for token timeout (no tokens received for too long)
                 current_time = time.perf_counter()
+
+                # Use different timeout for first token vs subsequent tokens
+                # First token takes longer due to prompt processing/model loading
+                if is_first_token:
+                    token_timeout = self.settings.first_token_timeout
+                else:
+                    token_timeout = self.settings.inter_token_timeout
+
+                # Check for token timeout (no tokens received for too long)
                 if current_time - last_token_time > token_timeout:
-                    logger.warning(f"Streaming timed out after {token_timeout}s between tokens")
+                    logger.warning(
+                        f"Streaming timed out after {current_time - last_token_time:.1f}s "
+                        f"({'first token' if is_first_token else 'between tokens'})"
+                    )
                     yield " I need to pause here."
                     break
 
                 last_token_time = current_time
+                is_first_token = False
                 token = part["message"]["content"]
                 full_response += token
                 yield token

@@ -246,7 +246,7 @@ class SessionManager:
         return self._sessions.get(call_id)
 
     async def remove_session(self, call_id: str) -> None:
-        """Remove a session.
+        """Remove a session and clean up resources.
 
         Args:
             call_id: Call identifier.
@@ -256,6 +256,11 @@ class SessionManager:
                 session = self._sessions.pop(call_id)
                 session.is_active = False
                 session.metrics.end_time = time.time()
+
+                # Clear conversation context to free memory
+                # This prevents large conversation histories from lingering
+                session.context.clear()
+
                 logger.info(
                     f"Removed session: {call_id} "
                     f"(duration: {session.metrics.duration_seconds:.1f}s)"
