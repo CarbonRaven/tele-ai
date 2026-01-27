@@ -1,7 +1,8 @@
 """Language Model service using Ollama.
 
 Provides async interface to local LLMs via Ollama with streaming support
-for low-latency responses. Optimized for Qwen2.5-3B for best edge performance.
+for low-latency responses. Default: Llama 3.2 3B for best latency on Pi 5.
+Alternative: Ministral 8B for better conversational quality.
 """
 
 __all__ = [
