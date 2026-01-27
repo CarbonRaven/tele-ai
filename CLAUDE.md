@@ -106,6 +106,11 @@ main.py                    # Application entry point, service initialization
 - **Thread-safe VAD**: `reset_async()` acquires lock before model state reset
 - **Streaming timeout**: LLM protected against indefinite hangs
 - **Dynamic pacing**: Audio playback paced by actual chunk duration
+- **O(n) string building**: LLM streaming uses list + join instead of O(n²) concatenation
+- **Incremental sentence detection**: Regex searches only new content, not entire buffer
+- **Pre-allocated audio arrays**: Streaming STT uses doubling strategy for O(n) total copies
+- **Batched Wyoming writes**: Audio chunks written without drain, single flush at end
+- **Lazy dtype conversion**: TTS/resampling skip copy when dtype already matches
 
 ## Documentation Standards
 

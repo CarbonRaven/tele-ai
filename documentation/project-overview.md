@@ -237,6 +237,11 @@ tele-ai/
 | Thread-safe VAD | Safe concurrent call handling |
 | Model Keep-alive | No cold-start latency (24h cache) |
 | Telephone Filter | Authentic 300-3400Hz audio |
+| O(n) String Building | LLM streaming uses list + join vs O(n²) concat |
+| Incremental Regex Search | Sentence detection searches only new tokens |
+| Pre-allocated Audio Arrays | Streaming STT uses doubling for O(n) copies |
+| Batched Wyoming Writes | Single drain after all audio chunks sent |
+| Lazy Dtype Conversion | Skip array copy when dtype already matches |
 
 ## Deployment
 
