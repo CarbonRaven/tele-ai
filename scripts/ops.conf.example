@@ -1,0 +1,70 @@
+# Payphone-AI Operations Configuration
+# Copy to /etc/payphone/ops.conf and customize
+
+# =============================================================================
+# Network Configuration
+# =============================================================================
+
+# Pi #1 (pi-voice) - Voice processing, Asterisk
+PI_VOICE_IP=192.168.1.10
+
+# Pi #2 (pi-ollama) - LLM server
+PI_OLLAMA_IP=192.168.1.11
+
+# SSH user for remote commands
+PI_USER=payphone
+
+# =============================================================================
+# Service Ports
+# =============================================================================
+
+AUDIOSOCKET_PORT=9092
+OLLAMA_PORT=11434
+WHISPER_WYOMING_PORT=10300
+WAKEWORD_PORT=10400
+TTS_SERVER_PORT=10200
+ASTERISK_SIP_PORT=5060
+
+# =============================================================================
+# LLM Configuration
+# =============================================================================
+
+# Model to verify is loaded
+OLLAMA_MODEL=llama3.2:3b-instruct-q4_K_M
+
+# =============================================================================
+# Ready Call Configuration
+# =============================================================================
+
+# Extension number for the payphone (HT801 ATA)
+PAYPHONE_EXTENSION=100
+
+# Dialplan context for ready announcement
+READY_CALL_CONTEXT=ready-announcement
+
+# Max retries if call fails
+READY_CALL_MAX_RETRIES=3
+
+# How long to wait for answer (seconds)
+READY_CALL_WAIT_TIME=45
+
+# =============================================================================
+# Timeouts
+# =============================================================================
+
+# Ping timeout (seconds)
+PING_TIMEOUT=2
+
+# Service check timeout (seconds)
+SERVICE_TIMEOUT=5
+
+# Max time to wait for boot (seconds)
+BOOT_WAIT_TIMEOUT=120
+
+# =============================================================================
+# Paths
+# =============================================================================
+
+ASTERISK_SPOOL=/var/spool/asterisk/outgoing
+ASTERISK_SOUNDS=/var/lib/asterisk/sounds/custom
+PAYPHONE_APP_DIR=/home/payphone/tele-ai/payphone-app
