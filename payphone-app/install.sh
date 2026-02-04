@@ -15,7 +15,7 @@
 #   - Raspberry Pi OS (64-bit, Bookworm)
 #   - AI HAT+ 2 drivers installed (sudo apt install hailo-all)
 #   - Wyoming Hailo Whisper running (sudo apt install wyoming-hailo-whisper)
-#   - Network configured (static IP: 192.168.1.10)
+#   - Network configured (static IP: 10.10.10.10)
 #
 # Usage:
 #   chmod +x install.sh
@@ -38,7 +38,7 @@ SERVICE_NAME="payphone"
 
 # Default settings (can be overridden)
 # Default to Pi #2 (pi-ollama) for LLM
-OLLAMA_HOST="${OLLAMA_HOST:-http://192.168.1.11:11434}"
+OLLAMA_HOST="${OLLAMA_HOST:-http://10.10.10.11:11434}"
 AUDIOSOCKET_PORT="${AUDIOSOCKET_PORT:-9092}"
 WYOMING_WHISPER_PORT="${WYOMING_WHISPER_PORT:-10300}"
 
@@ -275,14 +275,14 @@ create_config() {
     # Prompt for Ollama host (default to Pi #2)
     echo ""
     echo -e "${YELLOW}Ollama Configuration${NC}"
-    echo "In the recommended dual-Pi setup, Ollama runs on Pi #2 (192.168.1.11)."
+    echo "In the recommended dual-Pi setup, Ollama runs on Pi #2 (10.10.10.11)."
     echo "Press Enter to use the default, or enter a different IP address."
-    read -p "Ollama host [192.168.1.11]: " OLLAMA_INPUT
+    read -p "Ollama host [10.10.10.11]: " OLLAMA_INPUT
 
     if [ -n "$OLLAMA_INPUT" ]; then
         OLLAMA_HOST="http://${OLLAMA_INPUT}:11434"
     else
-        OLLAMA_HOST="http://192.168.1.11:11434"
+        OLLAMA_HOST="http://10.10.10.11:11434"
     fi
 
     # Check if Wyoming Hailo Whisper is running
@@ -447,7 +447,7 @@ check_ollama() {
         print_warning "Cannot reach Ollama at ${OLLAMA_HOST}"
         echo ""
         echo "Make sure Ollama is installed and running on Pi #2:"
-        echo "  1. SSH to Pi #2: ssh pi@192.168.1.11"
+        echo "  1. SSH to Pi #2: ssh pi@10.10.10.11"
         echo "  2. Install Ollama: curl -fsSL https://ollama.com/install.sh | sh"
         echo "  3. Configure for network access:"
         echo "     sudo systemctl edit ollama"
@@ -619,12 +619,12 @@ main() {
     echo ""
     echo "Architecture:"
     echo "  Pi #1 (this machine): Hailo Whisper STT + Piper TTS + VAD + AudioSocket"
-    echo "  Pi #2 (192.168.1.11): Standard Ollama with qwen2.5:3b"
+    echo "  Pi #2 (10.10.10.11): Standard Ollama with qwen2.5:3b"
     echo ""
     echo "Next steps:"
     echo ""
     echo "  1. Ensure Pi #2 (pi-ollama) has Ollama running with qwen2.5:3b"
-    echo "     ssh pi@192.168.1.11"
+    echo "     ssh pi@10.10.10.11"
     echo "     ollama list  # should show qwen2.5:3b"
     echo ""
     echo "  2. Ensure Wyoming Hailo Whisper is running:"

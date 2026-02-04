@@ -6,13 +6,13 @@
 # =============================================================================
 
 # Pi #1 (pi-voice) - Voice processing, Asterisk
-PI_VOICE_IP=192.168.1.10
+PI_VOICE_IP=10.10.10.10
 
 # Pi #2 (pi-ollama) - LLM server
-PI_OLLAMA_IP=192.168.1.11
+PI_OLLAMA_IP=10.10.10.11
 
 # Grandstream HT801 ATA - Payphone SIP adapter
-HT801_IP=192.168.1.12
+HT801_IP=10.10.10.12
 
 # SSH user for remote commands
 PI_USER=payphone

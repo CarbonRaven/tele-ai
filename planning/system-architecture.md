@@ -50,7 +50,7 @@ Two Pi 5s provide the best balance of performance and model quality. Pi #1 handl
 ┌─────────────────────────────────────────────────────────────────┐
 │            PI 5 #1 - VOICE PIPELINE (pi-voice)                  │
 │                    (with AI HAT+ 2)                             │
-│                    192.168.1.10                                 │
+│                    10.10.10.10                                 │
 ├─────────────────────────────────────────────────────────────────┤
 │  • Whisper STT (Hailo-10H accelerated) - port 10300             │
 │  • Silero VAD (CPU)                                             │
@@ -68,7 +68,7 @@ Two Pi 5s provide the best balance of performance and model quality. Pi #1 handl
 ┌─────────────────────────────────────────────────────────────────┐
 │            PI 5 #2 - LLM SERVER (pi-ollama)                     │
 │                    (no AI HAT needed)                           │
-│                    192.168.1.11                                 │
+│                    10.10.10.11                                 │
 ├─────────────────────────────────────────────────────────────────┤
 │  • Ollama (standard, CPU-based) - port 11434                    │
 │  • Model: qwen2.5:3b (recommended)                              │
@@ -129,7 +129,7 @@ For cost-constrained deployments, a single Pi 5 with AI HAT+ 2 can run everythin
     ┌─────────────┐ ┌─────────┐│┌─────────┐ ┌─────────────┐
     │   Pi 5 #1   │ │  Pi 5   │││ HT801   │ │  (Future)   │
     │   AI Core   │ │  #2 PBX │││   ATA   │ │  Expansion  │
-    │ 192.168.1.10│ │.1.11    │││.1.20    │ │             │
+    │ 10.10.10.10│ │.1.11    │││.1.20    │ │             │
     └─────────────┘ └─────────┘│└─────────┘ └─────────────┘
                                │
                                ▼
@@ -143,10 +143,10 @@ For cost-constrained deployments, a single Pi 5 with AI HAT+ 2 can run everythin
 
 | Device | IP Address | Hostname | Role |
 |--------|------------|----------|------|
-| Pi 5 #1 | 192.168.1.10 | pi-voice | Voice pipeline + Hailo STT |
-| Pi 5 #2 | 192.168.1.11 | pi-ollama | LLM server (standard Ollama) |
-| Grandstream HT801 | 192.168.1.20 | ata | Payphone SIP adapter |
-| Switch Management | 192.168.1.1 | switch | (if managed) |
+| Pi 5 #1 | 10.10.10.10 | pi-voice | Voice pipeline + Hailo STT |
+| Pi 5 #2 | 10.10.10.11 | pi-ollama | LLM server (standard Ollama) |
+| Grandstream HT801 | 10.10.10.20 | ata | Payphone SIP adapter |
+| Switch Management | 10.10.10.1 | switch | (if managed) |
 
 ### Port Assignments
 
@@ -247,7 +247,7 @@ services:
     environment:
       - WHISPER_HOST=whisper:10300
       - PIPER_HOST=piper:10200
-      - LLM_HOST=http://192.168.1.11:11434  # Pi #2
+      - LLM_HOST=http://10.10.10.11:11434  # Pi #2
     restart: unless-stopped
 
   asterisk:
@@ -822,14 +822,14 @@ class PhoneRouter:
 exten => s,1,Answer()
  same => n,Set(CHANNEL(audioreadformat)=slin16)
  same => n,Set(CHANNEL(audiowriteformat)=slin16)
- same => n,AudioSocket(${UNIQUE_ID},192.168.1.10:9092)
+ same => n,AudioSocket(${UNIQUE_ID},10.10.10.10:9092)
  same => n,Hangup()
 
 [payphone-dtmf]
 ; Alternative: DTMF-based routing
 exten => _X.,1,Answer()
  same => n,Set(FEATURE_CODE=${EXTEN})
- same => n,AGI(agi://192.168.1.10:4573,${FEATURE_CODE})
+ same => n,AGI(agi://10.10.10.10:4573,${FEATURE_CODE})
  same => n,Hangup()
 ```
 
@@ -954,7 +954,7 @@ exten => _X.,1,Answer()
  same => n,Set(CHANNEL(audioreadformat)=slin16)
  same => n,Set(CHANNEL(audiowriteformat)=slin16)
  same => n,Set(CALLER_TYPE=remote)
- same => n,AudioSocket(${UNIQUE_ID},192.168.1.10:9092)
+ same => n,AudioSocket(${UNIQUE_ID},10.10.10.10:9092)
  same => n,Hangup()
 
 ; Optional: PIN authentication for remote callers
@@ -969,7 +969,7 @@ exten => _X.,1,Answer()
  same => n,Playback(invalid-pin)
  same => n,Goto(getpin)
  same => n(authenticated),Set(CALLER_TYPE=authenticated_remote)
- same => n,AudioSocket(${UNIQUE_ID},192.168.1.10:9092)
+ same => n,AudioSocket(${UNIQUE_ID},10.10.10.10:9092)
  same => n,Hangup()
  same => n(failed),Playback(goodbye)
  same => n,Hangup()
@@ -1241,7 +1241,7 @@ services:
     environment:
       - WHISPER_HOST=whisper
       - PIPER_HOST=piper
-      - LLM_HOST=http://192.168.1.11:11434  # Remote Pi #2
+      - LLM_HOST=http://10.10.10.11:11434  # Remote Pi #2
     depends_on:
       - whisper
       - piper

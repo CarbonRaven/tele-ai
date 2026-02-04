@@ -7,14 +7,14 @@ Complete network topology and IP assignments for the Payphone-AI system.
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         PAYPHONE-AI NETWORK                                 │
-│                        Subnet: 192.168.1.0/24                               │
-│                        Gateway: 192.168.1.1                                 │
+│                        Subnet: 10.10.10.0/24                               │
+│                        Gateway: 10.10.10.1                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
 
                               ┌─────────────┐
                               │   Router/   │
                               │   Gateway   │
-                              │ 192.168.1.1 │
+                              │ 10.10.10.1 │
                               └──────┬──────┘
                                      │
                               ┌──────┴──────┐
@@ -28,7 +28,7 @@ Complete network topology and IP assignments for the Payphone-AI system.
      ┌──────┴──────┐          ┌──────┴──────┐          ┌──────┴──────┐
      │   Pi #1     │          │   Pi #2     │          │   HT801     │
      │  pi-voice   │          │  pi-ollama  │          │    ATA      │
-     │192.168.1.10 │          │192.168.1.11 │          │192.168.1.12 │
+     │10.10.10.10 │          │10.10.10.11 │          │10.10.10.12 │
      │             │          │             │          │             │
      │ + AI HAT+ 2 │          │  (standard) │          │     FXS     │
      └─────────────┘          └─────────────┘          └──────┬──────┘
@@ -43,15 +43,15 @@ Complete network topology and IP assignments for the Payphone-AI system.
 
 | IP Address | Device | Hostname | MAC Address | Notes |
 |------------|--------|----------|-------------|-------|
-| 192.168.1.1 | Router/Gateway | — | — | Upstream network |
-| 192.168.1.10 | Raspberry Pi 5 #1 | pi-voice | — | Voice pipeline, FreePBX |
-| 192.168.1.11 | Raspberry Pi 5 #2 | pi-ollama | — | LLM server |
-| 192.168.1.12 | Grandstream HT801 v2 | ht801 | — | ATA for payphone |
-| 192.168.1.13-99 | Reserved | — | — | Future expansion |
+| 10.10.10.1 | Router/Gateway | — | — | Upstream network |
+| 10.10.10.10 | Raspberry Pi 5 #1 | pi-voice | — | Voice pipeline, FreePBX |
+| 10.10.10.11 | Raspberry Pi 5 #2 | pi-ollama | — | LLM server |
+| 10.10.10.12 | Grandstream HT801 v2 | ht801 | — | ATA for payphone |
+| 10.10.10.13-99 | Reserved | — | — | Future expansion |
 
 ## Device Details
 
-### Pi #1 (pi-voice) - 192.168.1.10
+### Pi #1 (pi-voice) - 10.10.10.10
 
 **Role:** Voice processing hub, telephony server
 
@@ -60,7 +60,7 @@ Complete network topology and IP assignments for the Payphone-AI system.
 | Hardware | Raspberry Pi 5 (16GB) + AI HAT+ 2 (Hailo-10H) |
 | OS | Raspberry Pi OS (64-bit) |
 | Hostname | pi-voice |
-| Static IP | 192.168.1.10 |
+| Static IP | 10.10.10.10 |
 
 **Services:**
 
@@ -79,9 +79,9 @@ Complete network topology and IP assignments for the Payphone-AI system.
 
 ```
 interface eth0
-static ip_address=192.168.1.10/24
-static routers=192.168.1.1
-static domain_name_servers=192.168.1.1 8.8.8.8
+static ip_address=10.10.10.10/24
+static routers=10.10.10.1
+static domain_name_servers=10.10.10.1 8.8.8.8
 ```
 
 Or with NetworkManager (`/etc/NetworkManager/system-connections/eth0.nmconnection`):
@@ -94,8 +94,8 @@ interface-name=eth0
 
 [ipv4]
 method=manual
-address1=192.168.1.10/24,192.168.1.1
-dns=192.168.1.1;8.8.8.8;
+address1=10.10.10.10/24,10.10.10.1
+dns=10.10.10.1;8.8.8.8;
 
 [ipv6]
 method=disabled
@@ -103,7 +103,7 @@ method=disabled
 
 ---
 
-### Pi #2 (pi-ollama) - 192.168.1.11
+### Pi #2 (pi-ollama) - 10.10.10.11
 
 **Role:** LLM inference server
 
@@ -112,7 +112,7 @@ method=disabled
 | Hardware | Raspberry Pi 5 (16GB) - standard, no HAT |
 | OS | Raspberry Pi OS (64-bit) |
 | Hostname | pi-ollama |
-| Static IP | 192.168.1.11 |
+| Static IP | 10.10.10.11 |
 
 **Services:**
 
@@ -133,22 +133,22 @@ Environment="OLLAMA_HOST=0.0.0.0"
 
 ```
 interface eth0
-static ip_address=192.168.1.11/24
-static routers=192.168.1.1
-static domain_name_servers=192.168.1.1 8.8.8.8
+static ip_address=10.10.10.11/24
+static routers=10.10.10.1
+static domain_name_servers=10.10.10.1 8.8.8.8
 ```
 
 ---
 
-### HT801 ATA - 192.168.1.12
+### HT801 ATA - 10.10.10.12
 
 **Role:** Analog Telephone Adapter - connects physical payphone to SIP
 
 | Component | Details |
 |-----------|---------|
 | Hardware | Grandstream HT801 v2 |
-| Static IP | 192.168.1.12 |
-| Web GUI | http://192.168.1.12 |
+| Static IP | 10.10.10.12 |
+| Web GUI | http://10.10.10.12 |
 | Default Password | admin |
 
 **Services:**
@@ -164,11 +164,11 @@ static domain_name_servers=192.168.1.1 8.8.8.8
 | Setting | Location | Value |
 |---------|----------|-------|
 | IP Mode | Basic Settings > IPv4 | Static |
-| IP Address | Basic Settings > IPv4 | 192.168.1.12 |
+| IP Address | Basic Settings > IPv4 | 10.10.10.12 |
 | Subnet Mask | Basic Settings > IPv4 | 255.255.255.0 |
-| Gateway | Basic Settings > IPv4 | 192.168.1.1 |
-| DNS Server | Basic Settings > IPv4 | 192.168.1.1 |
-| SIP Server | FXS Port > Account | 192.168.1.10 |
+| Gateway | Basic Settings > IPv4 | 10.10.10.1 |
+| DNS Server | Basic Settings > IPv4 | 10.10.10.1 |
+| SIP Server | FXS Port > Account | 10.10.10.10 |
 | SIP User ID | FXS Port > Account | 100 |
 | Auth ID | FXS Port > Account | 100 |
 | Auth Password | FXS Port > Account | (from FreePBX extension) |
@@ -178,7 +178,7 @@ static domain_name_servers=192.168.1.1 8.8.8.8
 **HT801 Web GUI Access:**
 
 ```
-URL: http://192.168.1.12
+URL: http://10.10.10.12
 Default User: admin
 Default Password: admin (change after setup!)
 ```
@@ -256,19 +256,19 @@ Payphone (analog)
     │
     │ Audio signal
     ▼
-HT801 (192.168.1.12)
+HT801 (10.10.10.12)
     │
     │ SIP INVITE + RTP
     ▼
-Pi #1 FreePBX (192.168.1.10:5060)
+Pi #1 FreePBX (10.10.10.10:5060)
     │
     │ AudioSocket
     ▼
-Pi #1 payphone-app (192.168.1.10:9092)
+Pi #1 payphone-app (10.10.10.10:9092)
     │
     │ HTTP API
     ▼
-Pi #2 Ollama (192.168.1.11:11434)
+Pi #2 Ollama (10.10.10.11:11434)
     │
     │ Response
     ▼
@@ -310,7 +310,7 @@ sudo ufw allow 5060/udp
 sudo ufw allow 10000:20000/udp
 
 # Allow AudioSocket (local only recommended)
-sudo ufw allow from 192.168.1.0/24 to any port 9092
+sudo ufw allow from 10.10.10.0/24 to any port 9092
 
 # Enable firewall
 sudo ufw enable
@@ -323,10 +323,10 @@ sudo ufw enable
 sudo ufw allow 22/tcp
 
 # Allow Ollama from Pi #1 only
-sudo ufw allow from 192.168.1.10 to any port 11434
+sudo ufw allow from 10.10.10.10 to any port 11434
 
 # Allow TTS server from Pi #1 only (if used)
-sudo ufw allow from 192.168.1.10 to any port 10200
+sudo ufw allow from 10.10.10.10 to any port 10200
 
 # Enable firewall
 sudo ufw enable
@@ -340,9 +340,9 @@ Add to `/etc/hosts` on each Pi for reliable name resolution:
 
 ```
 # Payphone-AI Network
-192.168.1.10    pi-voice
-192.168.1.11    pi-ollama
-192.168.1.12    ht801
+10.10.10.10    pi-voice
+10.10.10.11    pi-ollama
+10.10.10.12    ht801
 ```
 
 ---
@@ -353,9 +353,9 @@ If using DHCP with reservations on your router, configure:
 
 | Hostname | MAC Address | Reserved IP |
 |----------|-------------|-------------|
-| pi-voice | (from Pi #1) | 192.168.1.10 |
-| pi-ollama | (from Pi #2) | 192.168.1.11 |
-| ht801 | (from HT801) | 192.168.1.12 |
+| pi-voice | (from Pi #1) | 10.10.10.10 |
+| pi-ollama | (from Pi #2) | 10.10.10.11 |
+| ht801 | (from HT801) | 10.10.10.12 |
 
 Get MAC addresses:
 
@@ -374,15 +374,15 @@ ip link show eth0 | grep ether
 
 ```bash
 # From Pi #1, verify all devices reachable
-ping -c 1 192.168.1.11    # Pi #2
-ping -c 1 192.168.1.12    # HT801
-ping -c 1 192.168.1.1     # Gateway
+ping -c 1 10.10.10.11    # Pi #2
+ping -c 1 10.10.10.12    # HT801
+ping -c 1 10.10.10.1     # Gateway
 
 # Check Ollama accessible
-curl -s http://192.168.1.11:11434/api/tags | jq '.models[].name'
+curl -s http://10.10.10.11:11434/api/tags | jq '.models[].name'
 
 # Check HT801 web interface
-curl -s -o /dev/null -w "%{http_code}" http://192.168.1.12
+curl -s -o /dev/null -w "%{http_code}" http://10.10.10.12
 
 # Check SIP registration from FreePBX
 asterisk -rx "pjsip show endpoints"
@@ -405,8 +405,8 @@ Reserved IP ranges for future use:
 
 | Range | Purpose |
 |-------|---------|
-| 192.168.1.13-19 | Additional Pis |
-| 192.168.1.20-29 | Additional ATAs/phones |
-| 192.168.1.30-39 | IoT/sensors |
-| 192.168.1.100-199 | DHCP pool |
-| 192.168.1.200-254 | Infrastructure |
+| 10.10.10.13-19 | Additional Pis |
+| 10.10.10.20-29 | Additional ATAs/phones |
+| 10.10.10.30-39 | IoT/sensors |
+| 10.10.10.100-199 | DHCP pool |
+| 10.10.10.200-254 | Infrastructure |

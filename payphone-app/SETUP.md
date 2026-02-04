@@ -75,7 +75,7 @@ For manual installation or customization, follow the detailed steps below.
      │   Pi 5 #1   │ │  Pi 5 #2  │ │   Router    │
      │  pi-voice   │ │ pi-ollama │ │ (Optional)  │
      │ + AI HAT+2  │ │           │ │             │
-     │ 192.168.1.10│ │192.168.1.11│ │             │
+     │ 10.10.10.10│ │10.10.10.11│ │             │
      └─────────────┘ └───────────┘ └─────────────┘
 ```
 
@@ -87,9 +87,9 @@ For manual installation or customization, follow the detailed steps below.
 
 | Device | Hostname | IP Address | Role |
 |--------|----------|------------|------|
-| Pi 5 #1 | pi-voice | 192.168.1.10 | Voice pipeline + Hailo Whisper STT |
-| Pi 5 #2 | pi-ollama | 192.168.1.11 | LLM server (standard Ollama) |
-| HT801 ATA | ata | 192.168.1.20 | Payphone SIP adapter |
+| Pi 5 #1 | pi-voice | 10.10.10.10 | Voice pipeline + Hailo Whisper STT |
+| Pi 5 #2 | pi-ollama | 10.10.10.11 | LLM server (standard Ollama) |
+| HT801 ATA | ata | 10.10.10.20 | Payphone SIP adapter |
 
 ### Port Reference
 
@@ -140,14 +140,14 @@ For manual installation or customization, follow the detailed steps below.
    ```bash
    # For Pi 5 #1 (Pipeline)
    interface eth0
-   static ip_address=192.168.1.10/24
-   static routers=192.168.1.1
+   static ip_address=10.10.10.10/24
+   static routers=10.10.10.1
    static domain_name_servers=8.8.8.8
 
    # For Pi 5 #2 (Ollama)
    interface eth0
-   static ip_address=192.168.1.11/24
-   static routers=192.168.1.1
+   static ip_address=10.10.10.11/24
+   static routers=10.10.10.1
    static domain_name_servers=8.8.8.8
    ```
 
@@ -363,13 +363,13 @@ ls -la kokoro-v1.0.onnx voices-v1.0.bin
    From Pi 5 #1:
 
    ```bash
-   curl http://192.168.1.11:11434/api/tags
+   curl http://10.10.10.11:11434/api/tags
    ```
 
 5. **Test Generation**
 
    ```bash
-   curl http://192.168.1.11:11434/api/generate -d '{
+   curl http://10.10.10.11:11434/api/generate -d '{
      "model": "qwen2.5:3b",
      "prompt": "Hello, how are you?",
      "stream": false
@@ -415,7 +415,7 @@ exten => 2255,1,NoOp(AI Payphone - Direct)
  same => n,Wait(0.5)
  same => n,Set(CHANNEL(audioreadformat)=slin16)
  same => n,Set(CHANNEL(audiowriteformat)=slin16)
- same => n,AudioSocket(${UNIQUEID},192.168.1.10:9092)
+ same => n,AudioSocket(${UNIQUEID},10.10.10.10:9092)
  same => n,Hangup()
 
 ; Dial-A-Joke shortcut (extension 5653 = "JOKE")
@@ -425,7 +425,7 @@ exten => 5653,1,NoOp(AI Payphone - Jokes)
  same => n,Set(CHANNEL(audioreadformat)=slin16)
  same => n,Set(CHANNEL(audiowriteformat)=slin16)
  same => n,Set(AI_FEATURE=jokes)
- same => n,AudioSocket(${UNIQUEID},192.168.1.10:9092)
+ same => n,AudioSocket(${UNIQUEID},10.10.10.10:9092)
  same => n,Hangup()
 
 ; Catch-all: Route ANY call from payphone extension (100) to AI
@@ -508,7 +508,7 @@ Connectivity → Firewall → Networks → Add Network
 
 | Field | Value |
 |-------|-------|
-| Network | 192.168.1.10/32 |
+| Network | 10.10.10.10/32 |
 | Zone | Trusted |
 | Description | AI Payphone Server |
 
@@ -522,7 +522,7 @@ sudo ufw allow 9092/tcp comment "AudioSocket"
 1. **Check AudioSocket is reachable from FreePBX:**
    ```bash
    # From FreePBX server
-   nc -zv 192.168.1.10 9092
+   nc -zv 10.10.10.10 9092
    ```
 
 2. **Make a test call:**
@@ -536,7 +536,7 @@ sudo ufw allow 9092/tcp comment "AudioSocket"
    asterisk -rvvv
 
    # When call connects, you'll see:
-   # -- AudioSocket(uuid,192.168.1.10:9092)
+   # -- AudioSocket(uuid,10.10.10.10:9092)
    ```
 
 ### Troubleshooting FreePBX
@@ -571,13 +571,13 @@ fwconsole reload
 
 1. **Access Web Interface**
 
-   Default: http://192.168.1.20 (admin/admin)
+   Default: http://10.10.10.20 (admin/admin)
 
 2. **SIP Settings (FXS Port)**
 
    | Setting | Value |
    |---------|-------|
-   | SIP Server | 192.168.1.30 (FreePBX IP) |
+   | SIP Server | 10.10.10.30 (FreePBX IP) |
    | SIP User ID | 100 |
    | Authenticate ID | 100 |
    | Authenticate Password | (set in FreePBX) |
@@ -636,7 +636,7 @@ fwconsole reload
    STT_COMPUTE_TYPE=int8
 
    # LLM (Standard Ollama on Pi #2)
-   LLM_HOST=http://192.168.1.11:11434
+   LLM_HOST=http://10.10.10.11:11434
    LLM_MODEL=qwen2.5:3b
    LLM_TEMPERATURE=0.7
    LLM_MAX_TOKENS=150
@@ -664,7 +664,7 @@ Expected output (with Moonshine - recommended):
 2024-01-20 10:00:02 - INFO - Silero VAD model loaded successfully
 2024-01-20 10:00:02 - INFO - Loading Moonshine model: UsefulSensors/moonshine-tiny
 2024-01-20 10:00:04 - INFO - Using Moonshine STT (UsefulSensors/moonshine-tiny) on cpu - 5x faster than Whisper tiny
-2024-01-20 10:00:04 - INFO - Connecting to Ollama at http://192.168.1.11:11434...
+2024-01-20 10:00:04 - INFO - Connecting to Ollama at http://10.10.10.11:11434...
 2024-01-20 10:00:05 - INFO - Ollama client initialized (model: qwen2.5:3b)
 2024-01-20 10:00:05 - INFO - Loading Kokoro TTS...
 2024-01-20 10:00:07 - INFO - Kokoro TTS model loaded successfully
@@ -733,7 +733,7 @@ journalctl -u payphone -f
 
 ```bash
 # From another machine, test TCP connection
-nc -zv 192.168.1.10 9092
+nc -zv 10.10.10.10 9092
 ```
 
 ### Test with SIP Client
@@ -837,7 +837,7 @@ sudo systemctl disable avahi-daemon
 
 ### Pi #1 (pi-voice) - Voice Pipeline + AI HAT+ 2
 - [ ] Flash Pi OS (64-bit Bookworm)
-- [ ] Set static IP: 192.168.1.10
+- [ ] Set static IP: 10.10.10.10
 - [ ] Enable PCIe Gen 3 (raspi-config)
 - [ ] Install Hailo drivers (`sudo apt install hailo-all`) - optional if using Moonshine
 - [ ] Install Wyoming Hailo Whisper (`sudo apt install wyoming-hailo-whisper`) - optional
@@ -850,12 +850,12 @@ sudo systemctl disable avahi-daemon
 
 ### Pi #2 (pi-ollama) - LLM Server
 - [ ] Flash Pi OS (64-bit Bookworm)
-- [ ] Set static IP: 192.168.1.11
+- [ ] Set static IP: 10.10.10.11
 - [ ] Install Ollama (`curl -fsSL https://ollama.com/install.sh | sh`)
 - [ ] Configure Ollama for network access (OLLAMA_HOST=0.0.0.0)
 - [ ] Pull qwen2.5:3b model
 
 ### Network & Telephony
-- [ ] Configure HT801 ATA (192.168.1.20)
-- [ ] Test from Pi #1: `curl http://192.168.1.11:11434/api/tags`
+- [ ] Configure HT801 ATA (10.10.10.20)
+- [ ] Test from Pi #1: `curl http://10.10.10.11:11434/api/tags`
 - [ ] Test with phone call to extension 2255

@@ -22,7 +22,7 @@ A fully local AI voice assistant designed for vintage payphones. Connects via As
 ```
                                     ┌─────────────────────────────────────┐
                                     │          Pi #2 (pi-ollama)          │
-                                    │           192.168.1.11              │
+                                    │           10.10.10.11              │
                                     │                                     │
                                     │    ┌─────────────────────────┐     │
                                     │    │  Ollama (llama3.2:3b)   │     │
@@ -40,7 +40,7 @@ Payphone → HT801 ATA → Asterisk → AudioSocket ─────┼───�
                                     │              │                         │
                     ┌───────────────┼──────────────┼─────────────────────────┤
                     │               │              │    Pi #1 (pi-voice)     │
-                    │               │              │     192.168.1.10        │
+                    │               │              │     10.10.10.10        │
                     │               │              │     + AI HAT+ 2         │
                     ▼               ▼              ▼                         │
               Silero VAD    Hailo Whisper    Kokoro TTS                     │
@@ -68,13 +68,13 @@ Payphone → HT801 ATA → Asterisk → AudioSocket ─────┼───�
 - Raspberry Pi 5 (16GB)
 - Raspberry Pi AI HAT+ 2 (Hailo-10H)
 - Raspberry Pi OS 64-bit (Bookworm)
-- Static IP: 192.168.1.10
+- Static IP: 10.10.10.10
 - FreePBX/Asterisk with AudioSocket support
 
 **Pi #2 (pi-ollama) - LLM Server:**
 - Raspberry Pi 5 (16GB)
 - Raspberry Pi OS 64-bit (Bookworm)
-- Static IP: 192.168.1.11
+- Static IP: 10.10.10.11
 - Ollama with llama3.2:3b (~3GB RAM) or ministral:8b (~5GB RAM)
 
 **Telephony:**
@@ -111,7 +111,7 @@ cp .env.example .env
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `LLM_HOST` | Ollama server (Pi #2) | `http://192.168.1.11:11434` |
+| `LLM_HOST` | Ollama server (Pi #2) | `http://10.10.10.11:11434` |
 | `LLM_MODEL` | Language model | `llama3.2:3b-instruct-q4_K_M` |
 | `STT_BACKEND` | STT backend (`moonshine`, `hailo`, `whisper`, `auto`) | `auto` |
 | `STT_MOONSHINE_MODEL` | Moonshine model | `UsefulSensors/moonshine-tiny` |
@@ -137,7 +137,7 @@ python tts_server.py
 
 # On Pi #1: Configure remote TTS
 TTS_MODE=remote
-TTS_REMOTE_HOST=http://192.168.1.11:10200
+TTS_REMOTE_HOST=http://10.10.10.11:10200
 ```
 
 The STT service auto-detects Wyoming/Hailo and falls back to faster-whisper CPU if unavailable.
@@ -149,7 +149,7 @@ Add to `/etc/asterisk/extensions_custom.conf`:
 ```ini
 [from-internal-custom]
 exten => 2255,1,Answer()
- same => n,AudioSocket(${UNIQUEID},192.168.1.10:9092)
+ same => n,AudioSocket(${UNIQUEID},10.10.10.10:9092)
  same => n,Hangup()
 ```
 
@@ -375,8 +375,8 @@ When running `tts_server.py` on Pi #2:
 
 Example:
 ```bash
-curl http://192.168.1.11:10200/health
-curl -X POST http://192.168.1.11:10200/synthesize \
+curl http://10.10.10.11:10200/health
+curl -X POST http://10.10.10.11:10200/synthesize \
   -H "Content-Type: application/json" \
   -d '{"text": "Hello world", "voice": "af_bella", "speed": 1.0}'
 ```

@@ -129,7 +129,7 @@ class STTSettings(BaseSettings):
 class LLMSettings(BaseSettings):
     """Language Model configuration.
 
-    Standard Ollama runs on Pi #2 (192.168.1.11) for better model flexibility.
+    Standard Ollama runs on Pi #2 (10.10.10.11) for better model flexibility.
 
     Recommended models (January 2026):
     - Speed priority: llama3.2:3b-instruct-q4_K_M (~5-6 TPS on Pi 5)
@@ -143,7 +143,7 @@ class LLMSettings(BaseSettings):
 
     # Ollama settings - default to Pi #2 (pi-ollama)
     # Change to localhost:11434 if running single-Pi setup
-    host: str = "http://192.168.1.11:11434"
+    host: str = "http://10.10.10.11:11434"
 
     # Default to Llama 3.2 3B for best latency in voice applications
     # Use ministral:8b for better quality, qwen2.5:7b for strong logic
@@ -185,7 +185,7 @@ class TTSSettings(BaseSettings):
 
     # Remote TTS server (when mode="remote")
     # Run tts_server.py on Pi #2 to handle synthesis
-    remote_host: str = "http://192.168.1.11:10200"
+    remote_host: str = "http://10.10.10.11:10200"
     remote_timeout: float = 10.0  # Timeout for remote TTS calls
 
     # Kokoro-82M settings (for local mode or remote server)

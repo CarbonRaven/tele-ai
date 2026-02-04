@@ -18,13 +18,13 @@ Transform a vintage payphone into an interactive AI experience that:
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │   Vintage Payphone ──► Grandstream HT801 ATA ──► 5-Port Gigabit Switch     │
-│                              192.168.1.20              192.168.1.1          │
+│                              10.10.10.20              10.10.10.1          │
 │                                                             │               │
 │                                    ┌────────────────────────┴───────────┐   │
 │                                    │                                    │   │
 │                                    ▼                                    ▼   │
 │   ┌─────────────────────────────────────────────┐  ┌──────────────────────┐│
-│   │       Pi #1 (pi-voice) 192.168.1.10         │  │Pi #2 192.168.1.11    ││
+│   │       Pi #1 (pi-voice) 10.10.10.10         │  │Pi #2 10.10.10.11    ││
 │   │              + AI HAT+ 2                    │  │                      ││
 │   │                                             │  │  ┌────────────────┐  ││
 │   │  ┌─────────┐  ┌─────────┐  ┌─────────────┐ │  │  │     Ollama     │  ││
@@ -58,10 +58,10 @@ Transform a vintage payphone into an interactive AI experience that:
 
 | Device | IP Address | Ports |
 |--------|------------|-------|
-| Switch/Router | 192.168.1.1 | - |
-| Pi #1 (pi-voice) | 192.168.1.10 | 9092 (AudioSocket), 10300 (Wyoming STT), 10200 (TTS), 10400 (Wake Word) |
-| Pi #2 (pi-ollama) | 192.168.1.11 | 11434 (Ollama API) |
-| HT801 ATA | 192.168.1.20 | 5060 (SIP) |
+| Switch/Router | 10.10.10.1 | - |
+| Pi #1 (pi-voice) | 10.10.10.10 | 9092 (AudioSocket), 10300 (Wyoming STT), 10200 (TTS), 10400 (Wake Word) |
+| Pi #2 (pi-ollama) | 10.10.10.11 | 11434 (Ollama API) |
+| HT801 ATA | 10.10.10.20 | 5060 (SIP) |
 
 ## Voice Pipeline
 
@@ -274,7 +274,7 @@ Add to `/etc/asterisk/extensions_custom.conf`:
 ```ini
 [from-internal-custom]
 exten => 2255,1,Answer()
- same => n,AudioSocket(${UNIQUEID},192.168.1.10:9092)
+ same => n,AudioSocket(${UNIQUEID},10.10.10.10:9092)
  same => n,Hangup()
 ```
 

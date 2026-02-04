@@ -25,9 +25,9 @@ CONFIG_FILE="${PAYPHONE_CONFIG:-/etc/payphone/ops.conf}"
 [[ -f "$CONFIG_FILE" ]] && source "$CONFIG_FILE"
 
 # Network Configuration
-PI_VOICE_IP="${PI_VOICE_IP:-192.168.1.10}"
-PI_OLLAMA_IP="${PI_OLLAMA_IP:-192.168.1.11}"
-HT801_IP="${HT801_IP:-192.168.1.12}"
+PI_VOICE_IP="${PI_VOICE_IP:-10.10.10.10}"
+PI_OLLAMA_IP="${PI_OLLAMA_IP:-10.10.10.11}"
+HT801_IP="${HT801_IP:-10.10.10.12}"
 PI_USER="${PI_USER:-payphone}"
 
 # Service Ports
@@ -744,9 +744,9 @@ Commands:
 
 Configuration:
   Set environment variables or edit /etc/payphone/ops.conf:
-    PI_VOICE_IP        Pi #1 IP address (default: 192.168.1.10)
-    PI_OLLAMA_IP       Pi #2 IP address (default: 192.168.1.11)
-    HT801_IP           HT801 ATA IP address (default: 192.168.1.12)
+    PI_VOICE_IP        Pi #1 IP address (default: 10.10.10.10)
+    PI_OLLAMA_IP       Pi #2 IP address (default: 10.10.10.11)
+    HT801_IP           HT801 ATA IP address (default: 10.10.10.12)
     PAYPHONE_EXTENSION Extension to call for ready announcement (default: 100)
     OLLAMA_MODEL       LLM model name (default: llama3.2:3b-instruct-q4_K_M)
 

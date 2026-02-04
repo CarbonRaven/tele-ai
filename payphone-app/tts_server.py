@@ -5,7 +5,7 @@ This server runs Kokoro-82M TTS and exposes an HTTP API for remote synthesis.
 Running TTS on Pi #2 offloads ~30% CPU from Pi #1 during speech output.
 
 Usage:
-    # On Pi #2 (192.168.1.11)
+    # On Pi #2 (10.10.10.11)
     python tts_server.py
 
     # Or with custom settings

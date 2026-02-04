@@ -18,7 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Dual-Pi Architecture
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ Pi #1 (pi-voice) 192.168.1.10 - AI HAT+ 2                               │
+│ Pi #1 (pi-voice) 10.10.10.10 - AI HAT+ 2                               │
 │                                                                         │
 │  Mic → openWakeWord → Whisper (STT) ──────────────→ Piper (TTS) → Speaker│
 │           :10400      :10300 (Hailo)                  :10200            │
@@ -28,7 +28,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
                                │ HTTP                      │
                                ▼                           │
 ┌──────────────────────────────────────────────────────────┼──────────────┐
-│ Pi #2 (pi-ollama) 192.168.1.11                           │              │
+│ Pi #2 (pi-ollama) 10.10.10.11                           │              │
 │                                                          │              │
 │                    Ollama (LLM) ─────────────────────────┘              │
 │                      :11434                                             │

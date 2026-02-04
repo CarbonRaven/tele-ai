@@ -275,7 +275,7 @@ For best performance, run Ollama on a dedicated Pi (Pi #2) separate from the voi
 1. **Install Ollama on Pi #2**:
 ```bash
 # SSH to Pi #2 (pi-ollama)
-ssh pi@192.168.1.11
+ssh pi@10.10.10.11
 
 curl -fsSL https://ollama.com/install.sh | sh
 ollama pull qwen2.5:3b
@@ -296,7 +296,7 @@ sudo systemctl restart ollama
 
 3. **Verify from Pi #1**:
 ```bash
-curl http://192.168.1.11:11434/api/tags
+curl http://10.10.10.11:11434/api/tags
 ```
 
 3. **Add Ollama Integration in Home Assistant**:

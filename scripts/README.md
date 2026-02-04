@@ -123,8 +123,8 @@ Edit `/etc/payphone/ops.conf`:
 
 ```bash
 # Network
-PI_VOICE_IP=192.168.1.10
-PI_OLLAMA_IP=192.168.1.11
+PI_VOICE_IP=10.10.10.10
+PI_OLLAMA_IP=10.10.10.11
 
 # Payphone extension (HT801)
 PAYPHONE_EXTENSION=100
@@ -136,7 +136,7 @@ OLLAMA_MODEL=llama3.2:3b-instruct-q4_K_M
 Or use environment variables:
 
 ```bash
-PI_OLLAMA_IP=192.168.1.20 payphone-ops status
+PI_OLLAMA_IP=10.10.10.20 payphone-ops status
 ```
 
 ## Ready Call Feature
@@ -187,7 +187,7 @@ Logs to `/var/log/tele-ai/health.jsonl` (JSON lines format).
 
 | Issue | Check | Fix |
 |-------|-------|-----|
-| "Pi #2 unreachable" | Network cable, switch | `ping 192.168.1.11` |
+| "Pi #2 unreachable" | Network cable, switch | `ping 10.10.10.11` |
 | "Ollama DOWN" | Service status on Pi #2 | `ssh pi-ollama "systemctl status ollama"` |
 | "AudioSocket DOWN" | payphone service | `sudo systemctl restart payphone` |
 | Ready call not ringing | Extension config | Check `PAYPHONE_EXTENSION` matches HT801 |
@@ -209,7 +209,7 @@ asterisk -rx "dialplan show ready-announcement"
 nc -zv 127.0.0.1 9092
 
 # Test Ollama from Pi #1
-curl http://192.168.1.11:11434/api/tags
+curl http://10.10.10.11:11434/api/tags
 ```
 
 ## File Structure
