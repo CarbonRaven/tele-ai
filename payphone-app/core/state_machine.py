@@ -87,6 +87,10 @@ class StateMachine:
         self._silence_start: float | None = None
         self._timeout_prompted = False
 
+        # Safety timeout for SPEAKING state (seconds)
+        self._speaking_entered: float | None = None
+        self._speaking_safety_timeout = 5.0
+
         # Feature state
         self._current_feature_handler = None
 
@@ -118,6 +122,10 @@ class StateMachine:
             self._silence_start = None
             self._timeout_prompted = False
 
+        # Reset SPEAKING safety timer on state change
+        if new_state != State.SPEAKING:
+            self._speaking_entered = None
+
     async def process(self, pipeline: "VoicePipeline") -> None:
         """Process current state and handle transitions.
 
@@ -148,9 +156,20 @@ class StateMachine:
         elif self._state == State.SPEAKING:
             # TTS playback is handled externally by VoicePipeline.speak()
             # This state is set before calling speak() and transitions happen
-            # after speak() returns. No action needed here - just wait for
-            # the speaking operation to complete and transition us out.
-            logger.debug(f"Session {self.session.call_id}: In SPEAKING state, waiting for TTS")
+            # after speak() returns. This branch is a safety net.
+            if self._speaking_entered is None:
+                self._speaking_entered = time.time()
+            elapsed = time.time() - self._speaking_entered
+            if elapsed >= self._speaking_safety_timeout:
+                logger.warning(
+                    f"Session {self.session.call_id}: SPEAKING state stuck for "
+                    f"{elapsed:.1f}s, forcing transition to LISTENING"
+                )
+                self._speaking_entered = None
+                self.transition_to(State.LISTENING, "speaking_safety_timeout")
+            else:
+                logger.debug(f"Session {self.session.call_id}: In SPEAKING state, waiting for TTS")
+                await asyncio.sleep(0.1)  # Prevent busy-spinning
 
         elif self._state == State.BARGE_IN:
             # User interrupted, cancel TTS and listen

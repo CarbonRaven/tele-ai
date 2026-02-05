@@ -150,8 +150,8 @@ class Session:
 
         # Check buffer size limit to prevent memory issues
         if len(self.dtmf_buffer) >= self.MAX_DTMF_BUFFER_SIZE:
-            logger.warning(f"DTMF buffer full ({self.MAX_DTMF_BUFFER_SIZE} digits), dropping oldest")
-            self.dtmf_buffer = self.dtmf_buffer[1:]  # Drop oldest digit
+            logger.warning(f"DTMF buffer full ({self.MAX_DTMF_BUFFER_SIZE} digits), rejecting digit")
+            return None
 
         self.dtmf_buffer += digit
         self.dtmf_last_time = current_time

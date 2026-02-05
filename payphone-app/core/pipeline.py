@@ -97,7 +97,11 @@ class VoicePipeline:
                 break
 
             # Process audio: 8kHz bytes → 16kHz float32
-            audio_float = self.audio_processor.process_for_stt(audio_bytes)
+            try:
+                audio_float = self.audio_processor.process_for_stt(audio_bytes)
+            except Exception as e:
+                logger.warning(f"Corrupt audio chunk (call {session.call_id}): {e}")
+                continue
 
             # Run VAD with per-session state for concurrent call support
             # The VAD model inference is still serialized by lock, but state

@@ -83,6 +83,9 @@ class KokoroTTS:
         if self._initialized:
             return
 
+        # Create lock eagerly to avoid race condition with lazy init
+        self._lock = asyncio.Lock()
+
         logger.info("Loading Kokoro TTS model...")
 
         # Load model in executor to avoid blocking
@@ -148,10 +151,6 @@ class KokoroTTS:
 
         voice = voice or self.settings.voice
         speed = speed or self.settings.speed
-
-        # Lazy-create lock on first use (must be in async context)
-        if self._lock is None:
-            self._lock = asyncio.Lock()
 
         # Acquire lock to prevent concurrent synthesis corrupting model state
         async with self._lock:

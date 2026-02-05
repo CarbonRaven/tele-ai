@@ -43,7 +43,11 @@ class PayphoneApplication:
         self._pipeline = None
 
     async def initialize_services(self) -> None:
-        """Initialize all AI services."""
+        """Initialize all AI services.
+
+        If any service fails to initialize, already-initialized services
+        are cleaned up before re-raising the exception.
+        """
         logger.info("Initializing AI services...")
 
         # Import services here to avoid circular imports
@@ -53,25 +57,38 @@ class PayphoneApplication:
         from services.tts import KokoroTTS
         from core.pipeline import VoicePipeline
 
-        # Initialize VAD
-        logger.info("Loading Silero VAD...")
-        self._vad = SileroVAD(self.settings.vad)
-        await self._vad.initialize()
+        try:
+            # Initialize VAD
+            logger.info("Loading Silero VAD...")
+            self._vad = SileroVAD(self.settings.vad)
+            await self._vad.initialize()
 
-        # Initialize STT
-        logger.info(f"Loading Whisper model: {self.settings.stt.model_name}...")
-        self._stt = WhisperSTT(self.settings.stt)
-        await self._stt.initialize()
+            # Initialize STT
+            logger.info(f"Loading Whisper model: {self.settings.stt.model_name}...")
+            self._stt = WhisperSTT(self.settings.stt)
+            await self._stt.initialize()
 
-        # Initialize LLM
-        logger.info(f"Connecting to Ollama: {self.settings.llm.model}...")
-        self._llm = OllamaClient(self.settings.llm)
-        await self._llm.initialize()
+            # Initialize LLM
+            logger.info(f"Connecting to Ollama: {self.settings.llm.model}...")
+            self._llm = OllamaClient(self.settings.llm)
+            await self._llm.initialize()
 
-        # Initialize TTS
-        logger.info("Loading Kokoro TTS...")
-        self._tts = KokoroTTS(self.settings.tts)
-        await self._tts.initialize()
+            # Initialize TTS
+            logger.info("Loading Kokoro TTS...")
+            self._tts = KokoroTTS(self.settings.tts)
+            await self._tts.initialize()
+
+        except Exception:
+            logger.error("Service initialization failed, cleaning up...")
+            # Clean up any successfully initialized services
+            for svc in (self._vad, self._stt, self._llm, self._tts):
+                if svc is not None:
+                    try:
+                        await svc.cleanup()
+                    except Exception as cleanup_err:
+                        logger.warning(f"Cleanup error during rollback: {cleanup_err}")
+            self._vad = self._stt = self._llm = self._tts = None
+            raise
 
         # Create pipeline
         self._pipeline = VoicePipeline(
@@ -130,19 +147,27 @@ class PayphoneApplication:
         """Run the main conversation loop for a call."""
         from core.state_machine import State
 
+        consecutive_errors = 0
+
         # Main conversation loop - state machine handles greeting via IDLE -> GREETING
         while session.is_active and state_machine.state != State.HANGUP:
             try:
                 # Process based on current state
                 await state_machine.process(self._pipeline)
+                consecutive_errors = 0  # Reset on success
 
             except asyncio.TimeoutError:
                 # Handle silence timeout
                 if state_machine.state == State.LISTENING:
                     await state_machine.handle_timeout()
+                consecutive_errors = 0
             except Exception as e:
-                logger.error(f"Error in conversation loop: {e}")
-                break
+                consecutive_errors += 1
+                logger.exception(f"Error in conversation loop (call {session.call_id}): {e}")
+                if consecutive_errors >= 3:
+                    logger.error(f"Too many consecutive errors, ending call {session.call_id}")
+                    break
+                await asyncio.sleep(0.1)  # Brief pause before retry
 
     async def start(self) -> None:
         """Start the application."""

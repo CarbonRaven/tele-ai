@@ -16,6 +16,7 @@ __all__ = [
 
 import asyncio
 import logging
+import warnings
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import AsyncIterator
@@ -141,14 +142,19 @@ class SileroVAD:
     def reset(self) -> None:
         """Reset VAD state for a new conversation.
 
-        Note: This resets the legacy shared state. For thread-safe per-session
-        state, use create_session_state() and pass VADSessionState to process_chunk().
+        .. deprecated::
+            Use :meth:`reset_async` instead. This method modifies shared state
+            without acquiring the lock and is unsafe for concurrent use.
         """
+        warnings.warn(
+            "SileroVAD.reset() is deprecated and not thread-safe. "
+            "Use reset_async() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._is_speaking = False
         self._speech_samples = 0
         self._silence_samples = 0
-        # Model state reset is handled synchronously since it's lightweight
-        # and only affects internal RNN hidden states
         if self._model is not None:
             self._model.reset_states()
 

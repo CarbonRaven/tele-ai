@@ -266,6 +266,11 @@ class OllamaClient:
 
         messages.append({"role": "user", "content": prompt})
 
+        # Add user message to context before streaming so it's preserved
+        # even if the stream fails (timeout, connection error, etc.)
+        if context:
+            context.add_user_message(prompt)
+
         # Use list for O(n) collection instead of O(n²) string concatenation
         response_parts: list[str] = []
         last_token_time = time.perf_counter()
@@ -312,9 +317,8 @@ class OllamaClient:
                 response_parts.append(token)
                 yield token
 
-            # Update context after complete generation
-            if context:
-                context.add_user_message(prompt)
+            # Add assistant message only after successful completion
+            if context and response_parts:
                 context.add_assistant_message("".join(response_parts))
 
         except asyncio.TimeoutError:
@@ -444,10 +448,15 @@ class SentenceBuffer:
         if match and match.end() >= self.min_length:
             # Extract sentence up to and including delimiter
             sentence = self._buffer[: match.end()].strip()
-            self._buffer = self._buffer[match.end() :].lstrip()
+            remainder = self._buffer[match.end() :].lstrip()
 
             if len(sentence) >= self.min_length:
+                self._buffer = remainder
                 return sentence
+
+            # Sentence too short after strip — prepend back to buffer
+            # so the text is preserved and becomes part of the next sentence
+            self._buffer = sentence + " " + remainder if remainder else sentence
 
         return None
 

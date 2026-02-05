@@ -46,6 +46,7 @@ VOICES_PATH = os.getenv("TTS_VOICES_PATH", "voices-v1.0.bin")
 _model = None
 _lock = asyncio.Lock()
 SAMPLE_RATE = 24000
+MAX_TEXT_LENGTH = 2000  # Reject requests exceeding this to prevent DoS
 
 
 class SynthesizeRequest(BaseModel):
@@ -148,6 +149,12 @@ async def synthesize(request: SynthesizeRequest):
             audio=base64.b64encode(np.array([], dtype=np.float32).tobytes()).decode(),
             sample_rate=SAMPLE_RATE,
             duration_seconds=0.0,
+        )
+
+    if len(request.text) > MAX_TEXT_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Text exceeds maximum length of {MAX_TEXT_LENGTH} characters",
         )
 
     # Acquire lock to prevent concurrent synthesis (model not thread-safe)

@@ -222,11 +222,8 @@ class AudioProcessor:
         Returns:
             Processed audio bytes (8kHz, 16-bit PCM) ready for Asterisk.
         """
-        # Ensure float for processing
-        if samples.dtype == np.int16:
-            float_samples = samples.astype(np.float32)
-        else:
-            float_samples = samples.astype(np.float32)
+        # Ensure float for processing (avoid copy if already float32)
+        float_samples = samples if samples.dtype == np.float32 else samples.astype(np.float32)
 
         # Resample to 8kHz
         resampled = self.resample(float_samples, from_rate, 8000)
