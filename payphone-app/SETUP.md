@@ -109,11 +109,12 @@ For manual installation or customization, follow the detailed steps below.
 
 ### Initial OS Setup (Both Pi 5s)
 
-1. **Flash Raspberry Pi OS (64-bit)**
+1. **Flash Raspberry Pi OS Lite (64-bit)**
 
    ```bash
    # Use Raspberry Pi Imager
-   # Select: Raspberry Pi OS (64-bit) - Bookworm
+   # Select: Raspberry Pi OS Lite (64-bit) - Bookworm
+   # Note: Use Lite (no desktop) for both Pis - saves ~300MB RAM
    # Enable SSH, set hostname, configure WiFi if needed
    ```
 
@@ -836,7 +837,7 @@ sudo systemctl disable avahi-daemon
 ## Quick Start Checklist
 
 ### Pi #1 (pi-voice) - Voice Pipeline + AI HAT+ 2
-- [ ] Flash Pi OS (64-bit Bookworm)
+- [ ] Flash Pi OS Lite (64-bit Bookworm)
 - [ ] Set static IP: 10.10.10.10
 - [ ] Enable PCIe Gen 3 (raspi-config)
 - [ ] Install Hailo drivers (`sudo apt install hailo-all`) - optional if using Moonshine
@@ -849,7 +850,7 @@ sudo systemctl disable avahi-daemon
 - [ ] Start payphone service
 
 ### Pi #2 (pi-ollama) - LLM Server
-- [ ] Flash Pi OS (64-bit Bookworm)
+- [ ] Flash Pi OS Lite (64-bit Bookworm)
 - [ ] Set static IP: 10.10.10.11
 - [ ] Install Ollama (`curl -fsSL https://ollama.com/install.sh | sh`)
 - [ ] Configure Ollama for network access (OLLAMA_HOST=0.0.0.0)

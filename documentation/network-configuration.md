@@ -58,7 +58,7 @@ Complete network topology and IP assignments for the Payphone-AI system.
 | Component | Details |
 |-----------|---------|
 | Hardware | Raspberry Pi 5 (16GB) + AI HAT+ 2 (Hailo-10H) |
-| OS | Raspberry Pi OS (64-bit) |
+| OS | Raspberry Pi OS Lite (64-bit) |
 | Hostname | pi-voice |
 | Static IP | 10.10.10.10 |
 
@@ -110,7 +110,7 @@ method=disabled
 | Component | Details |
 |-----------|---------|
 | Hardware | Raspberry Pi 5 (16GB) - standard, no HAT |
-| OS | Raspberry Pi OS (64-bit) |
+| OS | Raspberry Pi OS Lite (64-bit) |
 | Hostname | pi-ollama |
 | Static IP | 10.10.10.11 |
 

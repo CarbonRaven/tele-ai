@@ -67,13 +67,13 @@ Payphone → HT801 ATA → Asterisk → AudioSocket ─────┼───�
 **Pi #1 (pi-voice) - Voice Pipeline:**
 - Raspberry Pi 5 (16GB)
 - Raspberry Pi AI HAT+ 2 (Hailo-10H)
-- Raspberry Pi OS 64-bit (Bookworm)
+- Raspberry Pi OS Lite 64-bit (Bookworm) - headless, no desktop
 - Static IP: 10.10.10.10
 - FreePBX/Asterisk with AudioSocket support
 
 **Pi #2 (pi-ollama) - LLM Server:**
 - Raspberry Pi 5 (16GB)
-- Raspberry Pi OS 64-bit (Bookworm)
+- Raspberry Pi OS Lite 64-bit (Bookworm) - headless, no desktop
 - Static IP: 10.10.10.11
 - Ollama with llama3.2:3b (~3GB RAM) or ministral:8b (~5GB RAM)
 
