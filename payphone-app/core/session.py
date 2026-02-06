@@ -236,7 +236,6 @@ class SessionManager:
         call_id: str,
         protocol: "AudioSocketProtocol",
         settings: Settings,
-        dialed_extension: str | None = None,
     ) -> Session:
         """Create a new session for an incoming call.
 
@@ -244,7 +243,6 @@ class SessionManager:
             call_id: Unique call identifier.
             protocol: AudioSocket protocol handler.
             settings: Application settings.
-            dialed_extension: Extension dialed by the caller, if any.
 
         Returns:
             New Session instance.
@@ -254,7 +252,6 @@ class SessionManager:
                 call_id=call_id,
                 protocol=protocol,
                 settings=settings,
-                dialed_extension=dialed_extension,
             )
             self._sessions[call_id] = session
             logger.info(f"Created session: {call_id}")

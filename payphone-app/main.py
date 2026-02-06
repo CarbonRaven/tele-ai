@@ -137,15 +137,12 @@ class PayphoneApplication:
                 dialed_extension=dialed_extension,
             )
 
-            # Apply routing before greeting
-            if route_result and route_result.entry_type != "invalid":
-                if route_result.entry_type == "persona" and route_result.persona_key:
-                    session.switch_persona(route_result.persona_key)
-                else:
-                    session.switch_feature(route_result.feature)
-
-            # Create state machine with route result
-            state_machine = StateMachine(session, route_result=route_result)
+            # State machine owns route application and greeting
+            state_machine = StateMachine(
+                session,
+                route_result=route_result,
+                phone_router=self._phone_router,
+            )
 
             # Run the conversation loop
             await self._run_conversation(session, state_machine)

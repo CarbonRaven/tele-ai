@@ -18,7 +18,8 @@ __all__ = [
 
 OPERATOR_NUMBER = "555-0000"
 
-BIRTHDAY_PATTERN = r"^555-[01]\d[0-3]\d$"
+# Matches 555-MMDD where MM is 01-12 and DD is 01-31
+BIRTHDAY_PATTERN = r"^555-(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])$"
 
 DEFAULT_GREETING_NOT_IN_SERVICE = (
     "We're sorry. The number you have dialed is not in service. "

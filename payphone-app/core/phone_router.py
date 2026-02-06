@@ -18,7 +18,7 @@ from config.phone_directory import (
     BIRTHDAY_PATTERN,
     DEFAULT_GREETING_NOT_IN_SERVICE,
     DTMF_SHORTCUTS,
-    OPERATOR_NUMBER,
+    FEATURE_TO_NUMBER,
 )
 
 logger = logging.getLogger(__name__)
@@ -94,12 +94,12 @@ class PhoneRouter:
         # Single-digit shortcut
         if len(digits) == 1 and digits in DTMF_SHORTCUTS:
             feature = DTMF_SHORTCUTS[digits]
-            # Look up the name from directory via reverse search
-            name = feature.replace("_", " ").title()
-            for entry in PHONE_DIRECTORY.values():
-                if entry["feature"] == feature:
-                    name = entry["name"]
-                    break
+            # Look up the name via pre-built reverse index
+            number = FEATURE_TO_NUMBER.get(feature)
+            if number and number in PHONE_DIRECTORY:
+                name = PHONE_DIRECTORY[number]["name"]
+            else:
+                name = feature.replace("_", " ").title()
             return RouteResult(
                 feature=feature,
                 name=name,
@@ -138,5 +138,5 @@ class PhoneRouter:
         if len(digits) == 7:
             return f"{digits[:3]}-{digits[3:]}"
 
-        # Return as-is with dash if possible
-        return number
+        # Non-standard length: return digits only (will not match any directory entry)
+        return digits
