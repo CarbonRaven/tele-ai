@@ -14,11 +14,10 @@ import re
 from dataclasses import dataclass
 
 from config.phone_directory import (
-    PHONE_DIRECTORY,
     BIRTHDAY_PATTERN,
-    DEFAULT_GREETING_NOT_IN_SERVICE,
     DTMF_SHORTCUTS,
     FEATURE_TO_NUMBER,
+    PHONE_DIRECTORY,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,7 +30,6 @@ class RouteResult:
     feature: str
     name: str
     entry_type: str  # "feature", "persona", "easter_egg", "invalid"
-    greeting: str | None = None
     persona_key: str | None = None
     is_direct_dial: bool = False
 
@@ -75,7 +73,6 @@ class PhoneRouter:
             feature="invalid",
             name="Not In Service",
             entry_type="invalid",
-            greeting=DEFAULT_GREETING_NOT_IN_SERVICE,
             is_direct_dial=False,
         )
 

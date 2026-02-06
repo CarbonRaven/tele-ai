@@ -21,7 +21,12 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
-from config.phone_directory import DEFAULT_GREETING_NOT_IN_SERVICE
+from config.phone_directory import (
+    BIRTHDAY_GREETING,
+    DEFAULT_GREETING_NOT_IN_SERVICE,
+    FEATURE_TO_NUMBER,
+    PHONE_DIRECTORY,
+)
 from core.phone_router import PhoneRouter, RouteResult
 
 if TYPE_CHECKING:
@@ -30,62 +35,19 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Feature-specific greetings, built once at import time.
-_FEATURE_GREETINGS: dict[str, str] = {
-    # Core
-    "operator": "You're speaking with the operator. How can I help?",
-    # Information
-    "time_temp": "At the tone, the time will be now. Welcome to Time and Temperature.",
-    "weather": "Welcome to the Weather Forecast line. What city would you like the forecast for?",
-    "horoscope": "Welcome to the Horoscope Line. What's your sign?",
-    "news": "Welcome to News Headlines. Here are today's top stories.",
-    "sports": "Welcome to Sports Scores. What sport are you following?",
-    "moviefone": "Hello, and welcome to Moviefone! What movie would you like to see?",
-    # Entertainment
-    "jokes": "Welcome to Dial-A-Joke! Want to hear a joke?",
-    "trivia": "Welcome to Trivia Challenge! Ready for a question?",
-    "stories": "Welcome to Story Time. Would you like to hear a story?",
-    "fortune": "Welcome to the Fortune Teller. The spirits are listening. Ask about your future.",
-    "madlibs": "Welcome to Mad Libs! Let's make a silly story together.",
-    "would_you_rather": "Welcome to Would You Rather! Ready for a tough choice?",
-    "twenty_questions": "Welcome to 20 Questions! Think of something and I'll try to guess it.",
-    # Advice & Support
-    "advice": "Welcome to the Advice Line. What's on your mind?",
-    "compliment": "Welcome to the Compliment Line. You're amazing, and here's why.",
-    "roast": "Welcome to the Roast Line. Hope you can take the heat!",
-    "life_coach": "Welcome to the Life Coach line. Let's talk about your goals.",
-    "confession": "Welcome to the Confession Line. Your secret is safe with me.",
-    "vent": "Welcome to the Vent Line. Go ahead, let it all out.",
-    # Nostalgic
-    "collect_call": "You have a collect call from, the AI Payphone. Press 1 to accept.",
-    "nintendo_tips": "Thank you for calling the Nintendo Power Line! What game do you need help with?",
-    "time_traveler": "Welcome to the Time Traveler's Line. What year would you like to visit?",
-    # Utilities
-    "calculator": "Welcome to Calculator. What would you like me to compute?",
-    "translator": "Welcome to the Translator. What would you like translated?",
-    "spelling": "Welcome to Spelling Bee! Ready for your first word?",
-    "dictionary": "Welcome to the Dictionary line. What word would you like defined?",
-    "recipe": "Welcome to the Recipe Line. What are you in the mood to cook?",
-    "debate": "Welcome to the Debate Partner. Pick a topic and a side!",
-    "interview": "Welcome to Interview Mode. Let's practice! What role are you going for?",
-    # Personas
-    "persona_sage": "Greetings, seeker. The Wise Sage awaits your question.",
-    "persona_comedian": "Hey hey hey! You've reached the Comedian! Let's have some laughs!",
-    "persona_detective": "The name's Jones. Detective Jones. Something tells me you're not calling about the weather.",
-    "persona_grandma": "Well, bless your heart! It's Grandma Mae. Come sit down and chat with me, sugar.",
-    "persona_robot": "GREETINGS, HUMAN OF THE PAST. I AM COMP-U-TRON 3000. WHAT A DELIGHTFUL ARTIFACT, THIS TELEPHONE.",
-    "persona_valley": "Oh my God, hi! Like, welcome to the Valley Girl line! This is gonna be totally awesome!",
-    "persona_beatnik": "Hey there, cool cat. You've reached the Beatnik Poet. Let the words flow, daddy-o.",
-    "persona_gameshow": "Welcome, contestant! You're on the hottest game show on the payphone! Let's play!",
-    "persona_conspiracy": "You found this number. That means you're ready. They don't want you to know what I'm about to tell you.",
-    # Easter Eggs
-    "easter_jenny": "Hello? Who is this? How did you get this number? Oh, you must have got it off the wall.",
-    "easter_phreaker": "Two-six-hundred hertz. You know what that means. Welcome to the underground.",
-    "easter_hacker": "Access granted. Welcome to Hacker Mode. The mainframe awaits your commands.",
-    "easter_pizza": "Joe's Pizza! You want a pizza? We got the best pizza in New York!",
-    "easter_haunted": "You shouldn't have called this number. The line is cold. Something is here with us.",
-    "easter_birthday": "Happy birthday to you! The AI Payphone wishes you a wonderful day!",
-}
+
+def _get_greeting(feature: str) -> str:
+    """Look up greeting for a feature from the phone directory.
+
+    Handles the birthday easter egg (regex-matched, not in PHONE_DIRECTORY)
+    and falls back to a generated greeting for unknown features.
+    """
+    if feature == "easter_birthday":
+        return BIRTHDAY_GREETING
+    number = FEATURE_TO_NUMBER.get(feature)
+    if number and number in PHONE_DIRECTORY:
+        return PHONE_DIRECTORY[number]["greeting"]
+    return f"Welcome to {feature.replace('_', ' ').title()}!"
 
 
 class State(Enum):
@@ -272,10 +234,7 @@ class StateMachine:
             self._apply_route(self._route_result)
 
             # Play feature-specific greeting
-            greeting = _FEATURE_GREETINGS.get(
-                self._route_result.feature,
-                f"Welcome to {self._route_result.feature.replace('_', ' ').title()}!",
-            )
+            greeting = _get_greeting(self._route_result.feature)
             self.transition_to(State.SPEAKING, "play_greeting")
             await pipeline.speak(self.session, greeting)
             self.transition_to(State.LISTENING, "greeting_complete")
@@ -445,10 +404,7 @@ class StateMachine:
         # Apply route and play greeting
         self._apply_route(result)
         self._route_result = result
-        greeting = _FEATURE_GREETINGS.get(
-            result.feature,
-            f"Welcome to {result.feature.replace('_', ' ').title()}!",
-        )
+        greeting = _get_greeting(result.feature)
         await pipeline.speak(self.session, greeting)
         self.transition_to(State.LISTENING, f"feature_{result.feature}")
 
