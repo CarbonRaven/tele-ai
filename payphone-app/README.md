@@ -14,8 +14,9 @@ A fully local AI voice assistant designed for vintage payphones. Connects via As
 - **Text-to-Speech**: Kokoro-82M with optional remote offloading
 - **Streaming Pipeline**: Overlapped LLM+TTS for reduced latency
 - **Barge-in Support**: Interrupt AI with DTMF tones
-- **Multiple Personas**: Operator, Detective, Grandma, Robot
-- **Extensible Features**: Dial-A-Joke, Fortune, Horoscope, Trivia
+- **44-Number Phone Directory**: Each service has a unique number, greeting, and LLM persona
+- **10 Personas**: Operator, Detective, Grandma, Robot, Sage, Comedian, Valley Girl, Beatnik, Game Show Host, Conspiracy Theorist
+- **35 Features**: Information, entertainment, advice, nostalgic services, utilities, and easter eggs
 
 ## Architecture
 
@@ -165,10 +166,12 @@ payphone-app/
 ├── tts-server.service      # Systemd unit for TTS server
 ├── config/
 │   ├── settings.py         # Pydantic settings
-│   └── prompts.py          # System prompts for personas
+│   ├── phone_directory.py  # 44 phone numbers → features/personas
+│   └── prompts.py          # LLM system prompts (35 features, 9 personas)
 ├── core/
 │   ├── audiosocket.py      # AudioSocket server
 │   ├── audio_processor.py  # Resampling, telephone filter
+│   ├── phone_router.py     # Number dialed → feature routing
 │   ├── pipeline.py         # Voice pipeline orchestration
 │   ├── session.py          # Call session management
 │   └── state_machine.py    # Conversation state machine
@@ -204,6 +207,36 @@ class MyFeature(ConversationalFeature):
     def get_greeting(self) -> str:
         return "Welcome to my feature!"
 ```
+
+## Phone Directory
+
+Callers dial 7-digit numbers to reach specific services. Each entry maps to a feature with a unique greeting and LLM system prompt.
+
+### Service Categories
+
+| Category | Count | Examples |
+|----------|-------|----------|
+| Information | 5 | Time & Temperature (POPCORN), Weather, News, Sports, Horoscope |
+| Entertainment | 7 | Dial-A-Joke, Trivia, Stories, Fortune, Mad Libs, Would You Rather, 20 Questions |
+| Advice & Support | 6 | Advice Line, Compliment, Roast, Life Coach, Confession, Vent Line |
+| Nostalgic | 4 | Moviefone (777-FILM), Collect Call, Nintendo Tip Line, Time Traveler |
+| Utilities | 7 | Calculator, Translator, Spelling Bee, Dictionary, Recipe, Debate, Interview |
+| Personas | 10 | Operator, Sage, Comedian, Detective, Grandma, Robot, Valley Girl, Beatnik, Game Show Host, Conspiracy Theorist |
+| Easter Eggs | 5+1 | Jenny (867-5309), Phreaker (555-2600), Hacker (555-1337), Pizza, Haunted Line, Birthday (555-MMDD) |
+
+### DTMF Shortcuts
+
+Single-digit shortcuts during a call:
+
+| Key | Service | Key | Service |
+|-----|---------|-----|---------|
+| 0 | Operator | 5 | Stories |
+| 1 | Jokes | 6 | Compliment |
+| 2 | Trivia | 7 | Advice |
+| 3 | Fortune | 8 | Time & Temp |
+| 4 | Horoscope | 9 | Roast |
+
+See `config/phone_directory.py` for the full directory and `config/prompts.py` for all LLM system prompts.
 
 ## Service Management
 

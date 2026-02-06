@@ -70,10 +70,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 main.py                    # Application entry point, service initialization
 ├── config/
 │   ├── settings.py        # Pydantic Settings v2 with env var support
-│   └── prompts.py         # System prompts for personas/features
+│   ├── phone_directory.py # 44 phone numbers → features/personas (TypedDict entries)
+│   └── prompts.py         # LLM system prompts (35 features, 9 personas)
 ├── core/
 │   ├── audiosocket.py     # Asterisk AudioSocket protocol handler
 │   ├── audio_processor.py # Sample rate conversion, telephone filter
+│   ├── phone_router.py    # Number dialed → feature routing, DTMF shortcuts
 │   ├── pipeline.py        # VAD → STT → LLM → TTS orchestration
 │   ├── session.py         # Per-call state management
 │   └── state_machine.py   # Conversation flow control
@@ -94,6 +96,8 @@ main.py                    # Application entry point, service initialization
 | Pattern | Location | Purpose |
 |---------|----------|---------|
 | Pydantic Settings | `config/settings.py` | Type-safe config with env var support |
+| Phone Directory | `config/phone_directory.py` | 44-number TypedDict registry with greetings |
+| Phone Router | `core/phone_router.py` | Number lookup, DTMF shortcuts, birthday regex |
 | Feature Registry | `features/registry.py` | `@FeatureRegistry.register()` decorator |
 | Wyoming Protocol | `services/stt.py` | Binary framing for audio, JSON for events |
 | Sentence Buffer | `services/llm.py` | Regex-based streaming TTS chunking |

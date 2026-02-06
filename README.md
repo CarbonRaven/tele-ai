@@ -66,9 +66,11 @@ tele-ai/
 │   ├── SETUP.md                 # Detailed setup guide
 │   ├── config/
 │   │   ├── settings.py          # Pydantic settings (env vars)
-│   │   └── prompts.py           # System prompts for personas
+│   │   ├── phone_directory.py   # 44 phone numbers → features/personas
+│   │   └── prompts.py           # LLM system prompts (35 features, 9 personas)
 │   ├── core/
 │   │   ├── audiosocket.py       # AudioSocket server
+│   │   ├── phone_router.py      # Number dialed → feature routing
 │   │   ├── pipeline.py          # Voice pipeline orchestration
 │   │   └── state_machine.py     # Conversation state machine
 │   ├── services/
@@ -96,11 +98,24 @@ tele-ai/
 - **Fully Local**: No cloud services, all processing on-device
 - **Moonshine STT**: 5x faster than Whisper tiny with equivalent accuracy
 - **Hailo NPU Fallback**: Whisper STT can use AI HAT+ 2 acceleration
-- **Multiple Personas**: Operator, Detective, Grandma, Robot
-- **Extensible Features**: Dial-A-Joke, Fortune, Horoscope, Trivia
+- **44-Number Phone Directory**: Dial-in services with unique greetings and LLM personas
+- **10 Personas**: Operator, Detective, Grandma, Robot, Sage, Comedian, Valley Girl, Beatnik, Game Show Host, Conspiracy Theorist
+- **35 Features**: Information, entertainment, advice, nostalgic services, utilities, and easter eggs
 - **Barge-in Support**: Interrupt AI with DTMF tones
 - **Telephony Integration**: FreePBX/Asterisk via AudioSocket
 - **Optimized Pipeline**: O(n) algorithms, batched I/O, memory-bounded buffers
+
+### Phone Directory Highlights
+
+| Category | Services |
+|----------|----------|
+| Information | Weather, News, Sports, Horoscope, Time & Temperature |
+| Entertainment | Dial-A-Joke, Trivia, Stories, Fortune, Mad Libs, Would You Rather, 20 Questions |
+| Advice & Support | Advice Line, Compliment Line, Roast Line, Life Coach, Confession, Vent Line |
+| Nostalgic | Moviefone (777-FILM), Collect Call Simulator, Nintendo Tip Line, Time Traveler |
+| Utilities | Calculator, Translator, Spelling Bee, Dictionary, Recipe Line, Debate Partner, Interview Coach |
+| Easter Eggs | Jenny (867-5309), Phone Phreaker (555-2600), Hacker Mode, Joe's Pizza, Haunted Line, Birthday (555-MMDD) |
+| Personas | Wise Sage, Comedian, Noir Detective, Southern Grandma, Robot, Valley Girl, Beatnik Poet, Game Show Host, Conspiracy Theorist |
 
 ## Quick Start
 
@@ -130,8 +145,10 @@ See [payphone-app/SETUP.md](payphone-app/SETUP.md) for detailed installation ins
 ## Documentation
 
 - [Setup Guide](payphone-app/SETUP.md) - Complete installation instructions
+- [Project Overview](documentation/project-overview.md) - Architecture and service catalog
 - [System Architecture](planning/system-architecture.md) - Technical design
 - [Voice Pipeline Guide](documentation/local-voice-assistant-pipeline.md) - Pipeline details
+- [Phone Directory](planning/phone-book-content.md) - Full phone book content
 - [AI HAT+ 2 Whisper](documentation/raspberry-pi-5-ai-hat-2-whisper.md) - Hailo STT setup
 - [FreePBX Integration](documentation/freepbx-ai-integrations.md) - Telephony setup
 
