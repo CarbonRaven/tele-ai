@@ -52,7 +52,7 @@ class AudioSettings(BaseSettings):
 class VADSettings(BaseSettings):
     """Voice Activity Detection configuration.
 
-    Uses Silero VAD v5 - optimized for telephony with native 8kHz support.
+    Uses Silero VAD v5 (v6.2 recommended upgrade) - optimized for telephony with native 8kHz support.
     Settings tuned for conversational telephone AI (January 2026 research).
 
     Alternative: TEN VAD (via sherpa-onnx) for potentially lower latency.
@@ -60,7 +60,7 @@ class VADSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="VAD_")
 
-    # Silero VAD v5 settings - optimized for telephony
+    # Silero VAD v5 settings (v6.2 recommended upgrade) - optimized for telephony
     threshold: float = 0.5  # Balanced sensitivity for phone audio
     min_speech_duration_ms: int = 250  # Minimum speech to trigger
     min_silence_duration_ms: int = 800  # Telephony standard for turn-taking
@@ -131,10 +131,10 @@ class LLMSettings(BaseSettings):
 
     Standard Ollama runs on Pi #2 (10.10.10.11) for better model flexibility.
 
-    Recommended models (January 2026):
-    - Speed priority: llama3.2:3b (~5-6 TPS on Pi 5)
+    Recommended models (February 2026):
+    - Recommended: qwen3:4b (~4-5 TPS on Pi 5, best balance)
+    - Fallback: llama3.2:3b (~5-6 TPS, good latency)
     - Quality priority: ministral:8b (~2-3 TPS, best conversational quality)
-    - Balanced: qwen2.5:3b (~3-4 TPS, strong logic)
 
     Use Q4_K_M quantization for best speed/quality balance on Pi 5.
     """
@@ -145,9 +145,9 @@ class LLMSettings(BaseSettings):
     # Change to localhost:11434 if running single-Pi setup
     host: str = "http://10.10.10.11:11434"
 
-    # Default to Llama 3.2 3B for best latency in voice applications
-    # Alternatives: qwen2.5:3b (balanced), ministral:8b (quality)
-    model: str = "llama3.2:3b"
+    # Default to Qwen3 4B for best balance of speed and quality
+    # Alternatives: llama3.2:3b (fallback), ministral:8b (quality)
+    model: str = "qwen3:4b"
 
     # Generation parameters
     temperature: float = 0.7

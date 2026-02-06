@@ -39,7 +39,7 @@ TTS_SERVER_PORT="${TTS_SERVER_PORT:-10200}"
 ASTERISK_SIP_PORT="${ASTERISK_SIP_PORT:-5060}"
 
 # Ollama Model
-OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.2:3b}"
+OLLAMA_MODEL="${OLLAMA_MODEL:-qwen3:4b}"
 
 # Ready Call Configuration
 PAYPHONE_EXTENSION="${PAYPHONE_EXTENSION:-100}"
@@ -748,7 +748,7 @@ Configuration:
     PI_OLLAMA_IP       Pi #2 IP address (default: 10.10.10.11)
     HT801_IP           HT801 ATA IP address (default: 10.10.10.12)
     PAYPHONE_EXTENSION Extension to call for ready announcement (default: 100)
-    OLLAMA_MODEL       LLM model name (default: llama3.2:3b)
+    OLLAMA_MODEL       LLM model name (default: qwen3:4b)
 
 Examples:
   ./payphone-ops.sh status          # Check system health

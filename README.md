@@ -12,7 +12,7 @@
                               │        10.10.10.11             │
                               │                                 │
                               │   ┌─────────────────────────┐   │
-                              │   │  Ollama (llama3.2:3b)    │   │
+                              │   │  Ollama (qwen3:4b)       │   │
                               │   │      Port 11434         │   │
                               │   └─────────────────────────┘   │
                               └───────────────▲─────────────────┘
@@ -37,7 +37,7 @@
 | Component | Model | Purpose |
 |-----------|-------|---------|
 | Pi #1 (pi-voice) | Raspberry Pi 5 (16GB) + AI HAT+ 2 | Voice pipeline: Moonshine/Whisper STT, Kokoro TTS, VAD |
-| Pi #2 (pi-ollama) | Raspberry Pi 5 (16GB) | LLM server: Standard Ollama with llama3.2:3b |
+| Pi #2 (pi-ollama) | Raspberry Pi 5 (16GB) | LLM server: Standard Ollama with qwen3:4b |
 | AI Accelerator | AI HAT+ 2 (Hailo-10H, 40 TOPS) | Whisper STT acceleration |
 | ATA | Grandstream HT801 v2 | Converts analog phone to SIP |
 | Network | 5-port Gigabit switch | Internal network |
@@ -48,9 +48,9 @@
 |-----------|------------|------|----------|
 | Wake Word | openWakeWord | 10400 | Pi #1 |
 | STT | Moonshine (5x faster) / Whisper | 10300 | Pi #1 |
-| LLM | Ollama (llama3.2:3b) | 11434 | Pi #2 |
+| LLM | Ollama (qwen3:4b) | 11434 | Pi #2 |
 | TTS | Kokoro-82M | - | Pi #1 |
-| VAD | Silero VAD | - | Pi #1 |
+| VAD | Silero VAD v5 | - | Pi #1 |
 | Entry Point | AudioSocket | 9092 | Pi #1 |
 
 **STT Backend Priority** (auto mode): Moonshine → Wyoming/Hailo → faster-whisper
@@ -113,7 +113,7 @@ sudo systemctl start payphone
 
 # On Pi #2 (LLM server)
 curl -fsSL https://ollama.com/install.sh | sh
-ollama pull llama3.2:3b
+ollama pull qwen3:4b
 ```
 
 See [payphone-app/SETUP.md](payphone-app/SETUP.md) for detailed installation instructions.

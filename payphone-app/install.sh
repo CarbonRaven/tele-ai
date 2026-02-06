@@ -354,7 +354,7 @@ STT_LANGUAGE=en
 
 # Language Model (Ollama on Pi #2)
 LLM_HOST=${OLLAMA_HOST}
-LLM_MODEL=llama3.2:3b
+LLM_MODEL=qwen3:4b
 LLM_TEMPERATURE=0.7
 LLM_MAX_TOKENS=150
 LLM_TIMEOUT=10.0
@@ -464,13 +464,13 @@ check_ollama() {
         print_success "Ollama is reachable at ${OLLAMA_HOST}"
 
         # Check if model exists
-        if curl -s "${OLLAMA_HOST}/api/tags" | grep -q "llama3.2:3b"; then
-            print_success "Model llama3.2:3b is available"
+        if curl -s "${OLLAMA_HOST}/api/tags" | grep -q "qwen3:4b"; then
+            print_success "Model qwen3:4b is available"
         else
-            print_warning "Model llama3.2:3b not found on remote Ollama"
+            print_warning "Model qwen3:4b not found on remote Ollama"
             echo ""
             echo "On Pi #2 (pi-ollama), run:"
-            echo "  ollama pull llama3.2:3b"
+            echo "  ollama pull qwen3:4b"
         fi
     else
         print_warning "Cannot reach Ollama at ${OLLAMA_HOST}"
@@ -482,7 +482,7 @@ check_ollama() {
         echo "     sudo systemctl edit ollama"
         echo "     Add: Environment=\"OLLAMA_HOST=0.0.0.0\""
         echo "  4. Restart: sudo systemctl restart ollama"
-        echo "  5. Pull model: ollama pull llama3.2:3b"
+        echo "  5. Pull model: ollama pull qwen3:4b"
         echo ""
 
         # Offer local installation as fallback for development
@@ -492,8 +492,8 @@ check_ollama() {
             print_step "Installing Ollama locally..."
             curl -fsSL https://ollama.com/install.sh | sh
 
-            print_step "Pulling llama3.2:3b model..."
-            ollama pull llama3.2:3b
+            print_step "Pulling qwen3:4b model..."
+            ollama pull qwen3:4b
 
             # Update .env to use localhost
             sed -i "s|LLM_HOST=.*|LLM_HOST=http://localhost:11434|" .env
@@ -649,13 +649,13 @@ main() {
     echo ""
     echo "Architecture:"
     echo "  Pi #1 (this machine): Moonshine/Hailo Whisper STT + Kokoro TTS + VAD + AudioSocket"
-    echo "  Pi #2 (10.10.10.11): Standard Ollama with llama3.2:3b"
+    echo "  Pi #2 (10.10.10.11): Standard Ollama with qwen3:4b"
     echo ""
     echo "Next steps:"
     echo ""
-    echo "  1. Ensure Pi #2 (pi-ollama) has Ollama running with llama3.2:3b"
+    echo "  1. Ensure Pi #2 (pi-ollama) has Ollama running with qwen3:4b"
     echo "     ssh pi@10.10.10.11"
-    echo "     ollama list  # should show llama3.2:3b"
+    echo "     ollama list  # should show qwen3:4b"
     echo ""
     echo "  2. Ensure Wyoming Hailo Whisper is running:"
     echo "     sudo systemctl status wyoming-hailo-whisper"

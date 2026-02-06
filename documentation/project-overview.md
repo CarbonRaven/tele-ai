@@ -28,7 +28,7 @@ Transform a vintage payphone into an interactive AI experience that:
 │   │              + AI HAT+ 2                    │  │                      ││
 │   │                                             │  │  ┌────────────────┐  ││
 │   │  ┌─────────┐  ┌─────────┐  ┌─────────────┐ │  │  │     Ollama     │  ││
-│   │  │Asterisk │  │ Hailo   │  │   Kokoro    │ │  │  │  qwen2.5:3b    │  ││
+│   │  │Asterisk │  │ Hailo   │  │   Kokoro    │ │  │  │  qwen3:4b    │  ││
 │   │  │AudioSock│  │ Whisper │  │    TTS      │ │  │  │    :11434      │  ││
 │   │  │ :9092   │  │ :10300  │  │             │ │  │  └────────────────┘  ││
 │   │  └────┬────┘  └────▲────┘  └──────▲──────┘ │  │          ▲           ││
@@ -49,7 +49,7 @@ Transform a vintage payphone into an interactive AI experience that:
 |-----------|-------|------|
 | Voice Processor | Raspberry Pi 5 (16GB) | Audio pipeline, STT, TTS, VAD |
 | NPU Accelerator | AI HAT+ 2 (Hailo-10H) | Whisper STT acceleration (40 TOPS) |
-| LLM Server | Raspberry Pi 5 (16GB) | Ollama inference for qwen2.5:3b |
+| LLM Server | Raspberry Pi 5 (16GB) | Ollama inference for qwen3:4b |
 | Telephony Bridge | Grandstream HT801 v2 | SIP ↔ Analog conversion |
 | Network | 5-Port Gigabit Switch | Internal network backbone |
 | Interface | Vintage Payphone | Physical user interaction |
@@ -197,7 +197,7 @@ tele-ai/
 | Configuration | Pydantic Settings v2 | Environment variable management |
 | Wake Word | openWakeWord | Wyoming protocol integration |
 | STT | Hailo Whisper + faster-whisper | NPU-accelerated with CPU fallback |
-| LLM | Ollama + qwen2.5:3b | 3B parameter model, streaming |
+| LLM | Ollama + qwen3:4b | 3B parameter model, streaming |
 | TTS | Kokoro-82M | Sub-300ms latency, 24kHz output |
 | VAD | Silero VAD | 1.8MB model, 95% accuracy |
 | Telephony | Asterisk/FreePBX | AudioSocket protocol |
