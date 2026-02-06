@@ -12,6 +12,7 @@ import sys
 
 from config import get_settings
 from core.audiosocket import AudioSocketServer, AudioSocketConnection, AudioSocketProtocol
+from core.phone_router import PhoneRouter
 from core.pipeline import VoicePipeline
 from core.session import Session, SessionManager
 from core.state_machine import StateMachine, State
@@ -42,6 +43,7 @@ class PayphoneApplication:
             port=self.settings.audio.audiosocket_port,
         )
         self._shutdown_event = asyncio.Event()
+        self._phone_router = PhoneRouter()
 
         # Services (initialized lazily)
         self._vad = None
@@ -106,7 +108,9 @@ class PayphoneApplication:
         """Handle an incoming call.
 
         This is the main call handler that creates a protocol handler
-        and manages the voice interaction loop.
+        and manages the voice interaction loop. If the Asterisk dialplan
+        encoded a dialed extension, we route to the correct feature
+        before the greeting plays.
         """
         protocol = AudioSocketProtocol(connection)
 
@@ -116,18 +120,32 @@ class PayphoneApplication:
             return
 
         call_id = protocol.call_id
-        logger.info(f"Handling call: {call_id}")
+        dialed_extension = protocol.dialed_extension
+        logger.info(f"Handling call: {call_id} (extension: {dialed_extension})")
 
         try:
+            # Route based on dialed extension
+            route_result = None
+            if dialed_extension and dialed_extension != "operator":
+                route_result = self._phone_router.route(dialed_extension)
+
             # Create session for this call
             session = Session(
                 call_id=call_id,
                 protocol=protocol,
                 settings=self.settings,
+                dialed_extension=dialed_extension,
             )
 
-            # Create state machine
-            state_machine = StateMachine(session)
+            # Apply routing before greeting
+            if route_result and route_result.entry_type != "invalid":
+                if route_result.entry_type == "persona" and route_result.persona_key:
+                    session.switch_persona(route_result.persona_key)
+                else:
+                    session.switch_feature(route_result.feature)
+
+            # Create state machine with route result
+            state_machine = StateMachine(session, route_result=route_result)
 
             # Run the conversation loop
             await self._run_conversation(session, state_machine)

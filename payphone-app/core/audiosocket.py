@@ -79,6 +79,7 @@ class AudioSocketConnection:
     reader: asyncio.StreamReader
     writer: asyncio.StreamWriter
     call_id: str | None = None
+    dialed_extension: str | None = None
     peer_address: tuple[str, int] = field(default_factory=lambda: ("unknown", 0))
 
     # Maximum payload size to prevent memory exhaustion attacks
@@ -202,8 +203,18 @@ class AudioSocketProtocol:
         """Get the call UUID."""
         return self.connection.call_id
 
+    @property
+    def dialed_extension(self) -> str | None:
+        """Get the dialed extension parsed from the UUID field."""
+        return self.connection.dialed_extension
+
     async def start(self) -> bool:
         """Start the protocol handler, wait for UUID message.
+
+        Parses the UUID payload for an encoded extension. The Asterisk
+        dialplan sends ``EXTEN:UNIQUEID`` so we can route to the correct
+        feature before the greeting plays. Plain UUIDs (no colon) are
+        treated as legacy/ready-call connections with no extension.
 
         Returns:
             True if UUID received and handler started, False otherwise.
@@ -214,8 +225,17 @@ class AudioSocketProtocol:
             logger.error("Expected UUID message, connection failed")
             return False
 
-        self.connection.call_id = msg.as_uuid
-        logger.info(f"Call started: {self.connection.call_id}")
+        raw_uuid = msg.as_uuid
+        if raw_uuid and ":" in raw_uuid:
+            # Format: EXTEN:UNIQUEID — split into extension and call id
+            extension, call_id = raw_uuid.split(":", 1)
+            self.connection.dialed_extension = extension
+            self.connection.call_id = call_id
+            logger.info(f"Call started: {call_id} (extension: {extension})")
+        else:
+            # Plain UUID — backward compatible with old dialplan
+            self.connection.call_id = raw_uuid
+            logger.info(f"Call started: {raw_uuid}")
 
         # Start background reader
         self._running = True
