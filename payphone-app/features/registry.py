@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 class FeatureRegistry:
     """Registry for feature discovery and routing.
 
+    Uses class-level state as a singleton pattern — all instances share the
+    same feature registry. Call clear() to reset state (useful in tests).
+
     Features are registered by their dial code and optional voice triggers.
     The registry can auto-discover features from the features directory.
     """

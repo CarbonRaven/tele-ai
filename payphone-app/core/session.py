@@ -95,7 +95,7 @@ class Session:
         """Initialize session-specific state."""
         # Set up conversation context with default system prompt
         system_prompt = get_system_prompt(feature=self.current_feature)
-        self.context.messages.insert(0, Message(role="system", content=system_prompt))
+        self._update_system_prompt(system_prompt)
 
     async def send_audio(self, audio_bytes: bytes) -> bool:
         """Send audio to the caller.

@@ -235,8 +235,9 @@ class WyomingSTTClient:
 
         Use this for batching multiple writes, then call drain() once at the end.
         """
-        # Separate binary audio from JSON data
-        audio_data = data.pop("audio", None)
+        # Separate binary audio from JSON data without mutating caller's dict
+        audio_data = data.get("audio")
+        event_data = {k: v for k, v in data.items() if k != "audio"} if audio_data is not None else data
 
         if audio_data is not None:
             # Wyoming audio-chunk format:
@@ -248,12 +249,12 @@ class WyomingSTTClient:
             self._writer.write(audio_data)
 
             # Send JSON header for the audio chunk
-            event = {"type": event_type, "data": data, "payload_length": payload_length}
+            event = {"type": event_type, "data": event_data, "payload_length": payload_length}
             message = json.dumps(event) + "\n"
             self._writer.write(message.encode("utf-8"))
         else:
             # Standard JSON lines for non-audio events
-            event = {"type": event_type, "data": data}
+            event = {"type": event_type, "data": event_data}
             message = json.dumps(event) + "\n"
             self._writer.write(message.encode("utf-8"))
 

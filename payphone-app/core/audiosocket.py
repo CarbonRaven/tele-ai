@@ -244,17 +244,16 @@ class AudioSocketProtocol:
 
             if msg.type == MessageType.AUDIO:
                 try:
-                    # Use put_nowait to avoid blocking; if queue is full,
-                    # drop oldest audio to make room (prevents memory buildup)
-                    if self._audio_queue.full():
-                        try:
-                            self._audio_queue.get_nowait()
-                            logger.warning("Audio queue full, dropping oldest chunk")
-                        except asyncio.QueueEmpty:
-                            pass
                     self._audio_queue.put_nowait(msg.payload)
                 except asyncio.QueueFull:
-                    logger.warning("Audio queue full, dropping incoming chunk")
+                    try:
+                        self._audio_queue.get_nowait()  # Drop oldest
+                    except asyncio.QueueEmpty:
+                        pass
+                    try:
+                        self._audio_queue.put_nowait(msg.payload)
+                    except asyncio.QueueFull:
+                        logger.warning("Audio queue full, dropping incoming chunk")
             elif msg.type == MessageType.DTMF:
                 digit = msg.as_dtmf
                 if digit:

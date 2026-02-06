@@ -8,7 +8,7 @@ import asyncio
 import logging
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, AsyncIterator
+from typing import TYPE_CHECKING, AsyncIterator, Callable
 
 import numpy as np
 import soundfile as sf
@@ -287,45 +287,22 @@ class VoicePipeline:
                 from_rate=self.tts.sample_rate,
             )
 
-            # Send in chunks
-            chunks = self.audio_processor.chunk_audio(output_bytes)
-
-            # Calculate chunk duration for pacing: chunk_size bytes / (sample_rate * bytes_per_sample)
-            # At 8kHz with 16-bit (2 bytes) samples: chunk_size / (8000 * 2) seconds
-            chunk_size = self.settings.audio.chunk_size
-            chunk_duration_sec = chunk_size / (self.settings.audio.output_sample_rate * 2)
-
-            # Track timing for backpressure-aware pacing
-            playback_start = time.perf_counter()
-            chunks_sent = 0
-
-            for chunk in chunks:
+            # Build a stop callback that checks barge-in and session state
+            def _should_stop_speaking():
                 if check_barge_in and session.barge_in_requested:
-                    logger.debug("Playback interrupted by barge-in")
-                    return False
-
+                    return True
                 if not session.is_active:
-                    return False
+                    return True
+                return False
 
-                await session.send_audio(chunk)
-                chunks_sent += 1
+            success = await self.send_audio(
+                session.protocol, output_bytes, should_stop=_should_stop_speaking
+            )
 
-                # Backpressure-aware pacing: calculate how long we should have
-                # taken vs how long we actually took, and only sleep the difference
-                expected_elapsed = chunks_sent * chunk_duration_sec
-                actual_elapsed = time.perf_counter() - playback_start
-                sleep_time = expected_elapsed - actual_elapsed
+            if not success and check_barge_in and session.barge_in_requested:
+                logger.debug("Playback interrupted by barge-in")
 
-                if sleep_time > 0:
-                    await asyncio.sleep(sleep_time)
-                elif sleep_time < -0.5:
-                    # We're more than 500ms behind - network is congested
-                    logger.warning(
-                        f"Audio send falling behind by {-sleep_time:.2f}s, "
-                        "network may be congested"
-                    )
-
-            return True
+            return success
 
         finally:
             session.is_speaking = False
@@ -492,18 +469,18 @@ class VoicePipeline:
         self,
         protocol: "AudioSocketProtocol",
         audio_bytes: bytes,
+        should_stop: Callable[[], bool] | None = None,
     ) -> bool:
         """Send audio bytes to the caller.
 
         Args:
             protocol: AudioSocket protocol handler.
             audio_bytes: Processed audio bytes (8kHz, 16-bit PCM).
+            should_stop: Optional callback that returns True to abort playback.
 
         Returns:
-            True if sent successfully.
+            True if sent successfully, False if interrupted or error.
         """
-        chunks = self.audio_processor.chunk_audio(audio_bytes)
-
         # Calculate chunk duration for pacing
         chunk_size = self.settings.audio.chunk_size
         chunk_duration_sec = chunk_size / (self.settings.audio.output_sample_rate * 2)
@@ -512,7 +489,10 @@ class VoicePipeline:
         playback_start = time.perf_counter()
         chunks_sent = 0
 
-        for chunk in chunks:
+        for chunk in self.audio_processor.chunk_audio(audio_bytes):
+            if should_stop and should_stop():
+                return False
+
             if not protocol.is_active:
                 return False
 
@@ -529,6 +509,12 @@ class VoicePipeline:
 
             if sleep_time > 0:
                 await asyncio.sleep(sleep_time)
+            elif sleep_time < -0.5:
+                # We're more than 500ms behind - network is congested
+                logger.warning(
+                    f"Audio send falling behind by {-sleep_time:.2f}s, "
+                    "network may be congested"
+                )
 
         return True
 
@@ -546,7 +532,7 @@ class VoicePipeline:
         Returns:
             True if played successfully.
         """
-        sound_path = Path("audio/sounds") / f"{sound_name}.wav"
+        sound_path = Path(__file__).parent.parent / "audio" / "sounds" / f"{sound_name}.wav"
         if not sound_path.exists():
             logger.warning(f"Sound not found: {sound_path}")
             return False

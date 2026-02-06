@@ -12,6 +12,14 @@ import sys
 
 from config import get_settings
 from core.audiosocket import AudioSocketServer, AudioSocketConnection, AudioSocketProtocol
+from core.pipeline import VoicePipeline
+from core.session import Session, SessionManager
+from core.state_machine import StateMachine, State
+from features.registry import FeatureRegistry
+from services.vad import SileroVAD
+from services.stt import WhisperSTT
+from services.llm import OllamaClient
+from services.tts import KokoroTTS
 
 # Configure logging
 logging.basicConfig(
@@ -49,13 +57,6 @@ class PayphoneApplication:
         are cleaned up before re-raising the exception.
         """
         logger.info("Initializing AI services...")
-
-        # Import services here to avoid circular imports
-        from services.vad import SileroVAD
-        from services.stt import WhisperSTT
-        from services.llm import OllamaClient
-        from services.tts import KokoroTTS
-        from core.pipeline import VoicePipeline
 
         try:
             # Initialize VAD
@@ -118,10 +119,6 @@ class PayphoneApplication:
         logger.info(f"Handling call: {call_id}")
 
         try:
-            # Import session manager
-            from core.session import Session, SessionManager
-            from core.state_machine import StateMachine, State
-
             # Create session for this call
             session = Session(
                 call_id=call_id,
@@ -145,8 +142,6 @@ class PayphoneApplication:
 
     async def _run_conversation(self, session, state_machine) -> None:
         """Run the main conversation loop for a call."""
-        from core.state_machine import State
-
         consecutive_errors = 0
 
         # Main conversation loop - state machine handles greeting via IDLE -> GREETING
@@ -180,7 +175,6 @@ class PayphoneApplication:
             logging.getLogger().setLevel(getattr(logging, self.settings.log_level))
 
         # Auto-discover features
-        from features.registry import FeatureRegistry
         FeatureRegistry.auto_discover()
         logger.info(f"Registered features: {list(FeatureRegistry.list_features().keys())}")
 
@@ -203,13 +197,13 @@ class PayphoneApplication:
         await self.server.stop()
 
         # Clean up services
-        if self._vad:
+        if self._vad is not None:
             await self._vad.cleanup()
-        if self._stt:
+        if self._stt is not None:
             await self._stt.cleanup()
-        if self._llm:
+        if self._llm is not None:
             await self._llm.cleanup()
-        if self._tts:
+        if self._tts is not None:
             await self._tts.cleanup()
 
         logger.info("Shutdown complete")

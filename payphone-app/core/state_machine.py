@@ -279,7 +279,8 @@ class StateMachine:
             self.transition_to(State.LISTENING, "menu_return")
             return
 
-        if any(word in lower_transcript for word in ["goodbye", "hang up", "bye"]):
+        words = lower_transcript.split()
+        if any(w in words for w in ["goodbye", "bye"]) or "hang up" in lower_transcript:
             self.transition_to(State.GOODBYE, "user_goodbye")
             return
 

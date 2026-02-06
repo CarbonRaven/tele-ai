@@ -7,6 +7,7 @@ Handles:
 """
 
 from collections import deque
+from collections.abc import Iterator
 
 import numpy as np
 from numpy.typing import NDArray
@@ -183,7 +184,7 @@ class AudioProcessor:
             Filtered audio samples.
         """
         # Convert to float for filtering
-        float_samples = samples.astype(np.float64)
+        float_samples = samples.astype(np.float32)
 
         # Apply filter using sosfiltfilt for zero-phase filtering with SOS
         # This is more numerically stable than filtfilt with b, a coefficients
@@ -243,24 +244,21 @@ class AudioProcessor:
         self,
         audio_bytes: bytes,
         chunk_size: int | None = None,
-    ) -> list[bytes]:
+    ) -> Iterator[bytes]:
         """Split audio into chunks for streaming.
 
         Args:
             audio_bytes: Audio data to chunk.
             chunk_size: Size of each chunk in bytes. Defaults to settings.chunk_size.
 
-        Returns:
-            List of audio chunks.
+        Yields:
+            Audio chunks of the specified size.
         """
         if chunk_size is None:
             chunk_size = self.settings.chunk_size
 
-        chunks = []
         for i in range(0, len(audio_bytes), chunk_size):
-            chunks.append(audio_bytes[i : i + chunk_size])
-
-        return chunks
+            yield audio_bytes[i : i + chunk_size]
 
 
 class AudioBuffer:

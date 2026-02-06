@@ -304,6 +304,8 @@ class SileroVAD:
     ) -> SpeechState:
         """Update internal state based on probability.
 
+        Delegates to _update_session_state using a proxy for the legacy shared state.
+
         Args:
             probability: Speech probability from model.
             chunk_samples: Number of samples in the chunk.
@@ -312,38 +314,18 @@ class SileroVAD:
         Returns:
             Current speech state.
         """
-        is_speech = probability >= self.settings.threshold
-
-        if is_speech:
-            self._speech_samples += chunk_samples
-            self._silence_samples = 0
-
-            if not self._is_speaking:
-                # Check if we've had enough speech to trigger
-                speech_ms = self._samples_to_ms(self._speech_samples, sample_rate)
-                if speech_ms >= self.settings.min_speech_duration_ms:
-                    self._is_speaking = True
-                    return SpeechState.SPEECH_START
-
-            return SpeechState.SPEECH if self._is_speaking else SpeechState.SILENCE
-
-        else:  # Silence detected
-            self._silence_samples += chunk_samples
-
-            if self._is_speaking:
-                # Check if we've had enough silence to end speech
-                silence_ms = self._samples_to_ms(self._silence_samples, sample_rate)
-                if silence_ms >= self.settings.min_silence_duration_ms:
-                    self._is_speaking = False
-                    self._speech_samples = 0
-                    return SpeechState.SPEECH_END
-
-                # Still in speech (brief pause)
-                return SpeechState.SPEECH
-
-            # Reset speech counter during silence
-            self._speech_samples = 0
-            return SpeechState.SILENCE
+        # Create proxy from legacy shared state
+        proxy = VADSessionState(
+            is_speaking=self._is_speaking,
+            speech_samples=self._speech_samples,
+            silence_samples=self._silence_samples,
+        )
+        result = self._update_session_state(proxy, probability, chunk_samples, sample_rate)
+        # Copy back
+        self._is_speaking = proxy.is_speaking
+        self._speech_samples = proxy.speech_samples
+        self._silence_samples = proxy.silence_samples
+        return result
 
     async def detect_speech_end(
         self,

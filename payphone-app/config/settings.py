@@ -241,5 +241,9 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """Get cached settings instance."""
+    """Get cached settings instance.
+
+    Uses lru_cache to ensure a single Settings instance is shared across
+    the application. Call get_settings.cache_clear() to reload settings.
+    """
     return Settings()

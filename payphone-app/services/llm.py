@@ -180,8 +180,6 @@ class OllamaClient:
         if not self._initialized:
             raise RuntimeError("LLM not initialized. Call initialize() first.")
 
-        import time
-
         start_time = time.perf_counter()
 
         # Build messages
@@ -191,8 +189,10 @@ class OllamaClient:
             messages.append({"role": "system", "content": system_prompt})
 
         if context:
-            # Add history
-            messages.extend(context.get_messages_for_api())
+            context_msgs = context.get_messages_for_api()
+            if system_prompt:
+                context_msgs = [m for m in context_msgs if m["role"] != "system"]
+            messages.extend(context_msgs)
 
         # Add current prompt
         messages.append({"role": "user", "content": prompt})
@@ -262,7 +262,10 @@ class OllamaClient:
             messages.append({"role": "system", "content": system_prompt})
 
         if context:
-            messages.extend(context.get_messages_for_api())
+            context_msgs = context.get_messages_for_api()
+            if system_prompt:
+                context_msgs = [m for m in context_msgs if m["role"] != "system"]
+            messages.extend(context_msgs)
 
         messages.append({"role": "user", "content": prompt})
 
