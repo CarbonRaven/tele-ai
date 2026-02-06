@@ -60,7 +60,7 @@ check_port "Ollama" 11434
 check_port "AudioSocket" 9092
 check_port "openWakeWord" 10400
 check_port "Whisper" 10300
-check_port "Piper TTS" 10200
+check_port "Kokoro TTS" 10200
 check_port "hailo-ollama" 8000
 
 echo ""

@@ -5,7 +5,7 @@
 #
 # This script sets up the voice pipeline on Pi #1:
 #   - Hailo-accelerated Whisper STT (via Wyoming protocol)
-#   - Piper TTS
+#   - Kokoro TTS
 #   - VAD (Voice Activity Detection)
 #   - AudioSocket server for Asterisk integration
 #
@@ -32,8 +32,8 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-INSTALL_DIR="${HOME}/tele-ai/payphone-app"
-VENV_DIR="${INSTALL_DIR}/venv"
+INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
+VENV_DIR="${INSTALL_DIR}/.venv"
 SERVICE_NAME="payphone"
 
 # Default settings (can be overridden)
@@ -259,6 +259,34 @@ print('Whisper model downloaded')
 }
 
 #------------------------------------------------------------------------------
+# Moonshine STT
+#------------------------------------------------------------------------------
+
+install_moonshine() {
+    print_header "Installing Moonshine STT (Recommended)"
+
+    source "${VENV_DIR}/bin/activate"
+
+    print_step "Installing transformers for Moonshine..."
+    pip install "transformers>=4.48"
+
+    print_step "Pre-downloading Moonshine model..."
+    python3 -c "
+from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
+model_id = 'UsefulSensors/moonshine-tiny'
+processor = AutoProcessor.from_pretrained(model_id)
+model = AutoModelForSpeechSeq2Seq.from_pretrained(model_id)
+print('Moonshine model downloaded')
+"
+
+    if [ $? -eq 0 ]; then
+        print_success "Moonshine STT installed (5x faster than Whisper)"
+    else
+        print_warning "Moonshine install failed, will use Whisper fallback"
+    fi
+}
+
+#------------------------------------------------------------------------------
 # Configuration
 #------------------------------------------------------------------------------
 
@@ -315,17 +343,18 @@ AUDIO_AUDIOSOCKET_PORT=${AUDIOSOCKET_PORT}
 # Speech-to-Text
 # Primary: Hailo-accelerated Whisper via Wyoming protocol
 # Fallback: faster-whisper on CPU if Wyoming unavailable
-STT_DEVICE=${STT_BACKEND}
+STT_BACKEND=${STT_BACKEND}
+STT_MOONSHINE_MODEL=UsefulSensors/moonshine-tiny
 STT_WYOMING_HOST=localhost
 STT_WYOMING_PORT=${WYOMING_WHISPER_PORT}
 # Fallback model settings (used if Wyoming/Hailo unavailable)
-STT_MODEL_NAME=base
+STT_WHISPER_MODEL=base
 STT_COMPUTE_TYPE=int8
 STT_LANGUAGE=en
 
 # Language Model (Ollama on Pi #2)
 LLM_HOST=${OLLAMA_HOST}
-LLM_MODEL=qwen2.5:3b
+LLM_MODEL=llama3.2:3b
 LLM_TEMPERATURE=0.7
 LLM_MAX_TOKENS=150
 LLM_TIMEOUT=10.0
@@ -435,13 +464,13 @@ check_ollama() {
         print_success "Ollama is reachable at ${OLLAMA_HOST}"
 
         # Check if model exists
-        if curl -s "${OLLAMA_HOST}/api/tags" | grep -q "qwen2.5:3b"; then
-            print_success "Model qwen2.5:3b is available"
+        if curl -s "${OLLAMA_HOST}/api/tags" | grep -q "llama3.2:3b"; then
+            print_success "Model llama3.2:3b is available"
         else
-            print_warning "Model qwen2.5:3b not found on remote Ollama"
+            print_warning "Model llama3.2:3b not found on remote Ollama"
             echo ""
             echo "On Pi #2 (pi-ollama), run:"
-            echo "  ollama pull qwen2.5:3b"
+            echo "  ollama pull llama3.2:3b"
         fi
     else
         print_warning "Cannot reach Ollama at ${OLLAMA_HOST}"
@@ -453,7 +482,7 @@ check_ollama() {
         echo "     sudo systemctl edit ollama"
         echo "     Add: Environment=\"OLLAMA_HOST=0.0.0.0\""
         echo "  4. Restart: sudo systemctl restart ollama"
-        echo "  5. Pull model: ollama pull qwen2.5:3b"
+        echo "  5. Pull model: ollama pull llama3.2:3b"
         echo ""
 
         # Offer local installation as fallback for development
@@ -463,8 +492,8 @@ check_ollama() {
             print_step "Installing Ollama locally..."
             curl -fsSL https://ollama.com/install.sh | sh
 
-            print_step "Pulling qwen2.5:3b model..."
-            ollama pull qwen2.5:3b
+            print_step "Pulling llama3.2:3b model..."
+            ollama pull llama3.2:3b
 
             # Update .env to use localhost
             sed -i "s|LLM_HOST=.*|LLM_HOST=http://localhost:11434|" .env
@@ -605,6 +634,7 @@ main() {
     install_system_deps
     setup_python_env
     download_models
+    install_moonshine
     create_config
     check_ollama
     setup_firewall
@@ -618,14 +648,14 @@ main() {
     echo "Pi #1 (pi-voice) voice pipeline is configured."
     echo ""
     echo "Architecture:"
-    echo "  Pi #1 (this machine): Hailo Whisper STT + Piper TTS + VAD + AudioSocket"
-    echo "  Pi #2 (10.10.10.11): Standard Ollama with qwen2.5:3b"
+    echo "  Pi #1 (this machine): Moonshine/Hailo Whisper STT + Kokoro TTS + VAD + AudioSocket"
+    echo "  Pi #2 (10.10.10.11): Standard Ollama with llama3.2:3b"
     echo ""
     echo "Next steps:"
     echo ""
-    echo "  1. Ensure Pi #2 (pi-ollama) has Ollama running with qwen2.5:3b"
+    echo "  1. Ensure Pi #2 (pi-ollama) has Ollama running with llama3.2:3b"
     echo "     ssh pi@10.10.10.11"
-    echo "     ollama list  # should show qwen2.5:3b"
+    echo "     ollama list  # should show llama3.2:3b"
     echo ""
     echo "  2. Ensure Wyoming Hailo Whisper is running:"
     echo "     sudo systemctl status wyoming-hailo-whisper"

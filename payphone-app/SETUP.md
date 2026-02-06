@@ -48,8 +48,8 @@ For manual installation or customization, follow the detailed steps below.
 
 | Component | Model | Purpose |
 |-----------|-------|---------|
-| Pi #1 (pi-voice) | Raspberry Pi 5 (16GB) + **AI HAT+ 2** | Voice pipeline: Hailo-accelerated Whisper STT, Piper TTS, VAD, Asterisk |
-| Pi #2 (pi-ollama) | Raspberry Pi 5 (16GB) | LLM server: Standard Ollama with qwen2.5:3b |
+| Pi #1 (pi-voice) | Raspberry Pi 5 (16GB) + **AI HAT+ 2** | Voice pipeline: Moonshine/Whisper STT, Kokoro TTS, VAD, Asterisk |
+| Pi #2 (pi-ollama) | Raspberry Pi 5 (16GB) | LLM server: Standard Ollama with llama3.2:3b |
 | AI Accelerator | Raspberry Pi AI HAT+ 2 (Hailo-10H, 40 TOPS) | Whisper STT acceleration on Pi #1 |
 | Network Switch | 5-port Gigabit | Internal network |
 | ATA | Grandstream HT801 v2 | Converts analog phone to SIP |
@@ -97,11 +97,11 @@ For manual installation or customization, follow the detailed steps below.
 |------|----------|------|---------|
 | 9092 | TCP | pi-voice | AudioSocket (voice pipeline entry) |
 | 10300 | TCP | pi-voice | Wyoming Whisper (Hailo-accelerated) |
-| 10200 | TCP | pi-voice | Wyoming Piper TTS |
+| 10200 | TCP | pi-voice | Kokoro TTS (remote mode) |
 | 10400 | TCP | pi-voice | Wyoming openWakeWord |
 | 5060 | UDP | pi-voice | SIP signaling (Asterisk) |
 | 10000-20000 | UDP | pi-voice | RTP media |
-| 11434 | HTTP | pi-ollama | Ollama API (qwen2.5:3b) |
+| 11434 | HTTP | pi-ollama | Ollama API (llama3.2:3b) |
 
 ---
 
@@ -136,21 +136,28 @@ For manual installation or customization, follow the detailed steps below.
        libssl-dev
    ```
 
-3. **Set Static IP (edit /etc/dhcpcd.conf)**
+3. **Set Static IP (NetworkManager - default on Bookworm)**
 
    ```bash
    # For Pi 5 #1 (Pipeline)
-   interface eth0
-   static ip_address=10.10.10.10/24
-   static routers=10.10.10.1
-   static domain_name_servers=8.8.8.8
+   sudo nmcli con mod "Wired connection 1" \
+     ipv4.method manual \
+     ipv4.addresses 10.10.10.10/24 \
+     ipv4.gateway 10.10.10.1 \
+     ipv4.dns "8.8.8.8"
+   sudo nmcli con up "Wired connection 1"
 
    # For Pi 5 #2 (Ollama)
-   interface eth0
-   static ip_address=10.10.10.11/24
-   static routers=10.10.10.1
-   static domain_name_servers=8.8.8.8
+   sudo nmcli con mod "Wired connection 1" \
+     ipv4.method manual \
+     ipv4.addresses 10.10.10.11/24 \
+     ipv4.gateway 10.10.10.1 \
+     ipv4.dns "8.8.8.8"
+   sudo nmcli con up "Wired connection 1"
    ```
+
+   > **Note**: Raspberry Pi OS Bookworm uses NetworkManager, not `dhcpcd`.
+   > Run `nmcli con show` to see the exact connection name for your setup.
 
 4. **Reboot**
 
@@ -208,8 +215,8 @@ nc -zv localhost 10300  # Should connect
 2. **Create Virtual Environment**
 
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate
+   python3 -m venv .venv
+   source .venv/bin/activate
    ```
 
 3. **Install Dependencies**
@@ -244,7 +251,7 @@ The application supports three STT backends with automatic fallback:
 Moonshine is a lightweight STT model optimized for edge devices:
 
 ```bash
-source ~/tele-ai/payphone-app/venv/bin/activate
+source ~/tele-ai/payphone-app/.venv/bin/activate
 
 # Install transformers (required for Moonshine)
 pip install "transformers>=4.48"
@@ -274,7 +281,7 @@ The Hailo NPU provides hardware-accelerated Whisper. The model is managed by the
 If neither Moonshine nor Wyoming/Hailo is available:
 
 ```bash
-source ~/tele-ai/payphone-app/venv/bin/activate
+source ~/tele-ai/payphone-app/.venv/bin/activate
 
 # Pre-download fallback model
 python -c "
@@ -335,12 +342,12 @@ ls -la kokoro-v1.0.onnx voices-v1.0.bin
 2. **Pull the LLM Model**
 
    ```bash
-   # Recommended: Qwen2.5 3B (good balance of quality and speed)
-   ollama pull qwen2.5:3b
+   # Recommended: Llama 3.2 3B (best latency for voice)
+   ollama pull llama3.2:3b
 
-   # Alternative smaller models:
-   # ollama pull qwen2.5:1.5b    # Faster, less capable
-   # ollama pull phi3:mini       # Microsoft's small model
+   # Alternative models:
+   # ollama pull llama3.2:3b      # Strong logic, balanced
+   # ollama pull ministral:8b    # Best conversational quality
    ```
 
 3. **Configure for Network Access**
@@ -371,7 +378,7 @@ ls -la kokoro-v1.0.onnx voices-v1.0.bin
 
    ```bash
    curl http://10.10.10.11:11434/api/generate -d '{
-     "model": "qwen2.5:3b",
+     "model": "llama3.2:3b",
      "prompt": "Hello, how are you?",
      "stream": false
    }'
@@ -578,7 +585,7 @@ fwconsole reload
 
    | Setting | Value |
    |---------|-------|
-   | SIP Server | 10.10.10.30 (FreePBX IP) |
+   | SIP Server | 10.10.10.10 (FreePBX/Asterisk on Pi #1) |
    | SIP User ID | 100 |
    | Authenticate ID | 100 |
    | Authenticate Password | (set in FreePBX) |
@@ -638,7 +645,7 @@ fwconsole reload
 
    # LLM (Standard Ollama on Pi #2)
    LLM_HOST=http://10.10.10.11:11434
-   LLM_MODEL=qwen2.5:3b
+   LLM_MODEL=llama3.2:3b
    LLM_TEMPERATURE=0.7
    LLM_MAX_TOKENS=150
 
@@ -659,35 +666,35 @@ python main.py
 Expected output (with Moonshine - recommended):
 
 ```
-2024-01-20 10:00:00 - INFO - Starting AI Payphone application...
-2024-01-20 10:00:00 - INFO - Registered features: ['operator', 'jokes']
-2024-01-20 10:00:01 - INFO - Loading Silero VAD...
-2024-01-20 10:00:02 - INFO - Silero VAD model loaded successfully
-2024-01-20 10:00:02 - INFO - Loading Moonshine model: UsefulSensors/moonshine-tiny
-2024-01-20 10:00:04 - INFO - Using Moonshine STT (UsefulSensors/moonshine-tiny) on cpu - 5x faster than Whisper tiny
-2024-01-20 10:00:04 - INFO - Connecting to Ollama at http://10.10.10.11:11434...
-2024-01-20 10:00:05 - INFO - Ollama client initialized (model: qwen2.5:3b)
-2024-01-20 10:00:05 - INFO - Loading Kokoro TTS...
-2024-01-20 10:00:07 - INFO - Kokoro TTS model loaded successfully
-2024-01-20 10:00:07 - INFO - All services initialized successfully
-2024-01-20 10:00:07 - INFO - AudioSocket server listening on 0.0.0.0:9092
+2026-01-20 10:00:00 - INFO - Starting AI Payphone application...
+2026-01-20 10:00:00 - INFO - Registered features: ['operator', 'jokes']
+2026-01-20 10:00:01 - INFO - Loading Silero VAD...
+2026-01-20 10:00:02 - INFO - Silero VAD model loaded successfully
+2026-01-20 10:00:02 - INFO - Loading Moonshine model: UsefulSensors/moonshine-tiny
+2026-01-20 10:00:04 - INFO - Using Moonshine STT (UsefulSensors/moonshine-tiny) on cpu - 5x faster than Whisper tiny
+2026-01-20 10:00:04 - INFO - Connecting to Ollama at http://10.10.10.11:11434...
+2026-01-20 10:00:05 - INFO - Ollama client initialized (model: llama3.2:3b)
+2026-01-20 10:00:05 - INFO - Loading Kokoro TTS...
+2026-01-20 10:00:07 - INFO - Kokoro TTS model loaded successfully
+2026-01-20 10:00:07 - INFO - All services initialized successfully
+2026-01-20 10:00:07 - INFO - AudioSocket server listening on 0.0.0.0:9092
 ```
 
 If Moonshine unavailable, falls back to Wyoming/Hailo:
 
 ```
-2024-01-20 10:00:02 - WARNING - Moonshine unavailable (install transformers>=4.48): No module named 'transformers'
-2024-01-20 10:00:02 - INFO - Connected to Wyoming Whisper at localhost:10300
-2024-01-20 10:00:02 - INFO - Using Hailo-accelerated Whisper via Wyoming at localhost:10300
+2026-01-20 10:00:02 - WARNING - Moonshine unavailable (install transformers>=4.48): No module named 'transformers'
+2026-01-20 10:00:02 - INFO - Connected to Wyoming Whisper at localhost:10300
+2026-01-20 10:00:02 - INFO - Using Hailo-accelerated Whisper via Wyoming at localhost:10300
 ```
 
 If both unavailable, falls back to faster-whisper:
 
 ```
-2024-01-20 10:00:02 - WARNING - Moonshine unavailable...
-2024-01-20 10:00:02 - WARNING - Hailo Wyoming unavailable: Cannot connect...
-2024-01-20 10:00:02 - INFO - Loading faster-whisper model: tiny...
-2024-01-20 10:00:10 - INFO - Using faster-whisper (tiny) on cpu
+2026-01-20 10:00:02 - WARNING - Moonshine unavailable...
+2026-01-20 10:00:02 - WARNING - Hailo Wyoming unavailable: Cannot connect...
+2026-01-20 10:00:02 - INFO - Loading faster-whisper model: tiny...
+2026-01-20 10:00:10 - INFO - Using faster-whisper (tiny) on cpu
 ```
 
 ### Run as Systemd Service
@@ -703,8 +710,8 @@ After=network.target
 Type=simple
 User=pi
 WorkingDirectory=/home/pi/tele-ai/payphone-app
-Environment=PATH=/home/pi/tele-ai/payphone-app/venv/bin
-ExecStart=/home/pi/tele-ai/payphone-app/venv/bin/python main.py
+Environment=PATH=/home/pi/tele-ai/payphone-app/.venv/bin
+ExecStart=/home/pi/tele-ai/payphone-app/.venv/bin/python main.py
 Restart=always
 RestartSec=10
 
@@ -787,7 +794,7 @@ asyncio.run(test())
 |-------|----------|
 | "AudioSocket connection refused" | Check firewall: `sudo ufw allow 9092/tcp` |
 | "Ollama connection refused" | Verify OLLAMA_HOST=0.0.0.0 and restart |
-| "Model not found" | Run `ollama pull qwen2.5:3b` |
+| "Model not found" | Run `ollama pull llama3.2:3b` |
 | "Out of memory" | Use smaller model or add swap |
 | "No audio from payphone" | Check HT801 SIP registration |
 | "Slow response" | Check network latency, consider smaller models |
@@ -818,10 +825,7 @@ asterisk -rvvv
 For Raspberry Pi 5:
 
 ```bash
-# Increase GPU memory (for torch)
-echo "gpu_mem=256" | sudo tee -a /boot/config.txt
-
-# Add swap if needed
+# Add swap if needed (Pi 5 dynamically allocates GPU memory - no gpu_mem setting needed)
 sudo dphys-swapfile swapoff
 sudo sed -i 's/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
 sudo dphys-swapfile setup
@@ -854,7 +858,7 @@ sudo systemctl disable avahi-daemon
 - [ ] Set static IP: 10.10.10.11
 - [ ] Install Ollama (`curl -fsSL https://ollama.com/install.sh | sh`)
 - [ ] Configure Ollama for network access (OLLAMA_HOST=0.0.0.0)
-- [ ] Pull qwen2.5:3b model
+- [ ] Pull llama3.2:3b model
 
 ### Network & Telephony
 - [ ] Configure HT801 ATA (10.10.10.20)

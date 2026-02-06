@@ -132,9 +132,9 @@ class LLMSettings(BaseSettings):
     Standard Ollama runs on Pi #2 (10.10.10.11) for better model flexibility.
 
     Recommended models (January 2026):
-    - Speed priority: llama3.2:3b-instruct-q4_K_M (~5-6 TPS on Pi 5)
+    - Speed priority: llama3.2:3b (~5-6 TPS on Pi 5)
     - Quality priority: ministral:8b (~2-3 TPS, best conversational quality)
-    - Balanced: qwen2.5:7b-instruct-q4_K_M (~2 TPS, strong logic)
+    - Balanced: qwen2.5:3b (~3-4 TPS, strong logic)
 
     Use Q4_K_M quantization for best speed/quality balance on Pi 5.
     """
@@ -146,8 +146,8 @@ class LLMSettings(BaseSettings):
     host: str = "http://10.10.10.11:11434"
 
     # Default to Llama 3.2 3B for best latency in voice applications
-    # Use ministral:8b for better quality, qwen2.5:7b for strong logic
-    model: str = "llama3.2:3b-instruct-q4_K_M"
+    # Alternatives: qwen2.5:3b (balanced), ministral:8b (quality)
+    model: str = "llama3.2:3b"
 
     # Generation parameters
     temperature: float = 0.7

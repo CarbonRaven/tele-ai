@@ -6,7 +6,8 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "faster-whisper>=1.2.1",
-    "silero-vad>=5.0",
+    # Note: silero-vad is loaded via torch.hub at runtime, not via pip.
+    # torch must be installed separately: pip install torch --index-url https://download.pytorch.org/whl/cpu
     "ollama>=0.6.0",
     "kokoro-onnx>=0.3.7",
     "numpy>=1.24",

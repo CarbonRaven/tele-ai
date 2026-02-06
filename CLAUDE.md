@@ -20,7 +20,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ Pi #1 (pi-voice) 10.10.10.10 - AI HAT+ 2                               │
 │                                                                         │
-│  Mic → openWakeWord → Whisper (STT) ──────────────→ Piper (TTS) → Speaker│
+│  Mic → openWakeWord → Whisper (STT) ──────────────→ Kokoro (TTS) → Speaker│
 │           :10400      :10300 (Hailo)                  :10200            │
 │                              │                           ▲              │
 │                              ▼                           │              │
@@ -32,7 +32,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 │                                                          │              │
 │                    Ollama (LLM) ─────────────────────────┘              │
 │                      :11434                                             │
-│                   qwen2.5:3b                                            │
+│                   llama3.2:3b                                           │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -56,7 +56,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |-----------|------------|----------|-------|
 | Wake Word | openWakeWord | Pi #1 | Wyoming protocol, port 10400 |
 | STT | Moonshine/Whisper | Pi #1 | Moonshine (5x faster) or Hailo-accelerated Whisper |
-| LLM | Ollama | Pi #2 | Standard Ollama, qwen2.5:3b, port 11434 |
+| LLM | Ollama | Pi #2 | Standard Ollama, llama3.2:3b, port 11434 |
 | TTS | Kokoro-82M | Pi #1 | Fast neural TTS, 24kHz output |
 | VAD | Silero VAD | Pi #1 | CPU-based voice activity detection |
 | Telephony | FreePBX/Asterisk | Pi #1 | AudioSocket protocol for AI integration |

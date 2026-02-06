@@ -10,7 +10,7 @@ A fully local AI voice assistant designed for vintage payphones. Connects via As
 - **Concurrent Calls**: Per-session state isolation supports multiple simultaneous calls
 - **Voice Activity Detection**: Silero VAD for accurate speech detection
 - **Speech-to-Text**: Moonshine (5x faster than Whisper) with Hailo/Whisper fallback
-- **Language Model**: Ollama with Llama 3.2 3B (speed) or Ministral 8B (quality)
+- **Language Model**: Ollama with llama3.2:3b (speed) or ministral:8b (quality)
 - **Text-to-Speech**: Kokoro-82M with optional remote offloading
 - **Streaming Pipeline**: Overlapped LLM+TTS for reduced latency
 - **Barge-in Support**: Interrupt AI with DTMF tones
@@ -25,7 +25,7 @@ A fully local AI voice assistant designed for vintage payphones. Connects via As
                                     │           10.10.10.11              │
                                     │                                     │
                                     │    ┌─────────────────────────┐     │
-                                    │    │  Ollama (llama3.2:3b)   │     │
+                                    │    │  Ollama (llama3.2:3b)    │     │
                                     │    │       Port 11434        │     │
                                     │    └─────────────────────────┘     │
                                     │                                     │
@@ -75,7 +75,7 @@ Payphone → HT801 ATA → Asterisk → AudioSocket ─────┼───�
 - Raspberry Pi 5 (16GB)
 - Raspberry Pi OS Lite 64-bit (Bookworm) - headless, no desktop
 - Static IP: 10.10.10.11
-- Ollama with llama3.2:3b (~3GB RAM) or ministral:8b (~5GB RAM)
+- Ollama with llama3.2:3b (~3GB RAM) or qwen2.5:3b or ministral:8b (~5GB RAM)
 
 **Telephony:**
 - Grandstream HT801 ATA (or similar)
@@ -112,7 +112,7 @@ cp .env.example .env
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `LLM_HOST` | Ollama server (Pi #2) | `http://10.10.10.11:11434` |
-| `LLM_MODEL` | Language model | `llama3.2:3b-instruct-q4_K_M` |
+| `LLM_MODEL` | Language model | `llama3.2:3b` |
 | `STT_BACKEND` | STT backend (`moonshine`, `hailo`, `whisper`, `auto`) | `auto` |
 | `STT_MOONSHINE_MODEL` | Moonshine model | `UsefulSensors/moonshine-tiny` |
 | `STT_WHISPER_MODEL` | Whisper model (fallback) | `tiny` |
@@ -288,7 +288,7 @@ The voice pipeline includes extensive optimizations for low-latency operation:
 | **O(1) Audio Buffer** | Uses `deque.popleft()` instead of `list.pop(0)` |
 | **Incremental Sample Tracking** | STT tracks samples incrementally, avoiding O(n²) |
 | **Optimized History Trimming** | Conversation context tracks non-system count incrementally |
-| **Bounded Queues** | Audio/DTMF queues have max sizes with drop-oldest strategy |
+| **Bounded Queues** | Audio/DTMF queues have max sizes with reject-when-full strategy |
 | **Remote TTS Option** | Offload synthesis to Pi #2, reducing Pi #1 CPU by ~30% |
 
 ### Validation & Security

@@ -64,7 +64,7 @@ class PayphoneApplication:
             await self._vad.initialize()
 
             # Initialize STT
-            logger.info(f"Loading Whisper model: {self.settings.stt.model_name}...")
+            logger.info(f"Initializing STT (backend: {self.settings.stt.backend})...")
             self._stt = WhisperSTT(self.settings.stt)
             await self._stt.initialize()
 
