@@ -225,6 +225,7 @@ class StateMachine:
         if self._route_result and self._route_result.entry_type == "invalid":
             # Not-in-service recording, then hang up
             self.transition_to(State.SPEAKING, "play_not_in_service")
+            await pipeline.play_sound(self.session, "sit_intercept")
             await pipeline.speak(self.session, DEFAULT_GREETING_NOT_IN_SERVICE)
             self.transition_to(State.GOODBYE, "invalid_number")
             return
@@ -397,6 +398,7 @@ class StateMachine:
         result = self._phone_router.route_dtmf(number)
 
         if result.entry_type == "invalid":
+            await pipeline.play_sound(self.session, "sit_intercept")
             await pipeline.speak(self.session, DEFAULT_GREETING_NOT_IN_SERVICE)
             self.transition_to(State.LISTENING, "invalid_number")
             return
