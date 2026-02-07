@@ -17,22 +17,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Dual-Pi Architecture
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│ Pi #1 (pi-voice) 10.10.10.10 - AI HAT+ 2                               │
-│                                                                         │
-│  Mic → openWakeWord → Whisper (STT) ──────────────→ Kokoro (TTS) → Speaker│
-│           :10400      :10300 (Hailo)                  :10200            │
-│                              │                           ▲              │
-│                              ▼                           │              │
-└──────────────────────────────┼───────────────────────────┼──────────────┘
-                               │ HTTP                      │
-                               ▼                           │
-┌──────────────────────────────────────────────────────────┼──────────────┐
-│ Pi #2 (pi-ollama) 10.10.10.11                           │              │
-│                                                          │              │
-│                    Ollama (LLM) ─────────────────────────┘              │
-│                      :11434                                             │
-│                   qwen3:4b                                              │
+Payphone → HT801 ATA (SIP) → Asterisk/FreePBX
+                                     │
+                                AudioSocket :9092
+                                     │
+┌────────────────────────────────────┼────────────────────────────────────┐
+│ Pi #1 (pi-voice) 10.10.10.10      │         + AI HAT+ 2               │
+│                                    ▼                                    │
+│              Silero VAD → Whisper (STT) ──────────→ Kokoro (TTS)       │
+│               (CPU)       :10300 (Hailo)               (CPU)           │
+│                                │                         ▲              │
+│                                ▼                         │              │
+└────────────────────────────────┼─────────────────────────┼──────────────┘
+                                 │ HTTP                     │
+                                 ▼                          │
+┌────────────────────────────────────────────────────────────┼─────────────┐
+│ Pi #2 (pi-ollama) 10.10.10.11                             │             │
+│                     Ollama (LLM) ─────────────────────────┘             │
+│                       :11434 / qwen3:4b                                 │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -40,15 +42,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Structure
 
-- `documentation/` - Technical documentation for all components
-  - `raspberry-pi-5-overview.md` - Main index for Pi 5 docs
+- `payphone-app/` - Main Python application (see Code Architecture below)
+- `documentation/` - Technical documentation (26 files)
+  - `project-overview.md` - Architecture and service catalog
   - `local-voice-assistant-pipeline.md` - End-to-end voice pipeline guide
   - `raspberry-pi-5-ai-hat-2-*.md` - Hailo AI HAT+ 2 documentation
-  - `raspberry-pi-5-piper-tts.md` - Text-to-speech
   - `raspberry-pi-5-openwakeword.md` - Wake word detection
   - `freepbx-*.md` - FreePBX/Asterisk telephony integration
+  - `network-configuration.md` - Dual-Pi network setup
+  - `*-research*.md` - LLM, STT, and model research
+- `planning/` - Design and feature planning
+  - `system-architecture.md` - System design document
+  - `features-list.md` - Full feature roadmap with phone numbers
+  - `phone-book-content.md` - Physical phone book content draft
+- `scripts/` - Operational tooling
+  - `asterisk/` - Asterisk/FreePBX configuration
+  - `health-monitor.py` - System health monitoring
+  - `payphone-ops.sh` - Operations management script
+- `research/` - Reference materials and model research
 - `hardware.txt` - Hardware inventory
-- `project-name-ideas.md` - Branding brainstorm
 
 ## Key Technologies
 
@@ -68,6 +80,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```
 main.py                    # Application entry point, service initialization
+pyproject.toml             # Package config, dependencies, optional extras
+install.sh                 # Automated installer
+tts_server.py              # Standalone TTS server (for Pi #2 offloading)
 ├── config/
 │   ├── settings.py        # Pydantic Settings v2 with env var support
 │   ├── phone_directory.py # 44 phone numbers → features/personas (TypedDict entries)
@@ -80,15 +95,18 @@ main.py                    # Application entry point, service initialization
 │   ├── session.py         # Per-call state management
 │   └── state_machine.py   # Conversation flow control
 ├── services/
-│   ├── vad.py             # Silero VAD v5 (v6.2 upgrade planned) with thread-safe async reset
+│   ├── vad.py             # Silero VAD v5 with thread-safe async reset
 │   ├── stt.py             # Moonshine (5x faster) + Wyoming/Hailo + faster-whisper
 │   ├── llm.py             # Ollama client with streaming timeout
 │   └── tts.py             # Kokoro-82M synthesis
-└── features/
-    ├── base.py            # Feature base classes
-    ├── registry.py        # Auto-discovery decorator pattern
-    ├── operator.py        # Default operator persona
-    └── jokes.py           # Dial-A-Joke feature
+├── features/
+│   ├── base.py            # Feature base classes
+│   ├── registry.py        # Auto-discovery decorator pattern
+│   ├── operator.py        # Default operator persona
+│   └── jokes.py           # Dial-A-Joke feature
+├── tests/
+│   └── test_phone_routing.py  # Phone directory and routing tests
+└── audio/                 # Audio assets (music/, prompts/, sounds/)
 ```
 
 ### Key Patterns
@@ -115,6 +133,17 @@ main.py                    # Application entry point, service initialization
 - **Pre-allocated audio arrays**: Streaming STT uses doubling strategy for O(n) total copies
 - **Batched Wyoming writes**: Audio chunks written without drain, single flush at end
 - **Lazy dtype conversion**: TTS/resampling skip copy when dtype already matches
+
+## Build & Test
+
+```bash
+cd payphone-app
+pip install -e ".[dev]"       # Install with dev dependencies
+pytest tests/                 # Run tests
+python3 -c "import ast; ast.parse(open('config/prompts.py').read())"  # Quick syntax check
+```
+
+The app requires Python 3.10+ and uses `pydantic-settings` for configuration via environment variables (see `config/settings.py` and `.env.example`).
 
 ## Documentation Standards
 
