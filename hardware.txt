@@ -1,8 +1,31 @@
 
 ### Hardware
-- Raspberry Pi AI HAT+ 2
-- Raspberry Pi 5/16GB
-- Raspberry Pi 5/16GB
+- Raspberry Pi AI HAT+ 2 (Hailo-10H)
+- Raspberry Pi 5/16GB (pi-voice, 10.10.10.10)
+- Raspberry Pi 5/16GB (pi-ollama, 10.10.10.11)
 - 5-port gigabit switch
-- Grandstream HT801 v2
-- Payphone
+- Grandstream HT801 v2 (ATA, 10.10.10.12)
+- Payphone (analog)
+
+### Power Supply
+- Lightning Ofertas 500W GaN IV 10-Port Charging Station (Amazon B0FL7PWF49)
+  - 7x USB-C (PD 3.0/PPS, 140W max per port)
+  - 3x USB-A
+  - 500W total capacity
+  - Input: 100-240V AC, 50/60Hz
+
+### Power Budget
+
+| Device                      | Connector | Max Draw | Typical Draw |
+|-----------------------------|-----------|----------|--------------|
+| Pi #1 (pi-voice) + AI HAT+ | USB-C     | 25W      | 15-20W       |
+| Pi #2 (pi-ollama)           | USB-C     | 25W      | 10-15W       |
+| Grandstream HT801 v2        | USB-A     | 5W       | 3W           |
+| 5-port GbE switch           | USB-A     | 5W       | 3-4W         |
+| **Total**                   |           | **60W**  | **31-42W**   |
+
+500W supply at ~8-12% utilization. Ample headroom.
+
+### Notes
+- Pi 5 requires USB-C PD cable rated for 5A to avoid under-voltage warnings
+- HT801 and switch need USB-A to barrel/micro-USB adapter cables
