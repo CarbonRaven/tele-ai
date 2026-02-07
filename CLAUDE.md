@@ -106,7 +106,10 @@ tts_server.py              # Standalone TTS server (for Pi #2 offloading)
 │   └── jokes.py           # Dial-A-Joke feature
 ├── tests/
 │   └── test_phone_routing.py  # Phone directory and routing tests
+├── scripts/
+│   └── generate_audio.py  # Generates 17 telephone sound effects (Bellcore GR-506)
 └── audio/                 # Audio assets (music/, prompts/, sounds/)
+    └── sounds/            # 17 generated WAV files (8kHz 16-bit PCM mono)
 ```
 
 ### Key Patterns
@@ -120,6 +123,7 @@ tts_server.py              # Standalone TTS server (for Pi #2 offloading)
 | Wyoming Protocol | `services/stt.py` | Binary framing for audio, JSON for events |
 | Sentence Buffer | `services/llm.py` | Regex-based streaming TTS chunking |
 | Audio Buffer | `core/audio_processor.py` | Memory-bounded sample accumulation |
+| SIT Tri-tone | `core/state_machine.py` | Plays `sit_intercept.wav` before "not in service" TTS |
 
 ### Performance Optimizations
 
@@ -141,9 +145,22 @@ cd payphone-app
 pip install -e ".[dev]"       # Install with dev dependencies
 pytest tests/                 # Run tests
 python3 -c "import ast; ast.parse(open('config/prompts.py').read())"  # Quick syntax check
+python3 scripts/generate_audio.py   # Regenerate telephone sound effects
 ```
 
 The app requires Python 3.10+ and uses `pydantic-settings` for configuration via environment variables (see `config/settings.py` and `.env.example`).
+
+## Audio Assets
+
+`payphone-app/audio/sounds/` contains 17 programmatically generated telephone sound effects based on Bellcore GR-506 specs. All files are 8kHz 16-bit PCM WAV mono, matching the pipeline's `output_sample_rate`.
+
+To regenerate: `cd payphone-app && python3 scripts/generate_audio.py`
+
+The `play_sound()` method in `core/pipeline.py` loads these files, resamples if needed, applies the telephone bandpass filter (300-3400 Hz), and sends via AudioSocket. Currently the SIT intercept tri-tone (`sit_intercept.wav`) is wired into both invalid-number paths in `state_machine.py`.
+
+## Hardware Testing
+
+`payphone-app/HARDWARE_TEST_PLAN.md` contains a 138-test plan across 9 phases for validating the system on hardware, including stress tests and adversarial scenarios to break features. See that file for the full plan and results template.
 
 ## Documentation Standards
 
