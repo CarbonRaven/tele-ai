@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Dual-Pi Architecture
 ```
-Payphone → HT801 ATA (SIP) → Asterisk/FreePBX
+Payphone → HT801 ATA (SIP) → Asterisk 22.8.2
                                      │
                                 AudioSocket :9092
                                      │
@@ -39,6 +39,8 @@ Payphone → HT801 ATA (SIP) → Asterisk/FreePBX
 ```
 
 **AI HAT+ 2 Usage**: The Hailo-10H NPU accelerates Whisper STT on Pi #1, freeing the CPU for audio processing. Standard Ollama runs on Pi #2 for better model flexibility (3B+ models).
+
+**Important**: The AI HAT+ 2 requires the `hailo-h10-all` package (not `hailo-all` which is for Hailo-8). The correct package installs the `hailo1x_pci` driver, Hailo-10H firmware, and `h10-hailort` runtime. The Pi's `/boot/firmware/config.txt` must include `dtparam=pciex1` and `dtparam=pciex1_gen=3` under `[all]`.
 
 ## Repository Structure
 
@@ -71,7 +73,7 @@ Payphone → HT801 ATA (SIP) → Asterisk/FreePBX
 | LLM | Ollama | Pi #2 | Standard Ollama, qwen3:4b, port 11434 |
 | TTS | Kokoro-82M | Pi #1 | Fast neural TTS, 24kHz output |
 | VAD | Silero VAD | Pi #1 | CPU-based voice activity detection |
-| Telephony | FreePBX/Asterisk | Pi #1 | AudioSocket protocol for AI integration |
+| Telephony | Asterisk 22.8.2 | Pi #1 | Built from source, AudioSocket protocol |
 | Protocol | Wyoming | Pi #1 | Home Assistant voice service integration |
 
 ## Code Architecture
@@ -161,6 +163,35 @@ The `play_sound()` method in `core/pipeline.py` loads these files, resamples if 
 ## Hardware Testing
 
 `payphone-app/HARDWARE_TEST_PLAN.md` contains a 138-test plan across 9 phases for validating the system on hardware, including stress tests and adversarial scenarios to break features. See that file for the full plan and results template.
+
+## Infrastructure Status
+
+Both Pis run Debian Trixie (13.3) aarch64 with kernel 6.12.62+rpt-rpi-2712.
+
+### Pi #1 (pi-voice) — 10.10.10.10
+
+| Service | Version | Status | Notes |
+|---------|---------|--------|-------|
+| Hailo-10H NPU | FW 5.1.1, driver `hailo1x_pci` | `/dev/hailo0` present | `hailo-h10-all` package |
+| Asterisk | 22.8.2 | Running (systemd) | Built from source (`/usr/src/asterisk-22.8.2`), not in Trixie arm64 repos |
+| AudioSocket | `res_audiosocket.so` + `app_` + `chan_` | 3 modules loaded | Ready for pipeline integration |
+
+### Pi #2 (pi-ollama) — 10.10.10.11
+
+| Service | Version | Status | Notes |
+|---------|---------|--------|-------|
+| Ollama | 0.15.5 | Running on `0.0.0.0:11434` | CPU-only mode, systemd override for network binding |
+| Model | qwen3:4b (2.5GB) | Pulled and ready | |
+
+### Asterisk Source Build
+
+The `asterisk` package is not available in Debian Trixie arm64 repos. Built from source:
+```bash
+cd /usr/src/asterisk-22.8.2
+sudo ./configure --with-jansson-bundled
+sudo make -j4
+sudo make install && sudo make samples && sudo make config
+```
 
 ## Documentation Standards
 
