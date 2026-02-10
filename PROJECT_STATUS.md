@@ -122,13 +122,13 @@ All features have system prompts and phone directory entries. They work via LLM 
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| Pi #1 (pi-voice) | Running | Asterisk 22.8.2, Moonshine STT, Kokoro TTS, Silero VAD |
+| Pi #1 (pi-voice) | Running | Asterisk 22.8.2, Hailo Whisper STT, Kokoro TTS, Silero VAD |
 | Pi #2 (pi-ollama) | Running | Ollama 0.15.5, llama3.2:3b (~6 tok/s) |
 | HT801 ATA | Configured | PJSIP endpoint, ulaw, RFC4733 DTMF |
 | Network (10.10.10.0/24) | Working | 5-port gigabit switch |
 | AudioSocket protocol | Working | Binary UUID, end-to-end audio |
-| systemd services | Running | `payphone` on Pi #1, `ollama` on Pi #2 |
-| Hailo-10H NPU | Installed | `/dev/hailo0` present, not yet used for STT |
+| systemd services | Running | `payphone` + `wyoming-whisper` on Pi #1, `ollama` on Pi #2 |
+| Hailo-10H NPU | **Active** | Whisper-Base encoder+decoder running on NPU via Wyoming protocol |
 
 ---
 
@@ -137,7 +137,8 @@ All features have system prompts and phone directory entries. They work via LLM 
 | Component | Status | Performance |
 |-----------|--------|-------------|
 | VAD (Silero v5) | Working | Model pool (3), barge-in threshold 0.8 |
-| STT (Moonshine tiny) | Working | ~5x faster than Whisper tiny on CPU |
+| STT (Whisper-Base, Hailo) | **Working** | ~300-534ms on NPU (encoder ~80ms, decoder ~230-440ms) |
+| STT (Moonshine tiny) | Fallback | Available if Hailo unavailable (`STT_BACKEND=moonshine`) |
 | LLM (llama3.2:3b) | Working | ~6 tok/s, streaming with per-token timeout |
 | TTS (Kokoro-82M) | Working | af_bella voice, 24kHz → 8kHz resampled |
 | Streaming LLM → TTS | Working | SentenceBuffer chunks tokens, producer-consumer TTS |
@@ -174,10 +175,10 @@ All features have system prompts and phone directory entries. They work via LLM 
 
 ### Medium Priority (quality improvements)
 
-5. **Hailo-accelerated STT** — Hailo-10H NPU is installed but not yet used. Deploy `wyoming-hailo-whisper` container for faster Whisper STT.
-6. **Custom feature logic** — All 35 features currently use LLM prompt-switching only. Features like Trivia (scoring), Mad Libs (word collection), and 20 Questions (state tracking) would benefit from dedicated game logic in `features/`.
-7. **Wire remaining sound effects** — 17 Bellcore sounds are generated but only `sit_intercept.wav` is used. Could add: dial tone simulation, busy signal, ring tone, coin deposit sounds.
-8. **Real-time data integration** — Weather, news, sports, time/temperature are all LLM-generated fiction. Could integrate APIs for actual data.
+5. **Custom feature logic** — All 35 features currently use LLM prompt-switching only. Features like Trivia (scoring), Mad Libs (word collection), and 20 Questions (state tracking) would benefit from dedicated game logic in `features/`.
+6. **Wire remaining sound effects** — 17 Bellcore sounds are generated but only `sit_intercept.wav` is used. Could add: dial tone simulation, busy signal, ring tone, coin deposit sounds.
+7. **Real-time data integration** — Weather, news, sports, time/temperature are all LLM-generated fiction. Could integrate APIs for actual data.
+8. **STT accuracy tuning** — Whisper-Base on Hailo is working but may benefit from prompt tuning, language forcing, or audio preprocessing for telephone-quality audio.
 
 ### Lower Priority (polish)
 
@@ -198,3 +199,36 @@ All features have system prompts and phone directory entries. They work via LLM 
 | Birthday dates not validated | Low | 555-0230 (Feb 30) accepted as valid birthday |
 | max_call_duration not enforced | Low | State machine checks it but was marked as "not enforced" in test plan |
 | Extension not passed from Asterisk | Info | AudioSocket sends binary UUID only; all calls show `extension: None` |
+| Hailo decoder max 64 tokens | Info | HEF fixed at 64-token sequence; adequate for phone utterances |
+
+---
+
+## Session Log
+
+### 2026-02-10: Initial Hardware Bring-Up + Hailo STT Deployment
+
+**What was accomplished:**
+
+1. **End-to-end voice pipeline verified** — Payphone → HT801 → Asterisk → AudioSocket → VAD → STT → LLM → TTS → audio response all working through the physical payphone handset.
+
+2. **Hailo-10H NPU activated for Whisper STT** — Wrote a custom Wyoming protocol server (`wyoming_whisper_server.py`) that runs Whisper-Base inference on the Hailo-10H NPU. Encoder runs entirely on NPU (~80ms), decoder runs on NPU with CPU-side token embedding lookup (~230-440ms). Total STT latency 300-534ms for typical phone utterances.
+
+3. **Key technical discoveries:**
+   - Multi-NG HEFs require `create_infer_model(hef_path, name=ng_name)` — the lower-level `VDevice.configure()` returns `HAILO_NOT_IMPLEMENTED`
+   - The `onnx_add_input_base.npy` file (24x512) is NOT positional embeddings — positional embeddings are baked into the HEF. Adding this file to token embeddings corrupts the decoder, causing immediate EOT with 0 tokens transcribed
+   - Wyoming server uses one-shot connections (closes after each transcription) — client must reconnect per request
+   - `hailo_platform` system package must be symlinked into the venv: `ln -s /usr/lib/python3/dist-packages/hailo_platform .venv/lib/python3.13/site-packages/`
+
+4. **Streaming LLM→TTS pipeline tested** — First audio response in ~4-7s with Ollama KV cache warm, vs ~5-10s without streaming.
+
+5. **Phone number readback fixed** — LLM now says each digit individually ("five five five, five six five three") instead of grouping ("five hundred fifty-five").
+
+6. **8 bugs fixed** across three hardware test sessions (see CLAUDE.md for full tables).
+
+**Current state:** System is fully operational with Hailo-accelerated STT. Operator (dial 0) and Jokes tested on hardware. All 44 phone numbers have prompts but only 2 have been hardware tested.
+
+**Next session priorities:**
+- Hardware test more phone numbers (especially features with complex interactions like Trivia, Mad Libs, 20 Questions)
+- DTMF navigation testing (shortcuts, star key, feature switching mid-call)
+- Wire more sound effects (dial tone, busy signal, ring tone, coin deposit)
+- Consider custom game logic for interactive features (scoring, state tracking)
