@@ -22,10 +22,14 @@ from typing import TYPE_CHECKING
 from config.prompts import get_system_prompt
 from config.settings import Settings
 from services.llm import ConversationContext, Message
+import numpy as np
+from numpy.typing import NDArray
+
 from services.vad import VADSessionState
 
 if TYPE_CHECKING:
     from core.audiosocket import AudioSocketProtocol
+    from services.vad import VADModel
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +86,14 @@ class Session:
     # Per-session VAD state for concurrent call support
     # This allows multiple calls to track speech independently
     vad_state: VADSessionState = field(default_factory=VADSessionState)
+
+    # Exclusive VAD model from the pool (acquired at session start, released at teardown)
+    vad_model: "VADModel | None" = None
+
+    # Buffered speech chunks from voice barge-in detection
+    # When barge-in triggers, the audio that triggered it is saved here
+    # so listen_and_transcribe() can pre-load it into its buffer
+    barge_in_audio: list[NDArray[np.float32]] | None = None
 
     # Metrics
     metrics: SessionMetrics = field(default_factory=SessionMetrics)

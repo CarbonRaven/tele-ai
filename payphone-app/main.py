@@ -123,6 +123,7 @@ class PayphoneApplication:
         dialed_extension = protocol.dialed_extension
         logger.info(f"Handling call: {call_id} (extension: {dialed_extension})")
 
+        session = None
         try:
             # Route based on dialed extension
             route_result = None
@@ -136,6 +137,9 @@ class PayphoneApplication:
                 settings=self.settings,
                 dialed_extension=dialed_extension,
             )
+
+            # Acquire exclusive VAD model from pool for this session
+            session.vad_model = await self._vad.acquire_model()
 
             # State machine owns route application and greeting
             state_machine = StateMachine(
@@ -152,6 +156,10 @@ class PayphoneApplication:
         except Exception as e:
             logger.exception(f"Error handling call {call_id}: {e}")
         finally:
+            # Release VAD model back to pool
+            if session is not None and session.vad_model is not None:
+                await self._vad.release_model(session.vad_model)
+                session.vad_model = None
             await protocol.stop()
             logger.info(f"Call completed: {call_id}")
 

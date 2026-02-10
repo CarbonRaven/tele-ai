@@ -62,8 +62,9 @@ class VoicePipeline:
     ) -> tuple[NDArray[np.float32] | None, str | None]:
         """Listen for speech and transcribe it.
 
-        Uses per-session VAD state for concurrent call support.
-        Each call tracks speech/silence independently.
+        Uses the session's exclusive VAD model from the pool for lock-free
+        inference. If barge-in audio was buffered during TTS playback, it is
+        pre-loaded into the audio buffer so the start of the utterance is preserved.
 
         Args:
             session: Current call session.
@@ -75,12 +76,26 @@ class VoicePipeline:
         audio_buffer = AudioBuffer(sample_rate=16000)
 
         # Reset per-session VAD state for new utterance
-        # This uses session-local state, not the global VAD lock
         session.reset_vad_state()
 
         speech_started = False
+
+        # Pre-load barge-in audio if available (preserves start of utterance)
+        if session.barge_in_audio:
+            for chunk in session.barge_in_audio:
+                audio_buffer.add(chunk)
+            speech_started = True
+            logger.debug(
+                f"Pre-loaded {len(session.barge_in_audio)} barge-in chunks "
+                f"(call {session.call_id})"
+            )
+            session.barge_in_audio = None
+
         # Max utterance duration from settings to prevent runaway recordings
         max_duration_samples = self.settings.vad.max_utterance_seconds * 16000
+
+        # Use session's exclusive VAD model if available, else fall back to shared
+        vad_model = session.vad_model
 
         while protocol.is_active and audio_buffer.num_samples < max_duration_samples:
             # Check for barge-in request (user pressed key during playback)
@@ -103,14 +118,19 @@ class VoicePipeline:
                 logger.warning(f"Corrupt audio chunk (call {session.call_id}): {e}")
                 continue
 
-            # Run VAD with per-session state for concurrent call support
-            # The VAD model inference is still serialized by lock, but state
-            # tracking is per-session, allowing overlapped processing
-            vad_result = await self.vad.process_chunk(
-                audio_float,
-                sample_rate=16000,
-                session_state=session.vad_state,
-            )
+            # Run VAD — use session's exclusive model (no lock) if available
+            if vad_model is not None:
+                vad_result = await vad_model.process_chunk(
+                    audio_float,
+                    sample_rate=16000,
+                    session_state=session.vad_state,
+                )
+            else:
+                vad_result = await self.vad.process_chunk(
+                    audio_float,
+                    sample_rate=16000,
+                    session_state=session.vad_state,
+                )
 
             if vad_result.state == SpeechState.SPEECH_START:
                 speech_started = True
@@ -174,20 +194,73 @@ class VoicePipeline:
 
         return response.text
 
-    async def _monitor_dtmf_for_barge_in(self, session: "Session") -> None:
-        """Monitor for DTMF input during speech and trigger barge-in.
+    async def _monitor_barge_in(self, session: "Session") -> None:
+        """Monitor for DTMF and voice input during speech playback.
 
-        The 50ms poll interval provides natural rate-limiting.
+        Runs while TTS audio is being sent. Checks for:
+        1. DTMF keypresses (existing behavior)
+        2. Voice activity via the session's exclusive VAD model
+
+        Voice barge-in uses a higher threshold (barge_in_threshold) to
+        reduce false positives from echo/sidetone. When speech is detected,
+        the triggering audio chunks are buffered in session.barge_in_audio
+        so listen_and_transcribe() can preserve the start of the utterance.
 
         Args:
             session: Current call session.
         """
+        vad_model = session.vad_model
+        voice_barge_in = (
+            self.settings.vad.barge_in_enabled
+            and vad_model is not None
+        )
+        barge_in_threshold = self.settings.vad.barge_in_threshold
+
+        # Local accumulator for pre-trigger audio while speech_samples is building
+        pending_chunks: list[np.ndarray] = []
+
+        # Use a dedicated VAD state for barge-in detection (separate from listen state)
+        barge_in_vad_state = self.vad.create_session_state()
+
         while session.is_speaking and session.is_active:
+            # 1. Check DTMF queue
             if session.protocol.has_dtmf():
                 session.request_barge_in()
                 logger.debug("DTMF detected during speech - requesting barge-in")
                 break
-            await asyncio.sleep(0.05)  # Check every 50ms
+
+            # 2. Check for voice barge-in
+            if voice_barge_in:
+                audio_bytes = await session.protocol.read_audio(timeout=0.05)
+                if audio_bytes is not None:
+                    try:
+                        audio_float = self.audio_processor.process_for_stt(audio_bytes)
+                    except Exception:
+                        continue
+
+                    vad_result = await vad_model.process_chunk(
+                        audio_float,
+                        sample_rate=16000,
+                        session_state=barge_in_vad_state,
+                        threshold_override=barge_in_threshold,
+                    )
+
+                    if vad_result.state == SpeechState.SPEECH_START:
+                        # Speech confirmed — buffer all accumulated chunks + this one
+                        pending_chunks.append(audio_float)
+                        session.barge_in_audio = pending_chunks
+                        session.request_barge_in()
+                        logger.debug("Voice detected during speech - requesting barge-in")
+                        break
+                    elif vad_result.state == SpeechState.SILENCE:
+                        # Not speech — discard any pending accumulation
+                        pending_chunks.clear()
+                    else:
+                        # SPEECH state (pre-trigger accumulation while speech_samples builds)
+                        pending_chunks.append(audio_float)
+            else:
+                # No voice barge-in — just poll at 50ms like the old DTMF-only monitor
+                await asyncio.sleep(0.05)
 
     async def speak(
         self,
@@ -209,13 +282,17 @@ class VoicePipeline:
             return True
 
         session.is_speaking = True
-        dtmf_monitor_task = None
+        session.barge_in_audio = None
+        barge_in_monitor_task = None
+
+        # Reset VAD state for clean barge-in detection
+        session.reset_vad_state()
 
         try:
-            # Start DTMF monitoring if barge-in is enabled
+            # Start barge-in monitoring (DTMF + voice)
             if check_barge_in:
-                dtmf_monitor_task = asyncio.create_task(
-                    self._monitor_dtmf_for_barge_in(session)
+                barge_in_monitor_task = asyncio.create_task(
+                    self._monitor_barge_in(session)
                 )
 
             # Get appropriate voice for current feature/persona
@@ -255,10 +332,10 @@ class VoicePipeline:
 
         finally:
             session.is_speaking = False
-            if dtmf_monitor_task:
-                dtmf_monitor_task.cancel()
+            if barge_in_monitor_task:
+                barge_in_monitor_task.cancel()
                 try:
-                    await dtmf_monitor_task
+                    await barge_in_monitor_task
                 except asyncio.CancelledError:
                     pass
 

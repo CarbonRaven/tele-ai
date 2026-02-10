@@ -72,6 +72,10 @@ class VADSettings(BaseSettings):
     # Maximum utterance duration to prevent runaway recordings
     max_utterance_seconds: int = 30
 
+    # Voice barge-in settings
+    barge_in_enabled: bool = True  # Master switch for voice barge-in
+    barge_in_threshold: float = 0.8  # Higher than normal to reduce echo false positives
+
 
 class STTSettings(BaseSettings):
     """Speech-to-Text configuration.
