@@ -133,7 +133,7 @@ class OllamaClient:
 
             # Verify model is available
             models = await self._client.list()
-            model_names = [m["name"] for m in models.get("models", [])]
+            model_names = [m.model for m in models.models]
 
             # Check if our model (or variant) is available
             model_base = self.settings.model.split(":")[0]
