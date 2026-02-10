@@ -88,12 +88,12 @@ tts_server.py              # Standalone TTS server (for Pi #2 offloading)
 ├── config/
 │   ├── settings.py        # Pydantic Settings v2 with env var support
 │   ├── phone_directory.py # 44 phone numbers → features/personas (TypedDict entries)
-│   └── prompts.py         # LLM system prompts (35 features, 9 personas)
+│   └── prompts.py         # LLM system prompts (35 features, 9 personas, conditional directory)
 ├── core/
 │   ├── audiosocket.py     # Asterisk AudioSocket protocol handler
 │   ├── audio_processor.py # Sample rate conversion, telephone filter
 │   ├── phone_router.py    # Number dialed → feature routing, DTMF shortcuts
-│   ├── pipeline.py        # VAD → STT → LLM → TTS orchestration
+│   ├── pipeline.py        # VAD → STT → LLM → TTS orchestration (streaming + sequential)
 │   ├── session.py         # Per-call state (VAD model, barge-in audio buffer)
 │   └── state_machine.py   # Conversation flow control
 ├── services/
@@ -126,18 +126,23 @@ tts_server.py              # Standalone TTS server (for Pi #2 offloading)
 | Sentence Buffer | `services/llm.py` | Regex-based streaming TTS chunking |
 | Audio Buffer | `core/audio_processor.py` | Memory-bounded sample accumulation |
 | VAD Model Pool | `services/vad.py` | `VADModelPool` gives each session an exclusive `VADModel` — no lock contention |
-| Voice Barge-In | `core/pipeline.py` | `_monitor_barge_in()` runs VAD on incoming audio during TTS playback |
+| Voice Barge-In | `core/pipeline.py` | `_monitor_barge_in()` runs VAD on incoming audio during TTS playback (both `speak()` and `speak_streaming()`) |
+| Streaming LLM→TTS | `core/pipeline.py` | `generate_and_speak_streaming()` overlaps token generation with TTS synthesis via producer-consumer pattern |
+| Conditional Prompts | `config/prompts.py` | `PHONE_DIRECTORY_BLOCK` only included for operator feature (~100 token savings) |
 | SIT Tri-tone | `core/state_machine.py` | Plays `sit_intercept.wav` before "not in service" TTS |
 
 ### Performance Optimizations
 
+- **Streaming LLM→TTS pipeline**: `generate_and_speak_streaming()` overlaps LLM token generation with TTS synthesis — first sentence plays while LLM is still generating, reducing perceived latency from ~5-10s to ~2-3s. Toggle via `LLM_STREAMING_ENABLED` env var with sequential fallback.
+- **Conditional prompt inclusion**: Phone directory block (~100 tokens) only included for operator feature, not for jokes/trivia/personas — reduces LLM prompt processing time
 - **Wyoming binary protocol**: Audio sent as binary frames (not base64) for 33% less overhead
 - **Exponential backoff**: Wyoming reconnection with 0.5s → 4s backoff
 - **VAD model pool**: 3 pre-loaded models via `asyncio.Queue` — each session gets exclusive access, no lock on hot path
-- **Voice barge-in**: Detects speech during TTS playback (threshold 0.8), buffers triggering audio for seamless handoff to STT
+- **Voice barge-in**: Detects speech during TTS playback (threshold 0.8), buffers triggering audio for seamless handoff to STT. Works in both `speak()` and `speak_streaming()` paths.
 - **Thread-safe VAD**: Legacy `reset_async()` acquires lock for single-model path (backwards compat)
 - **Streaming timeout**: LLM protected against indefinite hangs
 - **Dynamic pacing**: Audio playback paced by actual chunk duration
+- **Mid-sentence interrupt**: `_send_sentence()` passes `should_stop` callback to `send_audio()` for immediate barge-in response during streaming playback
 - **O(n) string building**: LLM streaming uses list + join instead of O(n²) concatenation
 - **Incremental sentence detection**: Regex searches only new content, not entire buffer
 - **Pre-allocated audio arrays**: Streaming STT uses doubling strategy for O(n) total copies
@@ -180,14 +185,13 @@ End-to-end pipeline verified: Payphone → HT801 → Asterisk → AudioSocket �
 | Moonshine STT `AttributeError` | Moonshine preprocessor returns `input_values`, not `input_features` (Whisper-style) | Fixed key in `stt.py` |
 | `.env` settings ignored | Pydantic sub-settings classes didn't load `.env` file | Added `env_file=".env"` + `extra="ignore"` to all `SettingsConfigDict` |
 | LLM timeout / empty responses | qwen3:4b spends all tokens on thinking mode, ~3.3 tok/s on Pi CPU | Switched to llama3.2:3b (~6 tok/s, no thinking mode) |
-| LLM doesn't know phone directory | No directory data in system prompt | Added 15 key numbers to `BASE_SYSTEM_PROMPT` |
+| LLM doesn't know phone directory | No directory data in system prompt | Added 15 key numbers as `PHONE_DIRECTORY_BLOCK` (included for operator only) |
 | HT801 config not saving | "Account Active" must be enabled first | Documented gotcha in SETUP.md |
 
 ### Known Limitations
 
-- **LLM response latency ~5-10s**: llama3.2:3b runs at ~6 tok/s on Pi 5 CPU. Switching to streaming LLM → TTS would improve perceived latency.
+- **LLM response latency ~2-3s (streaming)**: With streaming LLM→TTS enabled (default), first sentence plays while LLM generates the rest. Raw LLM speed is still ~6 tok/s on Pi 5 CPU.
 - **Moonshine STT on CPU**: Currently using `moonshine-tiny` on CPU. Hailo-accelerated Whisper via Wyoming not yet configured.
-- **Non-streaming LLM**: Pipeline uses `generate()` not `generate_streaming()`. Streaming would allow TTS to start speaking before the full response is generated.
 
 ## Infrastructure Status
 
