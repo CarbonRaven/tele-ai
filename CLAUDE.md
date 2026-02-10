@@ -223,24 +223,38 @@ Audio (16kHz PCM) → Mel Spectrogram (CPU) → Encoder (Hailo NPU) → Decoder 
 - Mel spectrogram computed with pure numpy (no torch dependency)
 - Inference serialized via asyncio.Lock for NPU access
 
-**Model files** (in `models/` directory, download with `scripts/download_hailo_models.py`):
-- `{variant}-whisper-encoder-10s.hef` — encoder HEF for Hailo NPU
-- `{variant}-whisper-decoder-fixed-sequence.hef` — decoder HEF for Hailo NPU
-- `token_embedding_weight_{variant}.npy` — CPU-side vocab embeddings (51865 x 384)
-- `onnx_add_input_{variant}.npy` — CPU-side positional embeddings
+**Model files**:
+- `Whisper-Base.hef` — single HEF with encoder + decoder network groups (131 MB, from `hailo-apps`)
+  - Located at `/usr/local/hailo/resources/models/hailo10h/Whisper-Base.hef`
+  - Encoder: `base-whisper-encoder-10s` (1,1000,80) → (1,500,512)
+  - Decoder: `base-whisper-decoder-10s-out-seq-64` (1,500,512)+(1,64,512) → 4 split outputs → (1,64,51865)
+- `token_embedding_weight_base.npy` — CPU-side vocab embeddings (51865, 512), in `models/`
+- `onnx_add_input_base.npy` — CPU-side positional embeddings (24, 512), in `models/`
 
-**Deployment**:
+**HailoRT API pattern**: Multi-NG HEFs require `create_infer_model(hef_path, name=ng_name)` to select individual network groups. `VDevice.configure(hef)` returns `HAILO_NOT_IMPLEMENTED`.
+
+**Deployment** (already done on Pi #1):
 ```bash
-python scripts/download_hailo_models.py --variant tiny
+# Download NPY embeddings
+python scripts/download_hailo_models.py --variant base
+# HEF obtained via hailo-apps: hailo-download-resources --arch hailo10h
 sudo cp wyoming-whisper.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now wyoming-whisper
+# Symlink hailo_platform into venv:
+ln -s /usr/lib/python3/dist-packages/hailo_platform .venv/lib/python3.13/site-packages/
 ```
+
+**Performance** (measured on Pi 5 + Hailo-10H):
+- Encoder: ~70ms on NPU
+- Decoder: ~213ms per step on NPU (2 tokens for empty/short, up to 64 steps)
+- Total for silence: ~280ms
 
 The app auto-detects the Wyoming server at localhost:10300 when `STT_BACKEND=auto` or `STT_BACKEND=hailo`.
 
 ### Known Limitations
 
-- **Moonshine STT on CPU**: Currently using `moonshine-tiny` on CPU. Wyoming Hailo Whisper server implemented but pending hardware deployment (model download + systemd setup on Pi #1).
+- **Hailo Whisper positional embeddings**: The official base NPY positional embeddings are 24 tokens (vs 64-token decoder sequence). Transcriptions >24 tokens may degrade. Adequate for typical phone utterances.
+- **Whisper-Base only**: Only Whisper-Base HEF is available from `hailo-apps` for Hailo-10H. Tiny model would require DFC compilation.
 
 ## Infrastructure Status
 
@@ -250,10 +264,11 @@ Both Pis run Debian Trixie (13.3) aarch64 with kernel 6.12.62+rpt-rpi-2712.
 
 | Service | Version | Status | Notes |
 |---------|---------|--------|-------|
-| Hailo-10H NPU | FW 5.1.1, driver `hailo1x_pci` | `/dev/hailo0` present | `hailo-h10-all` package, Wyoming Whisper server ready for deployment |
+| Hailo-10H NPU | FW 5.1.1, driver `hailo1x_pci` | `/dev/hailo0` active | `hailo-h10-all` package, Whisper-Base HEF running |
+| Wyoming Whisper | Whisper-Base via Hailo-10H | Running (systemd) :10300 | Encoder 69ms, decoder 213ms on NPU |
 | Asterisk | 22.8.2 | Running (systemd) | Built from source, PJSIP + AudioSocket configured |
 | AudioSocket | `res_audiosocket.so` + `app_` + `chan_` | 3 modules loaded | Working end-to-end with voice pipeline |
-| Payphone App | Python 3.13 | Running (systemd) | VAD pool (3), Moonshine STT, Kokoro TTS |
+| Payphone App | Python 3.13 | Running (systemd) | VAD pool (3), Hailo Whisper STT via Wyoming, Kokoro TTS |
 | HT801 ATA | v2, 10.10.10.12 | Registered (NonQual) | PJSIP endpoint, ulaw, RFC4733 DTMF |
 
 ### Pi #2 (pi-ollama) — 10.10.10.11
