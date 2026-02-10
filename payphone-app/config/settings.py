@@ -164,6 +164,9 @@ class LLMSettings(BaseSettings):
     first_token_timeout: float = 15.0  # Timeout for first token
     inter_token_timeout: float = 5.0  # Timeout between subsequent tokens
 
+    # Streaming: overlap LLM generation with TTS for lower perceived latency
+    streaming_enabled: bool = True
+
     # Keep model loaded (prevent unloading between calls)
     keep_alive: str = "24h"
 

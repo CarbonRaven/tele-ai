@@ -46,6 +46,7 @@ class SessionMetrics:
     llm_calls: int = 0
     tts_calls: int = 0
     dtmf_digits: int = 0
+    first_sentence_latency_ms: float | None = None
     features_used: list[str] = field(default_factory=list)
 
     @property

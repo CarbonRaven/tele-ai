@@ -352,14 +352,26 @@ class StateMachine:
             self.transition_to(State.GOODBYE, "user_goodbye")
             return
 
-        # Generate LLM response
+        # Generate LLM response and speak it
         self.session.metrics.llm_calls += 1
-        response = await pipeline.generate_response(self.session, transcript)
-
-        # Speak response
-        self.transition_to(State.SPEAKING, "response_ready")
         self.session.metrics.tts_calls += 1
-        await pipeline.speak(self.session, response)
+
+        if self.session.settings.llm.streaming_enabled:
+            # Streaming: overlap LLM generation with TTS for lower latency
+            self.transition_to(State.SPEAKING, "streaming_response")
+            full_response, completed = await pipeline.generate_and_speak_streaming(
+                self.session, transcript
+            )
+            logger.info(
+                f"Streamed response: '{full_response[:80]}...'"
+                if len(full_response) > 80
+                else f"Streamed response: '{full_response}'"
+            )
+        else:
+            # Sequential: generate full response, then speak
+            response = await pipeline.generate_response(self.session, transcript)
+            self.transition_to(State.SPEAKING, "response_ready")
+            await pipeline.speak(self.session, response)
 
         # Check for barge-in during speech
         if self.session.barge_in_requested:

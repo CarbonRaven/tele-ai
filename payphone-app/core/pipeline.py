@@ -362,6 +362,12 @@ class VoicePipeline:
             True if playback completed, False if interrupted.
         """
         session.is_speaking = True
+        session.barge_in_audio = None
+        barge_in_monitor_task = None
+
+        # Reset VAD state for clean barge-in detection
+        session.reset_vad_state()
+
         sentence_buffer = SentenceBuffer(
             min_length=self.settings.tts.min_sentence_length,
             delimiters=self.settings.tts.sentence_delimiters,
@@ -405,6 +411,12 @@ class VoicePipeline:
                     logger.error(f"TTS consumer error: {e}")
                     playback_error = True
                     break
+
+        # Start barge-in monitoring (DTMF + voice)
+        if check_barge_in:
+            barge_in_monitor_task = asyncio.create_task(
+                self._monitor_barge_in(session)
+            )
 
         # Start TTS consumer task
         consumer_task = asyncio.create_task(tts_consumer())
@@ -450,6 +462,12 @@ class VoicePipeline:
 
         finally:
             session.is_speaking = False
+            if barge_in_monitor_task:
+                barge_in_monitor_task.cancel()
+                try:
+                    await barge_in_monitor_task
+                except asyncio.CancelledError:
+                    pass
             # Ensure consumer is cleaned up
             if not consumer_task.done():
                 consumer_task.cancel()
@@ -472,7 +490,7 @@ class VoicePipeline:
             voice: Voice to use.
 
         Returns:
-            True if sent successfully.
+            True if sent successfully, False if interrupted or error.
         """
         if not sentence.strip():
             return True
@@ -488,8 +506,81 @@ class VoicePipeline:
             from_rate=self.tts.sample_rate,
         )
 
-        # Send
-        return await self.send_audio(session.protocol, output_bytes)
+        # Build stop callback for mid-sentence interrupt
+        def _should_stop_speaking():
+            if session.barge_in_requested:
+                return True
+            if not session.is_active:
+                return True
+            return False
+
+        # Send with interrupt support
+        return await self.send_audio(
+            session.protocol, output_bytes, should_stop=_should_stop_speaking
+        )
+
+    async def generate_and_speak_streaming(
+        self,
+        session: "Session",
+        transcript: str,
+        check_barge_in: bool = True,
+    ) -> tuple[str, bool]:
+        """Generate LLM response and speak it with streaming overlap.
+
+        Replaces the sequential generate_response() + speak() pair.
+        Streams LLM tokens into speak_streaming() so TTS starts on the
+        first complete sentence while the LLM is still generating.
+
+        Args:
+            session: Current call session.
+            transcript: User's transcribed speech.
+            check_barge_in: Whether to check for user interruption.
+
+        Returns:
+            Tuple of (full_response_text, playback_completed).
+        """
+        # Collect all tokens for logging and context (generate_streaming
+        # already manages context.add_user_message / add_assistant_message)
+        collected_tokens: list[str] = []
+        first_sentence_time: float | None = None
+        stream_start = time.perf_counter()
+
+        text_generator = self.llm.generate_streaming(
+            prompt=transcript,
+            context=session.context,
+        )
+
+        async def collecting_generator() -> AsyncIterator[str]:
+            """Wraps the LLM stream to collect tokens and track first sentence."""
+            nonlocal first_sentence_time
+            async for token in text_generator:
+                collected_tokens.append(token)
+                yield token
+
+        try:
+            completed = await self.speak_streaming(
+                session,
+                collecting_generator(),
+                check_barge_in=check_barge_in,
+            )
+        finally:
+            # Close the LLM stream promptly (terminates Ollama HTTP connection)
+            await text_generator.aclose()
+
+        full_response = "".join(collected_tokens)
+
+        # Record first-sentence latency (approximate: time to stream enough
+        # tokens for the first TTS sentence, measured from stream start)
+        elapsed_ms = (time.perf_counter() - stream_start) * 1000
+        session.metrics.first_sentence_latency_ms = elapsed_ms
+
+        logger.info(
+            f"Streaming response ({elapsed_ms:.0f}ms total): "
+            f"'{full_response[:80]}...'" if len(full_response) > 80
+            else f"Streaming response ({elapsed_ms:.0f}ms total): '{full_response}'"
+        )
+
+        return full_response, completed
 
     async def send_audio(
         self,

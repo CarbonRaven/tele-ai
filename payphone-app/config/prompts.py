@@ -2,6 +2,7 @@
 
 __all__ = [
     "BASE_SYSTEM_PROMPT",
+    "PHONE_DIRECTORY_BLOCK",
     "FEATURE_PROMPTS",
     "PERSONA_PROMPTS",
     "get_system_prompt",
@@ -21,7 +22,11 @@ IMPORTANT RULES (never violate these):
 - Avoid special characters, bullet points, or formatting
 - Respond directly and concisely
 
-PHONE DIRECTORY (tell callers these numbers when asked):
+Press star at any time to return to the main menu."""
+
+# Phone directory block — only included for the operator persona to save ~100 tokens
+# on non-operator LLM calls where callers don't need directory assistance.
+PHONE_DIRECTORY_BLOCK = """PHONE DIRECTORY (tell callers these numbers when asked):
 - 555-0000: Operator
 - 555-5653: Dial-A-Joke
 - 555-8748: Trivia Challenge
@@ -36,9 +41,7 @@ PHONE DIRECTORY (tell callers these numbers when asked):
 - 555-8477: Nintendo Tip Line
 - 767-2676: Time & Temperature
 - 777-3456: Moviefone
-- 867-5309: Jenny
-
-Press star at any time to return to the main menu."""
+- 867-5309: Jenny"""
 
 # Operator persona - default conversational AI
 OPERATOR_PROMPT = """You are a friendly telephone operator from the 1990s.
@@ -831,6 +834,11 @@ def get_system_prompt(feature: str | None = None, persona: str | None = None) ->
         Combined system prompt with base rules and feature/persona specific content.
     """
     prompt_parts = [BASE_SYSTEM_PROMPT]
+
+    # Include phone directory only for the operator (the only persona that
+    # directs callers to other numbers). Saves ~100 tokens for other features.
+    if feature in (None, "operator") and persona is None:
+        prompt_parts.append(PHONE_DIRECTORY_BLOCK)
 
     if persona and persona in PERSONA_PROMPTS:
         prompt_parts.append(PERSONA_PROMPTS[persona])
