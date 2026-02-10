@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """Download Hailo Whisper model files for Hailo-10H NPU.
 
-Downloads pre-compiled HEF files and CPU-side embedding arrays needed
-by the Wyoming Hailo Whisper server (services/wyoming_whisper_server.py).
+Downloads CPU-side embedding arrays from Hailo's public S3 bucket and
+checks for HEF files needed by the Wyoming Whisper server.
 
-Files downloaded per variant:
+Files needed per variant:
     - {variant}-whisper-encoder-10s.hef      (encoder for Hailo NPU)
     - {variant}-whisper-decoder-fixed-sequence.hef  (decoder for Hailo NPU)
     - token_embedding_weight_{variant}.npy   (CPU-side vocab embeddings)
     - onnx_add_input_{variant}.npy           (CPU-side positional embeddings)
 
-Source: Hailo Application Code Examples
-    https://github.com/hailo-ai/Hailo-Application-Code-Examples
+NPY embedding files are publicly downloadable from Hailo's S3 bucket.
+HEF files require one of:
+    1. hailo-apps package: hailo-download-resources --group whisper_chat --arch hailo10h
+    2. Hailo Developer Zone: https://hailo.ai/developer-zone/ (free account)
+    3. Manual compilation with Hailo DFC v5.x Docker (see plan docs)
 
 Usage:
     python scripts/download_hailo_models.py                    # tiny (default)
@@ -21,6 +24,8 @@ Usage:
 
 import argparse
 import hashlib
+import shutil
+import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -29,19 +34,9 @@ from pathlib import Path
 # Base URL for Hailo's public S3 bucket
 S3_BASE = "https://hailo-csdata.s3.eu-west-2.amazonaws.com/resources"
 
-# Download manifest: (variant, filename, relative S3 path)
-# NPY files are confirmed available. HEF files follow the same S3 convention
-# used by Hailo-Application-Code-Examples/download_resources.py.
-MODELS = {
+# NPY embedding files — publicly downloadable from Hailo S3
+NPY_FILES = {
     "tiny": {
-        "encoder_hef": {
-            "filename": "tiny-whisper-encoder-10s.hef",
-            "url": f"{S3_BASE}/hefs/h10h/tiny/tiny-whisper-encoder-10s.hef",
-        },
-        "decoder_hef": {
-            "filename": "tiny-whisper-decoder-fixed-sequence.hef",
-            "url": f"{S3_BASE}/hefs/h10h/tiny/tiny-whisper-decoder-fixed-sequence.hef",
-        },
         "token_embeddings": {
             "filename": "token_embedding_weight_tiny.npy",
             "url": f"{S3_BASE}/npy%20files/whisper/decoder_assets/tiny/decoder_tokenization/token_embedding_weight_tiny.npy",
@@ -52,14 +47,6 @@ MODELS = {
         },
     },
     "tiny.en": {
-        "encoder_hef": {
-            "filename": "tiny.en-whisper-encoder-10s.hef",
-            "url": f"{S3_BASE}/hefs/h10h/tiny.en/tiny_en-whisper-encoder-10s.hef",
-        },
-        "decoder_hef": {
-            "filename": "tiny.en-whisper-decoder-fixed-sequence.hef",
-            "url": f"{S3_BASE}/hefs/h10h/tiny.en/tiny_en-whisper-decoder-fixed-sequence.hef",
-        },
         "token_embeddings": {
             "filename": "token_embedding_weight_tiny.en.npy",
             "url": f"{S3_BASE}/npy%20files/whisper/decoder_assets/tiny.en/decoder_tokenization/token_embedding_weight_tiny.en.npy",
@@ -70,14 +57,6 @@ MODELS = {
         },
     },
     "base": {
-        "encoder_hef": {
-            "filename": "base-whisper-encoder-10s.hef",
-            "url": f"{S3_BASE}/hefs/h10h/base/base-whisper-encoder-10s.hef",
-        },
-        "decoder_hef": {
-            "filename": "base-whisper-decoder-10s-out-seq-64.hef",
-            "url": f"{S3_BASE}/hefs/h10h/base/base-whisper-decoder-10s-out-seq-64.hef",
-        },
         "token_embeddings": {
             "filename": "token_embedding_weight_base.npy",
             "url": f"{S3_BASE}/npy%20files/whisper/decoder_assets/base/decoder_tokenization/token_embedding_weight_base.npy",
@@ -89,9 +68,23 @@ MODELS = {
     },
 }
 
-# Note: base model uses "decoder-10s-out-seq-64" (64-token output) instead of
-# "decoder-fixed-sequence" (32-token). The Wyoming server discovers seq_len
-# from the HEF at runtime, so this works automatically.
+# HEF files — NOT publicly downloadable. Must be obtained separately.
+# These are the expected filenames the Wyoming server looks for.
+HEF_FILES = {
+    "tiny": {
+        "encoder_hef": "tiny-whisper-encoder-10s.hef",
+        "decoder_hef": "tiny-whisper-decoder-fixed-sequence.hef",
+    },
+    "tiny.en": {
+        "encoder_hef": "tiny.en-whisper-encoder-10s.hef",
+        "decoder_hef": "tiny.en-whisper-decoder-fixed-sequence.hef",
+    },
+    "base": {
+        "encoder_hef": "base-whisper-encoder-10s.hef",
+        # Base model uses 64-token output sequence
+        "decoder_hef": "base-whisper-decoder-10s-out-seq-64.hef",
+    },
+}
 
 
 def download_file(url: str, dest: Path, desc: str) -> bool:
@@ -140,17 +133,44 @@ def download_file(url: str, dest: Path, desc: str) -> bool:
 
     except urllib.error.HTTPError as e:
         print(f"\r    FAILED — HTTP {e.code}: {e.reason}")
-        if e.code == 404:
-            print(
-                "    This file may not be available from S3. See README for\n"
-                "    alternative: compile HEF from ONNX using Hailo DFC Docker."
-            )
         return False
     except urllib.error.URLError as e:
         print(f"\r    FAILED — {e.reason}")
         return False
     except Exception as e:
         print(f"\r    FAILED — {e}")
+        return False
+
+
+def try_hailo_download_resources(variant: str, output_dir: Path) -> bool:
+    """Try downloading HEFs via hailo-download-resources CLI.
+
+    Returns True if the command exists and succeeds.
+    """
+    if not shutil.which("hailo-download-resources"):
+        return False
+
+    print("  [hailo-download-resources] Found! Attempting HEF download...")
+    try:
+        result = subprocess.run(
+            [
+                "hailo-download-resources",
+                "--group", "whisper_chat",
+                "--arch", "hailo10h",
+                "--output-dir", str(output_dir),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        if result.returncode == 0:
+            print("    OK — HEFs downloaded via hailo-download-resources")
+            return True
+        else:
+            print(f"    Failed: {result.stderr.strip()[:200]}")
+            return False
+    except Exception as e:
+        print(f"    Failed: {e}")
         return False
 
 
@@ -162,7 +182,7 @@ def main() -> None:
         "--variant",
         type=str,
         default="tiny",
-        choices=list(MODELS.keys()),
+        choices=list(NPY_FILES.keys()),
         help="Whisper model variant (default: tiny)",
     )
     parser.add_argument(
@@ -176,53 +196,67 @@ def main() -> None:
     variant = args.variant
     output_dir = args.output_dir
 
-    if variant not in MODELS:
-        print(f"Unknown variant: {variant}")
-        print(f"Available: {', '.join(MODELS.keys())}")
-        sys.exit(1)
-
     print(f"Downloading Hailo Whisper models (variant={variant})")
     print(f"Output directory: {output_dir}")
-    print()
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    files = MODELS[variant]
-    success = 0
-    failed = 0
-
-    for key, info in files.items():
+    # --- Step 1: Download NPY embedding files (public S3) ---
+    print()
+    print("Step 1: Downloading NPY embedding files...")
+    npy_ok = 0
+    npy_fail = 0
+    for key, info in NPY_FILES[variant].items():
         dest = output_dir / info["filename"]
         desc = f"{key} ({info['filename']})"
         if download_file(info["url"], dest, desc):
-            success += 1
+            npy_ok += 1
         else:
-            failed += 1
+            npy_fail += 1
 
+    # --- Step 2: Check / obtain HEF files ---
     print()
-    print(f"Done: {success} downloaded, {failed} failed")
-
-    if failed > 0:
-        print()
-        print("Some files failed to download. Options:")
-        print("  1. Re-run this script to retry")
-        print("  2. Download manually from Hailo Developer Zone:")
-        print("     https://hailo.ai/developer-zone/software-downloads/")
-        print("  3. Compile HEF files from ONNX using Hailo DFC Docker:")
-        print("     See the plan in the project docs for DFC compilation steps")
-        sys.exit(1)
-
-    # Verify files
-    print()
-    print("Verifying downloaded files...")
-    all_ok = True
-    for key, info in files.items():
-        path = output_dir / info["filename"]
+    print("Step 2: Checking HEF model files...")
+    hef_filenames = HEF_FILES[variant]
+    hefs_present = True
+    for key, filename in hef_filenames.items():
+        path = output_dir / filename
         if path.exists():
             size_mb = path.stat().st_size / (1024 * 1024)
-            print(f"  OK  {info['filename']} ({size_mb:.1f} MB)")
+            print(f"  [skip] {key} — already exists ({filename}, {size_mb:.1f} MB)")
         else:
-            print(f"  MISSING  {info['filename']}")
+            hefs_present = False
+            print(f"  [missing] {key} ({filename})")
+
+    if not hefs_present:
+        # Try hailo-download-resources first
+        print()
+        if try_hailo_download_resources(variant, output_dir):
+            # Re-check
+            hefs_present = all(
+                (output_dir / fn).exists() for fn in hef_filenames.values()
+            )
+
+    # --- Summary ---
+    print()
+    print("=" * 60)
+    print("Summary")
+    print("=" * 60)
+
+    all_files = {}
+    for key, info in NPY_FILES[variant].items():
+        all_files[info["filename"]] = key
+    for key, filename in hef_filenames.items():
+        all_files[filename] = key
+
+    all_ok = True
+    for filename, key in all_files.items():
+        path = output_dir / filename
+        if path.exists():
+            size_mb = path.stat().st_size / (1024 * 1024)
+            print(f"  OK      {filename} ({size_mb:.1f} MB)")
+        else:
+            print(f"  MISSING {filename}")
             all_ok = False
 
     if all_ok:
@@ -230,6 +264,29 @@ def main() -> None:
         print("All model files ready. Start the Wyoming server:")
         print(f"  python services/wyoming_whisper_server.py --model-dir {output_dir}")
     else:
+        print()
+        if not hefs_present:
+            print("HEF files are missing. To obtain them:")
+            print()
+            print("  Option A — On Pi with hailo-apps installed:")
+            print("    pip install hailo-apps-infra")
+            print("    hailo-download-resources --group whisper_chat --arch hailo10h")
+            print(f"    cp /path/to/downloaded/*.hef {output_dir}/")
+            print()
+            print("  Option B — Hailo Developer Zone (free account):")
+            print("    https://hailo.ai/developer-zone/software-downloads/")
+            print("    Download Whisper HEFs for Hailo-10H, then copy to models/")
+            print()
+            print("  Option C — Compile from ONNX with Hailo DFC v5.x Docker:")
+            print("    git clone https://github.com/hailocs/hailo-whisper.git")
+            print("    See project plan docs for full compilation steps")
+            print()
+            print(f"  Expected filenames in {output_dir}/:")
+            for filename in hef_filenames.values():
+                print(f"    {filename}")
+        if npy_fail > 0:
+            print()
+            print("Some NPY downloads failed. Re-run this script to retry.")
         sys.exit(1)
 
 
