@@ -12,12 +12,18 @@ The encoder runs entirely on the Hailo-10H NPU. The decoder runs on the
 NPU with CPU-side token embedding lookup (large vocab table indexing
 cannot be compiled into the HEF).
 
+The official Hailo Whisper-Base HEF bundles encoder and decoder as two
+network groups in a single file. This server discovers the network groups
+and their I/O shapes at runtime.
+
 Wyoming protocol events:
     Receive: audio-start, audio-chunk (binary payload), audio-stop
     Send: transcript (with text in data)
 
 Usage:
-    python services/wyoming_whisper_server.py --model-dir ../models --port 10300
+    python services/wyoming_whisper_server.py \\
+        --hef /usr/local/hailo/resources/models/hailo10h/Whisper-Base.hef \\
+        --model-dir ../models --port 10300
 
 Dependencies (Pi #1):
     - hailo_platform (system package: python3-h10-hailort 5.1.1)
@@ -169,25 +175,28 @@ class MelSpectrogram:
 class HailoWhisperEngine:
     """Whisper inference using Hailo-10H NPU.
 
-    Loads encoder and decoder HEF files, plus CPU-side embedding arrays.
-    The encoder runs entirely on the NPU. The decoder runs on the NPU
-    with CPU-side token embedding lookup.
+    Supports the official Hailo Whisper-Base HEF which bundles encoder and
+    decoder as two network groups in a single file:
+        - base-whisper-encoder-10s: (1, 1000, 80) -> (1, 500, 512)
+        - base-whisper-decoder-10s-out-seq-64: (1, 500, 512) + (1, 64, 512) -> logits
 
-    Required files in model_dir:
-        - {variant}-whisper-encoder-10s.hef
-        - {variant}-whisper-decoder-fixed-sequence.hef
-        - token_embedding_weight_{variant}.npy
-        - onnx_add_input_{variant}.npy
+    Also requires CPU-side embedding arrays:
+        - token_embedding_weight_{variant}.npy  (vocab_size, d_model)
+        - onnx_add_input_{variant}.npy          (max_seq_len, d_model)
     """
 
-    def __init__(self, model_dir: Path, variant: str = "tiny"):
+    def __init__(
+        self,
+        hef_path: Path,
+        model_dir: Path,
+        variant: str = "base",
+    ):
+        self.hef_path = Path(hef_path)
         self.model_dir = Path(model_dir)
         self.variant = variant
         self._mel = MelSpectrogram()
 
-        # Paths
-        self._encoder_hef_path = self.model_dir / f"{variant}-whisper-encoder-10s.hef"
-        self._decoder_hef_path = self.model_dir / f"{variant}-whisper-decoder-fixed-sequence.hef"
+        # CPU-side embedding paths
         self._token_embed_path = self.model_dir / f"token_embedding_weight_{variant}.npy"
         self._pos_embed_path = self.model_dir / f"onnx_add_input_{variant}.npy"
 
@@ -203,23 +212,28 @@ class HailoWhisperEngine:
         self._decoder_seq_len: int = 0
         self._decoder_input_names: list[str] = []
         self._decoder_output_names: list[str] = []
+        self._encoder_input_name: str = ""
+        self._encoder_output_name: str = ""
         self._encoder_input_shape: tuple = ()
         self._encoder_output_shape: tuple = ()
         self._inference_lock = asyncio.Lock()
 
     def initialize(self) -> None:
         """Load models and prepare for inference. Call once at startup."""
-        # Validate all required files exist
-        for path in [
-            self._encoder_hef_path,
-            self._decoder_hef_path,
-            self._token_embed_path,
-            self._pos_embed_path,
-        ]:
+        # Validate files exist
+        if not self.hef_path.exists():
+            raise FileNotFoundError(
+                f"HEF file not found: {self.hef_path}\n"
+                "Download with: hailo-download-resources --arch hailo10h "
+                "--group whisper_chat --include-gen-ai --resource-name "
+                "Whisper-Base --resource-type model"
+            )
+        for path in [self._token_embed_path, self._pos_embed_path]:
             if not path.exists():
                 raise FileNotFoundError(
-                    f"Required model file not found: {path}\n"
-                    f"Run scripts/download_hailo_models.py to download models."
+                    f"Embedding file not found: {path}\n"
+                    "Run: python scripts/download_hailo_models.py --variant "
+                    f"{self.variant}"
                 )
 
         # Load CPU-side embedding arrays
@@ -252,6 +266,35 @@ class HailoWhisperEngine:
                 "system package on Pi #1 with AI HAT+ 2."
             )
 
+        # Inspect HEF to discover network groups
+        hef = HEF(str(self.hef_path))
+        ng_names = hef.get_network_group_names()
+        logger.info(f"HEF network groups: {ng_names}")
+
+        # Identify encoder and decoder network groups
+        encoder_ng = None
+        decoder_ng = None
+        for name in ng_names:
+            if "encoder" in name.lower():
+                encoder_ng = name
+            elif "decoder" in name.lower():
+                decoder_ng = name
+
+        if not encoder_ng or not decoder_ng:
+            raise RuntimeError(
+                f"Could not identify encoder/decoder in HEF network groups: "
+                f"{ng_names}. Expected names containing 'encoder' and 'decoder'."
+            )
+
+        # Log all I/O shapes for debugging
+        for ng_name in [encoder_ng, decoder_ng]:
+            inputs = hef.get_input_vstream_infos(ng_name)
+            outputs = hef.get_output_vstream_infos(ng_name)
+            for info in inputs:
+                logger.info(f"  {ng_name} input:  {info.name} shape={info.shape}")
+            for info in outputs:
+                logger.info(f"  {ng_name} output: {info.name} shape={info.shape}")
+
         # Create VDevice (Hailo NPU handle)
         params = VDevice.create_params()
         params.scheduling_algorithm = HailoSchedulingAlgorithm.ROUND_ROBIN
@@ -259,41 +302,44 @@ class HailoWhisperEngine:
         logger.info("Hailo VDevice created")
 
         # --- Encoder setup ---
+        # For multi-network-group HEFs, create_infer_model takes the HEF path
+        # and we select the network group by name
         self._encoder_model = self._vdevice.create_infer_model(
-            str(self._encoder_hef_path)
+            str(self.hef_path)
         )
-        self._encoder_model.input().set_format_type(FormatType.FLOAT32)
-        self._encoder_model.output().set_format_type(FormatType.FLOAT32)
+        # Get encoder I/O names (with network group prefix)
+        enc_inputs = hef.get_input_vstream_infos(encoder_ng)
+        enc_outputs = hef.get_output_vstream_infos(encoder_ng)
+        self._encoder_input_name = enc_inputs[0].name
+        self._encoder_output_name = enc_outputs[0].name
+
+        self._encoder_model.input(self._encoder_input_name).set_format_type(
+            FormatType.FLOAT32
+        )
+        self._encoder_model.output(self._encoder_output_name).set_format_type(
+            FormatType.FLOAT32
+        )
         self._encoder_configured = self._encoder_model.configure()
 
-        self._encoder_input_shape = tuple(self._encoder_model.input().shape)
-        self._encoder_output_shape = tuple(self._encoder_model.output().shape)
+        self._encoder_input_shape = tuple(enc_inputs[0].shape)
+        self._encoder_output_shape = tuple(enc_outputs[0].shape)
         logger.info(
-            f"Encoder loaded: input={self._encoder_input_shape}, "
+            f"Encoder ready: input={self._encoder_input_shape}, "
             f"output={self._encoder_output_shape}"
         )
 
         # --- Decoder setup ---
-        decoder_hef = HEF(str(self._decoder_hef_path))
         self._decoder_model = self._vdevice.create_infer_model(
-            str(self._decoder_hef_path)
+            str(self.hef_path)
         )
 
-        # Discover input/output names from HEF
-        input_infos = decoder_hef.get_input_vstream_infos()
-        output_infos = decoder_hef.get_output_vstream_infos()
+        dec_inputs = hef.get_input_vstream_infos(decoder_ng)
+        dec_outputs = hef.get_output_vstream_infos(decoder_ng)
 
-        self._decoder_input_names = [info.name for info in input_infos]
-        self._decoder_output_names = sorted(
-            [info.name for info in output_infos]
-        )
+        self._decoder_input_names = [info.name for info in dec_inputs]
+        self._decoder_output_names = sorted([info.name for info in dec_outputs])
 
-        for info in input_infos:
-            logger.info(f"Decoder input: name={info.name}, shape={info.shape}")
-        for info in output_infos:
-            logger.info(f"Decoder output: name={info.name}, shape={info.shape}")
-
-        # Set format types for all decoder inputs/outputs
+        # Set format types
         for name in self._decoder_input_names:
             self._decoder_model.input(name).set_format_type(FormatType.FLOAT32)
         for name in self._decoder_output_names:
@@ -301,18 +347,41 @@ class HailoWhisperEngine:
 
         self._decoder_configured = self._decoder_model.configure()
 
-        # Determine max decoder sequence length from output shape
-        # Output shape is typically (batch, seq_len, vocab_chunk) or similar
-        if len(output_infos) > 0 and len(output_infos[0].shape) > 1:
-            self._decoder_seq_len = output_infos[0].shape[1]
-        else:
-            self._decoder_seq_len = 32  # Safe default for tiny
-        logger.info(f"Decoder max sequence length: {self._decoder_seq_len}")
+        # Determine decoder sequence length from output shape
+        # Outputs are split: e.g. 4 x (1, 64, ~12966) -> concat to (1, 64, 51865)
+        self._decoder_seq_len = dec_outputs[0].shape[1]
+
+        # Map decoder inputs: input_layer1 = encoder output, input_layer2 = token embeds
+        # Identified by shape: encoder output matches (1, 500, 512), tokens match (1, 64, 512)
+        self._enc_input_name = None
+        self._tok_input_name = None
+        for info in dec_inputs:
+            # The encoder output input has same total size as encoder output
+            if info.shape[1] == self._encoder_output_shape[1]:
+                self._enc_input_name = info.name
+            else:
+                self._tok_input_name = info.name
+
+        if not self._enc_input_name or not self._tok_input_name:
+            # Fallback to alphabetical order (input_layer1 < input_layer2)
+            sorted_names = sorted(self._decoder_input_names)
+            self._enc_input_name = sorted_names[0]
+            self._tok_input_name = sorted_names[1]
+            logger.warning(
+                f"Could not match decoder inputs by shape, using alphabetical: "
+                f"encoder={self._enc_input_name}, tokens={self._tok_input_name}"
+            )
+
+        logger.info(
+            f"Decoder ready: seq_len={self._decoder_seq_len}, "
+            f"encoder_input={self._enc_input_name}, "
+            f"token_input={self._tok_input_name}, "
+            f"outputs={len(self._decoder_output_names)} split tensors"
+        )
 
         logger.info(
             f"Hailo Whisper engine initialized (variant={self.variant}, "
-            f"encoder_input={self._encoder_input_shape}, "
-            f"decoder_seq_len={self._decoder_seq_len})"
+            f"encoder={encoder_ng}, decoder={decoder_ng})"
         )
 
     def transcribe_sync(self, audio: np.ndarray) -> str:
@@ -326,24 +395,27 @@ class HailoWhisperEngine:
         """
         start_time = time.monotonic()
 
-        # Audio -> mel spectrogram
-        mel = self._mel(audio)  # (80, 1000)
+        # Audio -> mel spectrogram: (80, 1000)
+        mel = self._mel(audio)
 
         # Reshape mel to match encoder HEF input shape
-        # Typical shapes: (1, 80, 1000) or (1, 80, 1, 1000)
-        mel_input = mel.reshape(self._encoder_input_shape)
-        mel_input = np.ascontiguousarray(mel_input)
+        # HEF expects channels-last: (1, 1000, 80), mel is (80, 1000)
+        mel_input = mel.T[np.newaxis, :, :]  # (1, 1000, 80)
+        # If HEF shape differs, reshape to match
+        if mel_input.shape != self._encoder_input_shape:
+            mel_input = mel_input.reshape(self._encoder_input_shape)
+        mel_input = np.ascontiguousarray(mel_input, dtype=np.float32)
 
         # --- Encoder inference (NPU) ---
         enc_bindings = self._encoder_configured.create_bindings()
-        enc_bindings.input().set_buffer(mel_input)
+        enc_bindings.input(self._encoder_input_name).set_buffer(mel_input)
 
         enc_output = np.zeros(self._encoder_output_shape, dtype=np.float32)
-        enc_bindings.output().set_buffer(enc_output)
+        enc_bindings.output(self._encoder_output_name).set_buffer(enc_output)
 
         self._encoder_configured.run([enc_bindings], 30_000)  # 30s timeout ms
         encoded_features = np.ascontiguousarray(
-            enc_bindings.output().get_buffer()
+            enc_bindings.output(self._encoder_output_name).get_buffer()
         )
 
         encoder_ms = (time.monotonic() - start_time) * 1000
@@ -364,33 +436,31 @@ class HailoWhisperEngine:
         num_initial = len(initial_tokens)
 
         for step in range(num_initial, seq_len):
-            # CPU: token embedding lookup
-            token_embeds = self._embed_tokens(decoder_input_ids)
-
-            # Decoder inference (NPU)
-            dec_bindings = self._decoder_configured.create_bindings()
-
-            # Set inputs: first is encoder output, second is token embeddings
-            # (order determined by HEF input names — typically sorted alphabetically
-            # with encoder/cross-attention first)
-            input_buffers = self._prepare_decoder_inputs(
-                encoded_features, token_embeds
+            # CPU: token embedding lookup — (1, seq_len) -> (1, seq_len, d_model)
+            token_embeds = self._token_embeddings[decoder_input_ids].astype(
+                np.float32
             )
-            for name, buf in input_buffers.items():
-                dec_bindings.input(name).set_buffer(buf)
+
+            # Set decoder input buffers
+            dec_bindings = self._decoder_configured.create_bindings()
+            dec_bindings.input(self._enc_input_name).set_buffer(
+                np.ascontiguousarray(encoded_features)
+            )
+            dec_bindings.input(self._tok_input_name).set_buffer(
+                np.ascontiguousarray(token_embeds)
+            )
 
             # Allocate output buffers
-            output_shapes = {}
             for name in self._decoder_output_names:
                 shape = tuple(self._decoder_model.output(name).shape)
-                output_shapes[name] = shape
                 dec_bindings.output(name).set_buffer(
                     np.zeros(shape, dtype=np.float32)
                 )
 
             self._decoder_configured.run([dec_bindings], 30_000)
 
-            # Concatenate split outputs along last axis to reconstruct logits
+            # Concatenate split outputs along last axis to reconstruct full logits
+            # e.g. 4 x (1, 64, ~12966) -> (1, 64, 51865)
             output_arrays = [
                 dec_bindings.output(name).get_buffer()
                 for name in self._decoder_output_names
@@ -401,13 +471,8 @@ class HailoWhisperEngine:
                 decoder_output = output_arrays[0]
 
             # Get logits for current token position
-            # decoder_output shape: (batch, seq_len, vocab_size) or similar
-            if decoder_output.ndim == 3:
-                logits = decoder_output[0, step - 1].copy()
-            elif decoder_output.ndim == 2:
-                logits = decoder_output[step - 1].copy()
-            else:
-                logits = decoder_output.flatten()
+            # decoder_output shape: (1, seq_len, vocab_size)
+            logits = decoder_output[0, step - 1].copy()
 
             # Repetition penalty — discourage repeated tokens
             for tok in generated_tokens:
@@ -450,103 +515,16 @@ class HailoWhisperEngine:
             loop = asyncio.get_running_loop()
             return await loop.run_in_executor(None, self.transcribe_sync, audio)
 
-    def _embed_tokens(self, decoder_input_ids: np.ndarray) -> np.ndarray:
-        """CPU-side token embedding lookup.
-
-        Args:
-            decoder_input_ids: Token IDs, shape (1, seq_len).
-
-        Returns:
-            Embedded tokens shaped for the decoder HEF input.
-        """
-        # Embedding lookup: (1, seq_len) -> (1, seq_len, d_model)
-        embeds = self._token_embeddings[decoder_input_ids]
-        return embeds.astype(np.float32)
-
-    def _prepare_decoder_inputs(
-        self,
-        encoded_features: np.ndarray,
-        token_embeds: np.ndarray,
-    ) -> dict[str, np.ndarray]:
-        """Prepare named input buffers for decoder HEF.
-
-        Maps discovered HEF input names to the encoder output and token
-        embedding tensors. The decoder HEF typically has two inputs:
-        one for cross-attention (encoder features) and one for self-attention
-        (token embeddings).
-
-        The mapping is inferred by shape matching: the input whose shape
-        matches the encoder output goes to encoded_features, and the other
-        gets token embeddings.
-        """
-        if len(self._decoder_input_names) < 2:
-            raise RuntimeError(
-                f"Expected 2 decoder inputs, found: {self._decoder_input_names}"
-            )
-
-        result = {}
-        encoder_matched = False
-
-        for name in self._decoder_input_names:
-            expected_shape = tuple(self._decoder_model.input(name).shape)
-
-            # Try to match by shape to encoder output
-            if not encoder_matched and self._shapes_compatible(
-                encoded_features.shape, expected_shape
-            ):
-                result[name] = np.ascontiguousarray(
-                    encoded_features.reshape(expected_shape)
-                )
-                encoder_matched = True
-            else:
-                # Token embeddings — reshape to match expected input shape
-                result[name] = np.ascontiguousarray(
-                    token_embeds.reshape(expected_shape)
-                )
-
-        if not encoder_matched:
-            # Fallback: assume first input is encoder, second is tokens
-            logger.warning(
-                "Could not match decoder inputs by shape, using positional order"
-            )
-            names = sorted(self._decoder_input_names)
-            result = {}
-            enc_shape = tuple(self._decoder_model.input(names[0]).shape)
-            tok_shape = tuple(self._decoder_model.input(names[1]).shape)
-            result[names[0]] = np.ascontiguousarray(
-                encoded_features.reshape(enc_shape)
-            )
-            result[names[1]] = np.ascontiguousarray(
-                token_embeds.reshape(tok_shape)
-            )
-
-        return result
-
-    @staticmethod
-    def _shapes_compatible(actual: tuple, expected: tuple) -> bool:
-        """Check if actual data can be reshaped to expected shape."""
-        actual_size = 1
-        for d in actual:
-            actual_size *= d
-        expected_size = 1
-        for d in expected:
-            expected_size *= d
-        return actual_size == expected_size
-
     def cleanup(self) -> None:
         """Release Hailo NPU resources."""
-        if self._encoder_configured is not None:
-            try:
-                self._encoder_configured.release()
-            except Exception:
-                pass
-            self._encoder_configured = None
-        if self._decoder_configured is not None:
-            try:
-                self._decoder_configured.release()
-            except Exception:
-                pass
-            self._decoder_configured = None
+        for configured in [self._encoder_configured, self._decoder_configured]:
+            if configured is not None:
+                try:
+                    configured.release()
+                except Exception:
+                    pass
+        self._encoder_configured = None
+        self._decoder_configured = None
         if self._vdevice is not None:
             try:
                 self._vdevice.release()
@@ -760,17 +738,23 @@ def main() -> None:
         help="TCP port to listen on (default: 10300)",
     )
     parser.add_argument(
+        "--hef",
+        type=Path,
+        default=Path("/usr/local/hailo/resources/models/hailo10h/Whisper-Base.hef"),
+        help="Path to Whisper HEF file (default: hailo-apps download location)",
+    )
+    parser.add_argument(
         "--model-dir",
         type=Path,
         default=Path(__file__).resolve().parent.parent / "models",
-        help="Directory containing HEF and NPY model files",
+        help="Directory containing NPY embedding files",
     )
     parser.add_argument(
         "--variant",
         type=str,
-        default="tiny",
+        default="base",
         choices=["tiny", "tiny.en", "base"],
-        help="Whisper model variant (default: tiny)",
+        help="Whisper model variant (default: base)",
     )
     parser.add_argument(
         "--log-level",
@@ -789,10 +773,11 @@ def main() -> None:
     )
 
     logger.info(f"Starting Wyoming Hailo Whisper server (variant={args.variant})")
+    logger.info(f"HEF: {args.hef}")
     logger.info(f"Model directory: {args.model_dir}")
 
     # Initialize Hailo engine
-    engine = HailoWhisperEngine(args.model_dir, args.variant)
+    engine = HailoWhisperEngine(args.hef, args.model_dir, args.variant)
     try:
         engine.initialize()
     except FileNotFoundError as e:

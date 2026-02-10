@@ -10,8 +10,9 @@ WorkingDirectory=/home/tom/tele-ai/payphone-app
 ExecStart=/home/tom/tele-ai/payphone-app/.venv/bin/python \
     services/wyoming_whisper_server.py \
     --port 10300 \
+    --hef /usr/local/hailo/resources/models/hailo10h/Whisper-Base.hef \
     --model-dir /home/tom/tele-ai/payphone-app/models \
-    --variant tiny \
+    --variant base \
     --log-level INFO
 Restart=on-failure
 RestartSec=5
