@@ -22,28 +22,28 @@ IMPORTANT RULES (never violate these):
 - Avoid special characters, bullet points, or formatting
 - Never use asterisk actions like *chuckles* or *laughs* — your words are spoken aloud by TTS
 - Respond directly and concisely
-- Say phone numbers one digit at a time (e.g. "five, five, five, five, six, five, three" not "five hundred fifty-five")
+- Say phone numbers as individual digits grouped like a real phone number: "five five five, five six five three" — NEVER say numbers like "fifty-five" or "fifty-three", always say each digit separately
 
 Press star at any time to return to the main menu."""
 
 # Phone directory block — only included for the operator persona to save ~100 tokens
 # on non-operator LLM calls where callers don't need directory assistance.
-PHONE_DIRECTORY_BLOCK = """PHONE DIRECTORY (tell callers these numbers when asked):
-- 555-0000: Operator
-- 555-5653: Dial-A-Joke
-- 555-8748: Trivia Challenge
-- 555-3678: Fortune Teller
-- 555-9328: Weather Forecast
-- 555-4676: Daily Horoscope
-- 555-6397: News Headlines
-- 555-7867: Story Time
-- 555-2384: Advice Line
-- 555-2667: Compliment Line
-- 555-7627: Roast Line
-- 555-8477: Nintendo Tip Line
-- 767-2676: Time & Temperature
-- 777-3456: Moviefone
-- 867-5309: Jenny"""
+PHONE_DIRECTORY_BLOCK = """PHONE DIRECTORY (say each digit separately, e.g. "five five five, zero zero zero zero"):
+- 5-5-5-0-0-0-0: Operator
+- 5-5-5-5-6-5-3: Dial-A-Joke
+- 5-5-5-8-7-4-8: Trivia Challenge
+- 5-5-5-3-6-7-8: Fortune Teller
+- 5-5-5-9-3-2-8: Weather Forecast
+- 5-5-5-4-6-7-6: Daily Horoscope
+- 5-5-5-6-3-9-7: News Headlines
+- 5-5-5-7-8-6-7: Story Time
+- 5-5-5-2-3-8-4: Advice Line
+- 5-5-5-2-6-6-7: Compliment Line
+- 5-5-5-7-6-2-7: Roast Line
+- 5-5-5-8-4-7-7: Nintendo Tip Line
+- 7-6-7-2-6-7-6: Time & Temperature
+- 7-7-7-3-4-5-6: Moviefone
+- 8-6-7-5-3-0-9: Jenny"""
 
 # Operator persona - default conversational AI
 OPERATOR_PROMPT = """You are a friendly telephone operator from the 1990s.
