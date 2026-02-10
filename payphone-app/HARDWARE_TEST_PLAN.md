@@ -139,7 +139,7 @@ Test in-call digit navigation.
 | 4.6 | Feature switch | In jokes, press 3 | Switches to fortune |
 | 4.7 | Context reset | Switch features, talk | New feature context, not old |
 | 4.8 | Star from feature | In fortune, press * | Back to operator menu |
-| 4.9 | DTMF during speech | Press digit while AI is speaking | Barge-in triggers, then DTMF processed |
+| 4.9 | DTMF during speech | Press digit while AI is speaking | Barge-in triggers (DTMF or voice), then input processed |
 
 ---
 
@@ -153,7 +153,7 @@ Test audio quality and timing.
 | 5.2 | Audio clarity | Listen to TTS output | Clear speech, no clipping or distortion |
 | 5.3 | Telephone filter | Listen for frequency range | Sounds appropriately "telephony" (300-3400 Hz) |
 | 5.4 | Sound effects | Dial invalid number | SIT tri-tone plays cleanly before TTS |
-| 5.5 | Barge-in | Interrupt AI mid-sentence by speaking | AI stops, listens to your input |
+| 5.5 | Voice barge-in | Interrupt AI mid-sentence by speaking | AI stops (VAD threshold 0.8), pre-buffered speech handed to STT |
 | 5.6 | Background noise | Speak with ambient noise | System still recognizes speech |
 | 5.7 | Whisper | Speak very quietly | Check if VAD triggers (threshold=0.5) |
 | 5.8 | Loud speech | Speak loudly close to handset | No clipping, system responds normally |
@@ -185,8 +185,8 @@ Test audio quality and timing.
 | 7.1 | DTMF flood | Press digits as fast as possible (20+) | Queue maxsize=32, excess digits dropped with warning in logs |
 | 7.2 | Rapid feature switching | Press 1, 2, 3, 4, 5 in quick succession | Each switch works or queues; no crash |
 | 7.3 | Star spam | Press * repeatedly 10 times | Returns to menu each time; no crash |
-| 7.4 | Barge-in spam | Keep talking while AI responds, repeatedly | System toggles between listen/speak; no stuck state |
-| 7.5 | Talk during greeting | Start talking before greeting finishes | Barge-in should trigger, or speech ignored until LISTENING |
+| 7.4 | Barge-in spam | Keep talking while AI responds, repeatedly | Voice barge-in toggles between listen/speak; no stuck state |
+| 7.5 | Talk during greeting | Start talking before greeting finishes | Voice barge-in should trigger, pre-buffered audio passed to STT |
 
 ### 7b. Audio Edge Cases
 
@@ -313,7 +313,7 @@ These are by-design behaviors worth knowing about:
 2. **No concurrent call limit** -- memory-bounded only
 3. **Birthday dates not fully validated** -- 555-0230 (Feb 30) is accepted as a birthday
 4. **Navigation false positives** -- "menu", "go back", "goodbye" as substrings trigger navigation
-5. **VAD lock serializes inference** -- concurrent calls share one VAD model behind a lock
+5. **VAD model pool has 3 models** -- 4th+ concurrent call blocks until a model is released
 6. **TTS lock serializes synthesis** -- concurrent calls queue for TTS
 7. **SPEAKING safety timeout is 5s** -- very long TTS outputs could be interrupted
 8. **Feature system uses simple substring matching** for exit commands -- "thank you for the story" triggers exit

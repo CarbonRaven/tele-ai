@@ -72,7 +72,7 @@ Payphone → HT801 ATA (SIP) → Asterisk 22.8.2
 | STT | Moonshine/Whisper | Pi #1 | Moonshine (5x faster) or Hailo-accelerated Whisper |
 | LLM | Ollama | Pi #2 | Standard Ollama, qwen3:4b, port 11434 |
 | TTS | Kokoro-82M | Pi #1 | Fast neural TTS, 24kHz output |
-| VAD | Silero VAD | Pi #1 | CPU-based voice activity detection |
+| VAD | Silero VAD | Pi #1 | CPU-based, model pool (3) for concurrent calls |
 | Telephony | Asterisk 22.8.2 | Pi #1 | Built from source, AudioSocket protocol |
 | Protocol | Wyoming | Pi #1 | Home Assistant voice service integration |
 
@@ -94,10 +94,10 @@ tts_server.py              # Standalone TTS server (for Pi #2 offloading)
 │   ├── audio_processor.py # Sample rate conversion, telephone filter
 │   ├── phone_router.py    # Number dialed → feature routing, DTMF shortcuts
 │   ├── pipeline.py        # VAD → STT → LLM → TTS orchestration
-│   ├── session.py         # Per-call state management
+│   ├── session.py         # Per-call state (VAD model, barge-in audio buffer)
 │   └── state_machine.py   # Conversation flow control
 ├── services/
-│   ├── vad.py             # Silero VAD v5 with thread-safe async reset
+│   ├── vad.py             # Silero VAD v5 with model pool + voice barge-in
 │   ├── stt.py             # Moonshine (5x faster) + Wyoming/Hailo + faster-whisper
 │   ├── llm.py             # Ollama client with streaming timeout
 │   └── tts.py             # Kokoro-82M synthesis
@@ -125,13 +125,17 @@ tts_server.py              # Standalone TTS server (for Pi #2 offloading)
 | Wyoming Protocol | `services/stt.py` | Binary framing for audio, JSON for events |
 | Sentence Buffer | `services/llm.py` | Regex-based streaming TTS chunking |
 | Audio Buffer | `core/audio_processor.py` | Memory-bounded sample accumulation |
+| VAD Model Pool | `services/vad.py` | `VADModelPool` gives each session an exclusive `VADModel` — no lock contention |
+| Voice Barge-In | `core/pipeline.py` | `_monitor_barge_in()` runs VAD on incoming audio during TTS playback |
 | SIT Tri-tone | `core/state_machine.py` | Plays `sit_intercept.wav` before "not in service" TTS |
 
 ### Performance Optimizations
 
 - **Wyoming binary protocol**: Audio sent as binary frames (not base64) for 33% less overhead
 - **Exponential backoff**: Wyoming reconnection with 0.5s → 4s backoff
-- **Thread-safe VAD**: `reset_async()` acquires lock before model state reset
+- **VAD model pool**: 3 pre-loaded models via `asyncio.Queue` — each session gets exclusive access, no lock on hot path
+- **Voice barge-in**: Detects speech during TTS playback (threshold 0.8), buffers triggering audio for seamless handoff to STT
+- **Thread-safe VAD**: Legacy `reset_async()` acquires lock for single-model path (backwards compat)
 - **Streaming timeout**: LLM protected against indefinite hangs
 - **Dynamic pacing**: Audio playback paced by actual chunk duration
 - **O(n) string building**: LLM streaming uses list + join instead of O(n²) concatenation

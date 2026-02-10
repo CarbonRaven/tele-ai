@@ -131,10 +131,10 @@ tele-ai/
 │   │   ├── audio_processor.py     # Audio conversion
 │   │   ├── phone_router.py        # Number dialed → feature routing
 │   │   ├── pipeline.py            # Orchestration
-│   │   ├── session.py             # Call state
+│   │   ├── session.py             # Call state (VAD model, barge-in buffer)
 │   │   └── state_machine.py       # Flow control
 │   ├── services/                  # AI services
-│   │   ├── vad.py                 # Voice activity detection
+│   │   ├── vad.py                 # VAD model pool + voice barge-in
 │   │   ├── stt.py                 # Speech-to-text
 │   │   ├── llm.py                 # Language model
 │   │   └── tts.py                 # Text-to-speech
@@ -203,7 +203,7 @@ tele-ai/
 | STT | Hailo Whisper + faster-whisper | NPU-accelerated with CPU fallback |
 | LLM | Ollama + qwen3:4b | 3B parameter model, streaming |
 | TTS | Kokoro-82M | Sub-300ms latency, 24kHz output |
-| VAD | Silero VAD | 1.8MB model, 95% accuracy |
+| VAD | Silero VAD (pool of 3) | 1.8MB model, 95% accuracy, per-session exclusive models |
 | Telephony | Asterisk/FreePBX | AudioSocket protocol |
 | Audio | numpy, scipy, soundfile | Sample rate conversion, filtering |
 
@@ -256,7 +256,8 @@ Each persona has a dedicated phone number and unique LLM system prompt.
 | Streaming LLM | First token in <1s, continuous output |
 | Sentence Buffering | TTS starts before LLM completes |
 | Bounded Queues | Prevents memory exhaustion |
-| Thread-safe VAD | Safe concurrent call handling |
+| VAD Model Pool | 3 pre-loaded models, each session gets exclusive access, no lock on hot path |
+| Voice Barge-In | Detects speech during TTS playback (threshold 0.8), buffers audio for STT handoff |
 | Model Keep-alive | No cold-start latency (24h cache) |
 | Telephone Filter | Authentic 300-3400Hz audio |
 | O(n) String Building | LLM streaming uses list + join vs O(n²) concat |

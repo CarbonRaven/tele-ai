@@ -50,7 +50,7 @@
 | STT | Moonshine (5x faster) / Whisper | 10300 | Pi #1 |
 | LLM | Ollama (qwen3:4b) | 11434 | Pi #2 |
 | TTS | Kokoro-82M | - | Pi #1 |
-| VAD | Silero VAD v5 | - | Pi #1 |
+| VAD | Silero VAD v5 (pool of 3) | - | Pi #1 |
 | Entry Point | AudioSocket | 9092 | Pi #1 |
 
 **STT Backend Priority** (auto mode): Moonshine → Wyoming/Hailo → faster-whisper
@@ -74,7 +74,7 @@ tele-ai/
 │   │   ├── pipeline.py          # Voice pipeline orchestration
 │   │   └── state_machine.py     # Conversation state machine
 │   ├── services/
-│   │   ├── vad.py               # Silero VAD
+│   │   ├── vad.py               # Silero VAD (model pool + voice barge-in)
 │   │   ├── stt.py               # Moonshine / Hailo Whisper / faster-whisper
 │   │   ├── llm.py               # Ollama client
 │   │   └── tts.py               # Kokoro TTS
@@ -101,7 +101,7 @@ tele-ai/
 - **44-Number Phone Directory**: Dial-in services with unique greetings and LLM personas
 - **10 Personas**: Operator, Detective, Grandma, Robot, Sage, Comedian, Valley Girl, Beatnik, Game Show Host, Conspiracy Theorist
 - **35 Features**: Information, entertainment, advice, nostalgic services, utilities, and easter eggs
-- **Barge-in Support**: Interrupt AI with DTMF tones
+- **Voice & DTMF Barge-In**: Interrupt AI by speaking or pressing keys
 - **Telephony Integration**: FreePBX/Asterisk via AudioSocket
 - **Optimized Pipeline**: O(n) algorithms, batched I/O, memory-bounded buffers
 

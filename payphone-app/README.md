@@ -7,13 +7,13 @@ A fully local AI voice assistant designed for vintage payphones. Connects via As
 - **Fully Local Processing**: All AI runs on-premise (dual Raspberry Pi 5 setup)
 - **Hailo NPU Acceleration**: Whisper STT accelerated by AI HAT+ 2
 - **Low Latency**: ~1.5s end-to-end response time with streaming optimizations
-- **Concurrent Calls**: Per-session state isolation supports multiple simultaneous calls
-- **Voice Activity Detection**: Silero VAD for accurate speech detection
+- **Concurrent Calls**: VAD model pool (3 models) gives each session exclusive access — no lock contention
+- **Voice Activity Detection**: Silero VAD with per-session models for accurate speech detection
 - **Speech-to-Text**: Moonshine (5x faster than Whisper) with Hailo/Whisper fallback
 - **Language Model**: Ollama with qwen3:4b (recommended) or llama3.2:3b (fallback)
 - **Text-to-Speech**: Kokoro-82M with optional remote offloading
 - **Streaming Pipeline**: Overlapped LLM+TTS for reduced latency
-- **Barge-in Support**: Interrupt AI with DTMF tones
+- **Voice & DTMF Barge-In**: Interrupt AI by speaking (VAD threshold 0.8) or pressing keys
 - **44-Number Phone Directory**: Each service has a unique number, greeting, and LLM persona
 - **10 Personas**: Operator, Detective, Grandma, Robot, Sage, Comedian, Valley Girl, Beatnik, Game Show Host, Conspiracy Theorist
 - **35 Features**: Information, entertainment, advice, nostalgic services, utilities, and easter eggs
@@ -173,10 +173,10 @@ payphone-app/
 │   ├── audio_processor.py  # Resampling, telephone filter
 │   ├── phone_router.py     # Number dialed → feature routing
 │   ├── pipeline.py         # Voice pipeline orchestration
-│   ├── session.py          # Call session management
+│   ├── session.py          # Call session (VAD model, barge-in audio buffer)
 │   └── state_machine.py    # Conversation state machine
 ├── services/
-│   ├── vad.py              # Silero VAD wrapper
+│   ├── vad.py              # Silero VAD (model pool + voice barge-in)
 │   ├── stt.py              # Moonshine / Wyoming Whisper / faster-whisper
 │   ├── llm.py              # Ollama client with streaming
 │   └── tts.py              # Kokoro TTS (local + remote)
@@ -282,7 +282,7 @@ journalctl -u tts-server -f
 | Poor transcription | Adjust VAD thresholds, check audio quality |
 | Wyoming connection fails | Check wyoming-hailo-whisper service, will auto-retry with backoff |
 | LLM streaming hangs | Timeout protection auto-recovers after configured timeout |
-| Concurrent call issues | Per-session VAD state isolates calls automatically |
+| Concurrent call issues | VAD model pool gives each session an exclusive model — no lock contention |
 
 Enable debug logging:
 
@@ -301,7 +301,8 @@ The voice pipeline includes extensive optimizations for low-latency operation:
 | Optimization | Description |
 |--------------|-------------|
 | **Overlapped LLM+TTS** | Producer-consumer pattern streams sentences to TTS while LLM generates |
-| **Per-session VAD State** | Each call tracks speech independently, enabling 3+ concurrent calls |
+| **VAD Model Pool** | Pool of 3 pre-loaded models — each session gets exclusive access, no lock contention |
+| **Voice Barge-In** | Detects speech during TTS playback (threshold 0.8), buffers audio for seamless STT handoff |
 | **Thread-safe TTS** | asyncio.Lock prevents model corruption with concurrent synthesis |
 | **Bounded Sentence Queue** | Max 5 sentences queued to balance latency and memory |
 

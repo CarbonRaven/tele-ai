@@ -544,8 +544,8 @@ payphone-app/
 | LISTENING | Transcript ready | PROCESSING | Send to LLM |
 | PROCESSING | Response ready | SPEAKING | Begin TTS |
 | SPEAKING | TTS complete | LISTENING | Await next input |
-| SPEAKING | Voice detected | BARGE_IN | Cancel TTS |
-| BARGE_IN | TTS cancelled | LISTENING | Process new input |
+| SPEAKING | Voice/DTMF detected | BARGE_IN | Cancel TTS, buffer speech audio |
+| BARGE_IN | TTS cancelled | LISTENING | Process new input (pre-loaded barge-in audio) |
 | LISTENING | 10s silence | TIMEOUT | Play "Are you still there?" |
 | TIMEOUT | Voice/DTMF | LISTENING/FEATURE | Resume interaction |
 | TIMEOUT | 30s more silence | GOODBYE | Play farewell |
@@ -1381,7 +1381,7 @@ CACHE_CONFIG = {
 4. **Response Caching**: Cache weather, time templates, common phrases
 5. **Preloaded Models**: Keep models warm with long `keep_alive`
 6. **Pre-generated TTS**: Generate all static prompts at startup
-7. **Barge-in Support**: Cancel TTS when user starts speaking
+7. **Voice & DTMF Barge-in**: Cancel TTS when user speaks (VAD threshold 0.8) or presses keys; barge-in audio buffered for seamless STT handoff
 
 ---
 

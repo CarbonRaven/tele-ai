@@ -608,7 +608,7 @@ print(f"Transcribed: {transcript}")
 | **Best** | Mini PC + GPU | <2s total |
 
 **Recommended Dual-Pi Configuration:**
-- **Pi #1 (pi-voice)**: AI HAT+ 2 for Whisper STT + Piper TTS + VAD
+- **Pi #1 (pi-voice)**: AI HAT+ 2 for Whisper STT + Piper TTS + VAD (model pool for concurrent calls)
 - **Pi #2 (pi-ollama)**: Standard Ollama with qwen3:4b (full 16GB for LLM)
 
 ### Optimization Tips
