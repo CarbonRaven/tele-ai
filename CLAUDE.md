@@ -140,7 +140,7 @@ tts_server.py              # Standalone TTS server (for Pi #2 offloading)
 - **VAD model pool**: 3 pre-loaded models via `asyncio.Queue` — each session gets exclusive access, no lock on hot path
 - **Voice barge-in**: Detects speech during TTS playback (threshold 0.8), buffers triggering audio for seamless handoff to STT. Works in both `speak()` and `speak_streaming()` paths.
 - **Thread-safe VAD**: Legacy `reset_async()` acquires lock for single-model path (backwards compat)
-- **Streaming timeout**: LLM protected against indefinite hangs
+- **Per-token streaming timeout**: Each `__anext__()` wrapped in `asyncio.wait_for()` with `first_token_timeout` (25s) and `inter_token_timeout` (5s) — the `async for` pattern blocks indefinitely so manual iteration is required
 - **Dynamic pacing**: Audio playback paced by actual chunk duration
 - **Mid-sentence interrupt**: `_send_sentence()` passes `should_stop` callback to `send_audio()` for immediate barge-in response during streaming playback
 - **O(n) string building**: LLM streaming uses list + join instead of O(n²) concatenation
@@ -148,6 +148,8 @@ tts_server.py              # Standalone TTS server (for Pi #2 offloading)
 - **Pre-allocated audio arrays**: Streaming STT uses doubling strategy for O(n) total copies
 - **Batched Wyoming writes**: Audio chunks written without drain, single flush at end
 - **Lazy dtype conversion**: TTS/resampling skip copy when dtype already matches
+- **Ollama prompt warm-up**: `initialize()` chats with the operator system prompt so Ollama's KV cache is hot for the first real call (~20s → ~1s prompt eval)
+- **Moonshine min audio guard**: Audio <100ms (1600 samples) returns empty result instead of crashing `conv1d` kernel
 
 ## Build & Test
 
@@ -188,9 +190,24 @@ End-to-end pipeline verified: Payphone → HT801 → Asterisk → AudioSocket �
 | LLM doesn't know phone directory | No directory data in system prompt | Added 15 key numbers as `PHONE_DIRECTORY_BLOCK` (included for operator only) |
 | HT801 config not saving | "Account Active" must be enabled first | Documented gotcha in SETUP.md |
 
+### Second Hardware Test Results (2026-02-10)
+
+Streaming LLM→TTS pipeline tested end-to-end. Issues discovered and fixed:
+
+| Issue | Root Cause | Fix |
+|-------|-----------|-----|
+| Streaming timeout never fires | `async for part in stream:` blocks indefinitely on `__anext__()` — timeout check inside loop body never reached before first token | Manual `asyncio.wait_for(stream_iter.__anext__(), timeout=...)` iteration |
+| First call always times out (~25s) | Ollama cold-start prompt eval for 223-token system prompt takes ~20s on Pi 5 CPU | Warm up with operator system prompt during `initialize()` so Ollama KV cache is hot |
+| Moonshine STT crash on short audio | `conv1d` kernel_size=7 > padded input size when audio < ~100ms | Minimum audio length guard (1600 samples / 100ms) returns empty result |
+| TTS reads `*chuckles*` literally | LLM outputs asterisk actions that TTS speaks as words | Added prompt rule: "Never use asterisk actions" |
+| Phone numbers spoken as "five hundred fifty-five" | LLM says numbers naturally instead of digit-by-digit | Added prompt rule: "Say phone numbers one digit at a time" |
+
+### Ollama Prompt Caching
+
+Ollama caches the KV state of prompt prefixes. The first call with a new system prompt pays full prompt eval cost (~20s for 223 tokens on Pi 5 CPU). Subsequent calls with the same system prompt prefix complete prompt eval in ~1s. The `initialize()` warm-up now runs a chat with the operator system prompt to pre-populate this cache, so the first real call benefits from cached eval.
+
 ### Known Limitations
 
-- **LLM response latency ~2-3s (streaming)**: With streaming LLM→TTS enabled (default), first sentence plays while LLM generates the rest. Raw LLM speed is still ~6 tok/s on Pi 5 CPU.
 - **Moonshine STT on CPU**: Currently using `moonshine-tiny` on CPU. Hailo-accelerated Whisper via Wyoming not yet configured.
 
 ## Infrastructure Status
@@ -217,7 +234,7 @@ Both Pis run Debian Trixie (13.3) aarch64 with kernel 6.12.62+rpt-rpi-2712.
 ### Model Selection Notes
 
 - **qwen3:4b**: Not suitable — mandatory thinking mode consumes all tokens before generating a response. At ~3.3 tok/s on Pi 5 CPU, it cannot produce useful output within phone-appropriate timeouts.
-- **llama3.2:3b**: Current choice — no thinking mode, ~6 tok/s, natural stop tokens, good conversational quality. Response latency ~5-10s for typical phone answers.
+- **llama3.2:3b**: Current choice — no thinking mode, ~6 tok/s, natural stop tokens, good conversational quality. With streaming LLM→TTS, first audio in ~4-7s (cached prompt) vs ~5-10s sequential.
 
 ### Asterisk Source Build
 
