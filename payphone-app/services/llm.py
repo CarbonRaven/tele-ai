@@ -80,11 +80,15 @@ class ConversationContext:
             return  # No trimming needed
 
         # Find where non-system messages start
-        system_end_idx = 0
-        for i, m in enumerate(self.messages):
-            if m.role != "system":
-                system_end_idx = i
-                break
+        system_end_idx = next(
+            (i for i, m in enumerate(self.messages) if m.role != "system"),
+            len(self.messages),
+        )
+
+        # All messages are system — nothing to trim
+        if system_end_idx == len(self.messages):
+            self._non_system_count = 0
+            return
 
         # Keep system messages + last N non-system messages
         keep_count = max_non_system

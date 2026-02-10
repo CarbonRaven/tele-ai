@@ -31,7 +31,6 @@ class FeatureRegistry:
 
     _features: dict[str, Type[BaseFeature]] = {}
     _voice_triggers: dict[str, str] = {}  # trigger -> dial_code
-    _instances: dict[str, BaseFeature] = {}  # dial_code -> instance
 
     @classmethod
     def register(cls, feature_class: Type[BaseFeature]) -> None:
@@ -115,23 +114,20 @@ class FeatureRegistry:
 
     @classmethod
     def get_instance(cls, dial_code: str) -> BaseFeature | None:
-        """Get or create feature instance by dial code.
+        """Create a new feature instance by dial code.
+
+        Always creates a fresh instance so that per-call state
+        (e.g. InteractiveFeature._state) is never shared across calls.
 
         Args:
             dial_code: DTMF dial code.
 
         Returns:
-            Feature instance or None if not found.
+            New feature instance or None if not found.
         """
-        if dial_code in cls._instances:
-            return cls._instances[dial_code]
-
         feature_class = cls._features.get(dial_code)
         if feature_class:
-            instance = feature_class()
-            cls._instances[dial_code] = instance
-            return instance
-
+            return feature_class()
         return None
 
     @classmethod
@@ -195,7 +191,6 @@ class FeatureRegistry:
         """Clear all registered features."""
         cls._features.clear()
         cls._voice_triggers.clear()
-        cls._instances.clear()
 
 
 def register_feature(cls: Type[BaseFeature]) -> Type[BaseFeature]:

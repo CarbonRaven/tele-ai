@@ -12,8 +12,8 @@
 # LLM runs on Pi #2 (pi-ollama) - configure separately.
 #
 # Prerequisites:
-#   - Raspberry Pi OS (64-bit, Bookworm)
-#   - AI HAT+ 2 drivers installed (sudo apt install hailo-all)
+#   - Debian Trixie (13)
+#   - AI HAT+ 2 drivers installed (sudo apt install hailo-h10-all)
 #   - Wyoming Hailo Whisper running (sudo apt install wyoming-hailo-whisper)
 #   - Network configured (static IP: 10.10.10.10)
 #

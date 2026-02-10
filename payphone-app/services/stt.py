@@ -21,7 +21,6 @@ __all__ = [
 import asyncio
 import json
 import logging
-import struct
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -241,17 +240,14 @@ class WyomingSTTClient:
 
         if audio_data is not None:
             # Wyoming audio-chunk format:
-            # 1. Send the audio payload length (4 bytes big-endian)
-            # 2. Send the raw audio bytes
-            # 3. Send the JSON event header
+            # 1. Send JSON line with payload_length in data dict
+            # 2. Send raw audio bytes
             payload_length = len(audio_data)
-            self._writer.write(struct.pack(">I", payload_length))
-            self._writer.write(audio_data)
-
-            # Send JSON header for the audio chunk
-            event = {"type": event_type, "data": event_data, "payload_length": payload_length}
+            event_data["payload_length"] = payload_length
+            event = {"type": event_type, "data": event_data}
             message = json.dumps(event) + "\n"
             self._writer.write(message.encode("utf-8"))
+            self._writer.write(audio_data)
         else:
             # Standard JSON lines for non-audio events
             event = {"type": event_type, "data": event_data}
@@ -263,7 +259,7 @@ class WyomingSTTClient:
 
         Wyoming protocol uses JSON-lines format where each message is a JSON object
         followed by a newline. Audio data uses a special format:
-        - For audio-chunk: payload_length (4 bytes BE) + audio bytes, then JSON event
+        - For audio-chunk: JSON line (with payload_length in data), then raw audio bytes
 
         Reference: https://github.com/rhasspy/wyoming
         """

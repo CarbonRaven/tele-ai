@@ -174,70 +174,19 @@ class VoicePipeline:
 
         return response.text
 
-    async def generate_and_speak_streaming(
-        self,
-        session: "Session",
-        transcript: str,
-        check_barge_in: bool = True,
-    ) -> bool:
-        """Generate LLM response and speak it with overlapped streaming.
-
-        This is the optimized path that overlaps:
-        - LLM token generation (streaming)
-        - Sentence buffering
-        - TTS synthesis
-        - Audio playback
-
-        Provides ~30% latency reduction compared to sequential processing.
-
-        Args:
-            session: Current call session.
-            transcript: User's transcribed speech.
-            check_barge_in: Whether to allow user interruption.
-
-        Returns:
-            True if completed successfully, False if interrupted or error.
-        """
-        start_time = time.perf_counter()
-
-        # Get streaming token generator from LLM
-        token_stream = self.llm.generate_streaming(
-            prompt=transcript,
-            context=session.context,
-        )
-
-        # Feed tokens directly into overlapped TTS streaming
-        success = await self.speak_streaming(
-            session=session,
-            text_generator=token_stream,
-            check_barge_in=check_barge_in,
-        )
-
-        elapsed_ms = (time.perf_counter() - start_time) * 1000
-        logger.info(f"Streaming response completed in {elapsed_ms:.0f}ms")
-
-        return success
-
-    async def _monitor_dtmf_for_barge_in(
-        self, session: "Session", debounce_ms: float = 100.0
-    ) -> None:
+    async def _monitor_dtmf_for_barge_in(self, session: "Session") -> None:
         """Monitor for DTMF input during speech and trigger barge-in.
 
+        The 50ms poll interval provides natural rate-limiting.
+
         Args:
             session: Current call session.
-            debounce_ms: Debounce period in milliseconds to prevent race conditions.
         """
-        last_dtmf_time: float = 0.0
-
         while session.is_speaking and session.is_active:
             if session.protocol.has_dtmf():
-                current_time = time.perf_counter() * 1000  # Convert to ms
-                # Debounce: only trigger if enough time has passed since last DTMF
-                if current_time - last_dtmf_time >= debounce_ms:
-                    session.request_barge_in()
-                    logger.debug("DTMF detected during speech - requesting barge-in")
-                    break
-                last_dtmf_time = current_time
+                session.request_barge_in()
+                logger.debug("DTMF detected during speech - requesting barge-in")
+                break
             await asyncio.sleep(0.05)  # Check every 50ms
 
     async def speak(

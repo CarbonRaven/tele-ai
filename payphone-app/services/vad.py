@@ -52,18 +52,21 @@ class VADSessionState:
     """Per-session VAD state for concurrent call handling.
 
     Each call gets its own state instance to track speech/silence
-    independently without interference from other calls.
+    independently without interference from other calls. Includes
+    model LSTM hidden state for true neural state isolation.
     """
 
     is_speaking: bool = False
     speech_samples: int = 0
     silence_samples: int = 0
+    model_state: tuple | None = None  # (h, c) LSTM hidden state tensors
 
     def reset(self) -> None:
         """Reset state for a new utterance."""
         self.is_speaking = False
         self.speech_samples = 0
         self.silence_samples = 0
+        self.model_state = None
 
 
 class SileroVAD:
@@ -210,6 +213,15 @@ class SileroVAD:
         # Both operations must be atomic to prevent concurrent calls from
         # corrupting shared state.
         async with self._lock:
+            # Save/restore model LSTM hidden state for per-session isolation.
+            # Without this, concurrent calls share the model's internal _h/_c
+            # tensors, causing cross-session interference.
+            if session_state is not None and session_state.model_state is not None:
+                self._restore_model_state(session_state.model_state)
+            elif session_state is not None:
+                # First chunk for this session — start from clean state
+                self._model.reset_states()
+
             loop = asyncio.get_running_loop()
             prob = await loop.run_in_executor(
                 None,
@@ -218,10 +230,12 @@ class SileroVAD:
                 sample_rate,
             )
 
+            # Capture model state after inference for this session
+            if session_state is not None:
+                session_state.model_state = self._save_model_state()
+
             # Determine state transition inside the lock
             if session_state is not None:
-                # Per-session state doesn't need lock protection, but keeping
-                # it inside for consistency and because inference must complete first
                 state = self._update_session_state(session_state, prob, len(audio), sample_rate)
             else:
                 # Legacy shared state - MUST be inside lock to prevent race conditions
@@ -244,6 +258,16 @@ class SileroVAD:
         speech_prob = self._model(audio_tensor, sample_rate).item()
 
         return speech_prob
+
+    def _save_model_state(self) -> tuple:
+        """Save the model's LSTM hidden state tensors."""
+        return (self._model._h.clone(), self._model._c.clone())
+
+    def _restore_model_state(self, state: tuple) -> None:
+        """Restore the model's LSTM hidden state tensors."""
+        h, c = state
+        self._model._h = h.clone()
+        self._model._c = c.clone()
 
     def _update_session_state(
         self,

@@ -112,6 +112,9 @@ class StateMachine:
         self._route_result = route_result
         self._phone_router = phone_router or PhoneRouter()
 
+        # Call duration tracking
+        self._call_start: float = time.time()
+
         # Timeout tracking
         self._silence_start: float | None = None
         self._timeout_prompted = False
@@ -161,6 +164,17 @@ class StateMachine:
         Args:
             pipeline: Voice pipeline for audio processing.
         """
+        # Enforce max call duration
+        elapsed = time.time() - self._call_start
+        if elapsed >= self.session.settings.timeouts.max_call_duration:
+            if self._state not in (State.GOODBYE, State.HANGUP):
+                logger.info(
+                    f"Session {self.session.call_id}: max call duration "
+                    f"({self.session.settings.timeouts.max_call_duration}s) reached"
+                )
+                self.transition_to(State.GOODBYE, "max_duration")
+                return
+
         if self._state == State.IDLE:
             # Start with greeting
             self.transition_to(State.GREETING, "call_start")
