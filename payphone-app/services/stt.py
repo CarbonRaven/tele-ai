@@ -104,8 +104,11 @@ class WyomingSTTClient:
     async def disconnect(self) -> None:
         """Disconnect from Wyoming server."""
         if self._writer:
-            self._writer.close()
-            await self._writer.wait_closed()
+            try:
+                self._writer.close()
+                await self._writer.wait_closed()
+            except Exception:
+                pass  # Connection may already be broken
         self._reader = None
         self._writer = None
 
@@ -125,8 +128,10 @@ class WyomingSTTClient:
         Returns:
             TranscriptionResult with text and metadata.
         """
-        if self._writer is None:
-            await self.connect()
+        # Connect fresh for each request — server closes connection after
+        # each transcription, so we cannot reuse a persistent connection.
+        await self.disconnect()
+        await self.connect()
 
         duration = len(audio) / sample_rate
 
@@ -395,7 +400,9 @@ class WhisperSTT:
                 host=self.settings.wyoming_host,
                 port=self.settings.wyoming_port,
             )
+            # Test connectivity then disconnect — each transcribe() reconnects
             await self._wyoming_client.connect()
+            await self._wyoming_client.disconnect()
             self._backend = STTBackend.HAILO_WYOMING
             self._initialized = True
             logger.info(

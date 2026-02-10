@@ -180,9 +180,11 @@ class HailoWhisperEngine:
         - base-whisper-encoder-10s: (1, 1000, 80) -> (1, 500, 512)
         - base-whisper-decoder-10s-out-seq-64: (1, 500, 512) + (1, 64, 512) -> logits
 
-    Also requires CPU-side embedding arrays:
+    Also requires a CPU-side token embedding array:
         - token_embedding_weight_{variant}.npy  (vocab_size, d_model)
-        - onnx_add_input_{variant}.npy          (max_seq_len, d_model)
+
+    Note: positional embeddings are baked into the HEF — no external
+    positional embedding file is needed.
     """
 
     def __init__(
@@ -196,9 +198,8 @@ class HailoWhisperEngine:
         self.variant = variant
         self._mel = MelSpectrogram()
 
-        # CPU-side embedding paths
+        # CPU-side token embedding path
         self._token_embed_path = self.model_dir / f"token_embedding_weight_{variant}.npy"
-        self._pos_embed_path = self.model_dir / f"onnx_add_input_{variant}.npy"
 
         # Runtime state (populated by initialize())
         self._vdevice = None
@@ -207,7 +208,6 @@ class HailoWhisperEngine:
         self._encoder_configured = None
         self._decoder_configured = None
         self._token_embeddings: np.ndarray | None = None
-        self._pos_embeddings: np.ndarray | None = None
         self._tokenizer = None
         self._decoder_seq_len: int = 0
         self._decoder_input_names: list[str] = []
@@ -228,27 +228,16 @@ class HailoWhisperEngine:
                 "--group whisper_chat --include-gen-ai --resource-name "
                 "Whisper-Base --resource-type model"
             )
-        for path in [self._token_embed_path, self._pos_embed_path]:
-            if not path.exists():
-                raise FileNotFoundError(
-                    f"Embedding file not found: {path}\n"
-                    "Run: python scripts/download_hailo_models.py --variant "
-                    f"{self.variant}"
-                )
-
-        # Load CPU-side embedding arrays
-        self._token_embeddings = np.load(str(self._token_embed_path))
-        self._pos_embeddings = np.load(str(self._pos_embed_path))
-        logger.info(
-            f"Loaded embeddings: tokens={self._token_embeddings.shape}, "
-            f"positions={self._pos_embeddings.shape}"
-        )
-        # d_model sanity check — embeddings must match HEF dimensions
-        if self._token_embeddings.shape[1] != self._pos_embeddings.shape[1]:
-            raise ValueError(
-                f"Embedding dimension mismatch: tokens={self._token_embeddings.shape[1]}, "
-                f"positions={self._pos_embeddings.shape[1]}"
+        if not self._token_embed_path.exists():
+            raise FileNotFoundError(
+                f"Token embedding file not found: {self._token_embed_path}\n"
+                "Run: python scripts/download_hailo_models.py --variant "
+                f"{self.variant}"
             )
+
+        # Load CPU-side token embedding array
+        self._token_embeddings = np.load(str(self._token_embed_path))
+        logger.info(f"Loaded token embeddings: {self._token_embeddings.shape}")
 
         # Load tokenizer (transformers already installed for Moonshine)
         from transformers import WhisperTokenizer
@@ -383,14 +372,6 @@ class HailoWhisperEngine:
             f"outputs={len(self._decoder_output_names)} split tensors"
         )
 
-        # Warn if positional embeddings don't cover full decoder sequence
-        if self._pos_embeddings.shape[0] < self._decoder_seq_len:
-            logger.warning(
-                f"Positional embeddings ({self._pos_embeddings.shape[0]}) shorter "
-                f"than decoder seq_len ({self._decoder_seq_len}). Transcriptions "
-                f">{self._pos_embeddings.shape[0]} tokens may lose accuracy."
-            )
-
         logger.info(
             f"Hailo Whisper engine initialized (variant={self.variant}, "
             f"encoder={encoder_ng_name}, decoder={decoder_ng_name})"
@@ -407,8 +388,18 @@ class HailoWhisperEngine:
         """
         start_time = time.monotonic()
 
+        logger.debug(
+            f"Audio input: len={len(audio)}, min={audio.min():.4f}, "
+            f"max={audio.max():.4f}, rms={np.sqrt(np.mean(audio**2)):.4f}"
+        )
+
         # Audio -> mel spectrogram: (80, 1000)
         mel = self._mel(audio)
+
+        logger.debug(
+            f"Mel spectrogram: shape={mel.shape}, min={mel.min():.4f}, "
+            f"max={mel.max():.4f}, mean={mel.mean():.4f}"
+        )
 
         # Reshape mel to match encoder HEF input shape
         # HEF expects channels-last: (1, 1000, 80), mel is (80, 1000)
@@ -430,7 +421,12 @@ class HailoWhisperEngine:
         )
 
         encoder_ms = (time.monotonic() - start_time) * 1000
-        logger.debug(f"Encoder inference: {encoder_ms:.0f}ms")
+        logger.debug(
+            f"Encoder inference: {encoder_ms:.0f}ms, "
+            f"output min={encoded_features.min():.4f}, "
+            f"max={encoded_features.max():.4f}, "
+            f"mean={encoded_features.mean():.4f}"
+        )
 
         # --- Decoder: autoregressive token generation ---
         decoder_start = time.monotonic()
@@ -447,19 +443,10 @@ class HailoWhisperEngine:
         num_initial = len(initial_tokens)
 
         for step in range(num_initial, seq_len):
-            # CPU: token embedding + positional embedding lookup
-            # token_embeddings[ids]: (1, seq_len, d_model)
-            # pos_embeddings[:seq_len]: (seq_len, d_model) — added element-wise
+            # CPU: token embedding lookup (positional embeddings are inside HEF)
             token_embeds = self._token_embeddings[decoder_input_ids[0]].astype(
                 np.float32
             )  # (seq_len, d_model)
-
-            # Add positional embeddings (learned, from onnx_add_input NPY)
-            pos_len = min(seq_len, len(self._pos_embeddings))
-            token_embeds[:pos_len] += self._pos_embeddings[:pos_len]
-            # Positions beyond pos_embeddings length use token embeddings only
-            # (typical phone utterances stay within pos_len)
-
             token_embeds = token_embeds[np.newaxis, :, :]  # (1, seq_len, d_model)
 
             # Run decoder on NPU via InferModel bindings
