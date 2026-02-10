@@ -42,3 +42,7 @@ ENV/
 # Logs
 *.log
 
+# Hailo model files (large binaries, download with scripts/download_hailo_models.py)
+*.hef
+*.npy
+

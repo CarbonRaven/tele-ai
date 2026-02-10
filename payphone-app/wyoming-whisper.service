@@ -1,0 +1,22 @@
+[Unit]
+Description=Wyoming Hailo Whisper STT Server
+Documentation=https://github.com/CarbonRaven/payphone-ai
+After=network.target
+Before=payphone.service
+
+[Service]
+User=tom
+WorkingDirectory=/home/tom/tele-ai/payphone-app
+ExecStart=/home/tom/tele-ai/payphone-app/.venv/bin/python \
+    services/wyoming_whisper_server.py \
+    --port 10300 \
+    --model-dir /home/tom/tele-ai/payphone-app/models \
+    --variant tiny \
+    --log-level INFO
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

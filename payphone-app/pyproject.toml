@@ -32,6 +32,12 @@ tts-server = [
     "fastapi>=0.109.0",
     "uvicorn>=0.27.0",
 ]
+# For Hailo Whisper Wyoming server (Pi #1 with AI HAT+ 2)
+# Note: hailo_platform comes from system package python3-h10-hailort, not pip.
+# transformers provides WhisperTokenizer for decoding.
+hailo-whisper = [
+    "transformers>=4.48",
+]
 
 [build-system]
 requires = ["setuptools>=61.0"]

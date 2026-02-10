@@ -99,6 +99,7 @@ tts_server.py              # Standalone TTS server (for Pi #2 offloading)
 ├── services/
 │   ├── vad.py             # Silero VAD v5 with model pool + voice barge-in
 │   ├── stt.py             # Moonshine (5x faster) + Wyoming/Hailo + faster-whisper
+│   ├── wyoming_whisper_server.py  # Standalone Wyoming STT server for Hailo-10H NPU
 │   ├── llm.py             # Ollama client with streaming timeout
 │   └── tts.py             # Kokoro-82M synthesis
 ├── features/
@@ -109,7 +110,9 @@ tts_server.py              # Standalone TTS server (for Pi #2 offloading)
 ├── tests/
 │   └── test_phone_routing.py  # Phone directory and routing tests
 ├── scripts/
-│   └── generate_audio.py  # Generates 17 telephone sound effects (Bellcore GR-506)
+│   ├── generate_audio.py  # Generates 17 telephone sound effects (Bellcore GR-506)
+│   └── download_hailo_models.py  # Downloads Hailo Whisper HEF + NPY model files
+├── models/                # Hailo Whisper model files (HEF + NPY, not committed)
 └── audio/                 # Audio assets (music/, prompts/, sounds/)
     └── sounds/            # 17 generated WAV files (8kHz 16-bit PCM mono)
 ```
@@ -206,9 +209,38 @@ Streaming LLM→TTS pipeline tested end-to-end. Issues discovered and fixed:
 
 Ollama caches the KV state of prompt prefixes. The first call with a new system prompt pays full prompt eval cost (~20s for 223 tokens on Pi 5 CPU). Subsequent calls with the same system prompt prefix complete prompt eval in ~1s. The `initialize()` warm-up now runs a chat with the operator system prompt to pre-populate this cache, so the first real call benefits from cached eval.
 
+### Hailo Whisper Wyoming Server
+
+`services/wyoming_whisper_server.py` is a standalone async TCP server that speaks the Wyoming protocol for Hailo-accelerated Whisper STT. It runs as a separate systemd service (`wyoming-whisper.service`) on Pi #1.
+
+**Architecture** (hybrid inference — encoder on NPU, decoder on NPU + CPU):
+```
+Audio (16kHz PCM) → Mel Spectrogram (CPU) → Encoder (Hailo NPU) → Decoder (Hailo NPU + CPU embed) → Text
+```
+
+- Encoder runs entirely on Hailo-10H NPU (10-second input chunks)
+- Decoder runs on NPU with CPU-side token embedding lookup (large vocab table cannot be compiled into HEF)
+- Mel spectrogram computed with pure numpy (no torch dependency)
+- Inference serialized via asyncio.Lock for NPU access
+
+**Model files** (in `models/` directory, download with `scripts/download_hailo_models.py`):
+- `{variant}-whisper-encoder-10s.hef` — encoder HEF for Hailo NPU
+- `{variant}-whisper-decoder-fixed-sequence.hef` — decoder HEF for Hailo NPU
+- `token_embedding_weight_{variant}.npy` — CPU-side vocab embeddings (51865 x 384)
+- `onnx_add_input_{variant}.npy` — CPU-side positional embeddings
+
+**Deployment**:
+```bash
+python scripts/download_hailo_models.py --variant tiny
+sudo cp wyoming-whisper.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now wyoming-whisper
+```
+
+The app auto-detects the Wyoming server at localhost:10300 when `STT_BACKEND=auto` or `STT_BACKEND=hailo`.
+
 ### Known Limitations
 
-- **Moonshine STT on CPU**: Currently using `moonshine-tiny` on CPU. Hailo-accelerated Whisper via Wyoming not yet configured.
+- **Moonshine STT on CPU**: Currently using `moonshine-tiny` on CPU. Wyoming Hailo Whisper server implemented but pending hardware deployment (model download + systemd setup on Pi #1).
 
 ## Infrastructure Status
 
@@ -218,7 +250,7 @@ Both Pis run Debian Trixie (13.3) aarch64 with kernel 6.12.62+rpt-rpi-2712.
 
 | Service | Version | Status | Notes |
 |---------|---------|--------|-------|
-| Hailo-10H NPU | FW 5.1.1, driver `hailo1x_pci` | `/dev/hailo0` present | `hailo-h10-all` package, not yet used for STT |
+| Hailo-10H NPU | FW 5.1.1, driver `hailo1x_pci` | `/dev/hailo0` present | `hailo-h10-all` package, Wyoming Whisper server ready for deployment |
 | Asterisk | 22.8.2 | Running (systemd) | Built from source, PJSIP + AudioSocket configured |
 | AudioSocket | `res_audiosocket.so` + `app_` + `chan_` | 3 modules loaded | Working end-to-end with voice pipeline |
 | Payphone App | Python 3.13 | Running (systemd) | VAD pool (3), Moonshine STT, Kokoro TTS |
