@@ -34,7 +34,7 @@ Payphone → HT801 ATA (SIP) → Asterisk 22.8.2
 ┌────────────────────────────────────────────────────────────┼─────────────┐
 │ Pi #2 (pi-ollama) 10.10.10.11                             │             │
 │                     Ollama (LLM) ─────────────────────────┘             │
-│                       :11434 / qwen3:4b                                 │
+│                       :11434 / llama3.2:3b                               │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -70,7 +70,7 @@ Payphone → HT801 ATA (SIP) → Asterisk 22.8.2
 |-----------|------------|----------|-------|
 | Wake Word | openWakeWord | Pi #1 | Wyoming protocol, port 10400 |
 | STT | Moonshine/Whisper | Pi #1 | Moonshine (5x faster) or Hailo-accelerated Whisper |
-| LLM | Ollama | Pi #2 | Standard Ollama, qwen3:4b, port 11434 |
+| LLM | Ollama | Pi #2 | Standard Ollama, llama3.2:3b, port 11434 |
 | TTS | Kokoro-82M | Pi #1 | Fast neural TTS, 24kHz output |
 | VAD | Silero VAD | Pi #1 | CPU-based, model pool (3) for concurrent calls |
 | Telephony | Asterisk 22.8.2 | Pi #1 | Built from source, AudioSocket protocol |
@@ -168,6 +168,27 @@ The `play_sound()` method in `core/pipeline.py` loads these files, resamples if 
 
 `payphone-app/HARDWARE_TEST_PLAN.md` contains a 138-test plan across 9 phases for validating the system on hardware, including stress tests and adversarial scenarios to break features. See that file for the full plan and results template.
 
+### First Hardware Test Results (2026-02-10)
+
+End-to-end pipeline verified: Payphone → HT801 → Asterisk → AudioSocket → VAD → Moonshine STT → Ollama LLM → Kokoro TTS → audio response. Issues discovered and fixed during hardware bring-up:
+
+| Issue | Root Cause | Fix |
+|-------|-----------|-----|
+| Asterisk rejected AudioSocket calls | `app_audiosocket.c` requires strict UUID format | Generate UUIDs via `/proc/sys/kernel/random/uuid` in dialplan |
+| `UnicodeDecodeError` on connect | Asterisk sends UUID as 16 raw bytes (binary), not 36-char ASCII | `uuid.UUID(bytes=payload)` in `audiosocket.py` |
+| Silero VAD `ValueError: chunk too short` | AudioSocket 20ms frames = 320 samples at 16kHz, Silero needs exactly 512 | Accumulator buffer in `VADModel` feeds exact 512-sample windows |
+| Moonshine STT `AttributeError` | Moonshine preprocessor returns `input_values`, not `input_features` (Whisper-style) | Fixed key in `stt.py` |
+| `.env` settings ignored | Pydantic sub-settings classes didn't load `.env` file | Added `env_file=".env"` + `extra="ignore"` to all `SettingsConfigDict` |
+| LLM timeout / empty responses | qwen3:4b spends all tokens on thinking mode, ~3.3 tok/s on Pi CPU | Switched to llama3.2:3b (~6 tok/s, no thinking mode) |
+| LLM doesn't know phone directory | No directory data in system prompt | Added 15 key numbers to `BASE_SYSTEM_PROMPT` |
+| HT801 config not saving | "Account Active" must be enabled first | Documented gotcha in SETUP.md |
+
+### Known Limitations
+
+- **LLM response latency ~5-10s**: llama3.2:3b runs at ~6 tok/s on Pi 5 CPU. Switching to streaming LLM → TTS would improve perceived latency.
+- **Moonshine STT on CPU**: Currently using `moonshine-tiny` on CPU. Hailo-accelerated Whisper via Wyoming not yet configured.
+- **Non-streaming LLM**: Pipeline uses `generate()` not `generate_streaming()`. Streaming would allow TTS to start speaking before the full response is generated.
+
 ## Infrastructure Status
 
 Both Pis run Debian Trixie (13.3) aarch64 with kernel 6.12.62+rpt-rpi-2712.
@@ -176,16 +197,23 @@ Both Pis run Debian Trixie (13.3) aarch64 with kernel 6.12.62+rpt-rpi-2712.
 
 | Service | Version | Status | Notes |
 |---------|---------|--------|-------|
-| Hailo-10H NPU | FW 5.1.1, driver `hailo1x_pci` | `/dev/hailo0` present | `hailo-h10-all` package |
-| Asterisk | 22.8.2 | Running (systemd) | Built from source (`/usr/src/asterisk-22.8.2`), not in Trixie arm64 repos |
-| AudioSocket | `res_audiosocket.so` + `app_` + `chan_` | 3 modules loaded | Ready for pipeline integration |
+| Hailo-10H NPU | FW 5.1.1, driver `hailo1x_pci` | `/dev/hailo0` present | `hailo-h10-all` package, not yet used for STT |
+| Asterisk | 22.8.2 | Running (systemd) | Built from source, PJSIP + AudioSocket configured |
+| AudioSocket | `res_audiosocket.so` + `app_` + `chan_` | 3 modules loaded | Working end-to-end with voice pipeline |
+| Payphone App | Python 3.13 | Running (systemd) | VAD pool (3), Moonshine STT, Kokoro TTS |
+| HT801 ATA | v2, 10.10.10.12 | Registered (NonQual) | PJSIP endpoint, ulaw, RFC4733 DTMF |
 
 ### Pi #2 (pi-ollama) — 10.10.10.11
 
 | Service | Version | Status | Notes |
 |---------|---------|--------|-------|
 | Ollama | 0.15.5 | Running on `0.0.0.0:11434` | CPU-only mode, systemd override for network binding |
-| Model | qwen3:4b (2.5GB) | Pulled and ready | |
+| Model | llama3.2:3b (2.0GB) | Active, ~6 tok/s | Replaced qwen3:4b (thinking mode unusable) |
+
+### Model Selection Notes
+
+- **qwen3:4b**: Not suitable — mandatory thinking mode consumes all tokens before generating a response. At ~3.3 tok/s on Pi 5 CPU, it cannot produce useful output within phone-appropriate timeouts.
+- **llama3.2:3b**: Current choice — no thinking mode, ~6 tok/s, natural stop tokens, good conversational quality. Response latency ~5-10s for typical phone answers.
 
 ### Asterisk Source Build
 
