@@ -69,7 +69,7 @@ Payphone → HT801 ATA (SIP) → Asterisk 22.8.2
 | Component | Technology | Location | Notes |
 |-----------|------------|----------|-------|
 | Wake Word | openWakeWord | Pi #1 | Wyoming protocol, port 10400 |
-| STT | Moonshine/Whisper | Pi #1 | Moonshine (5x faster) or Hailo-accelerated Whisper |
+| STT | Whisper-Base (Hailo) | Pi #1 | Hailo-10H NPU via Wyoming protocol, Moonshine fallback |
 | LLM | Ollama | Pi #2 | Standard Ollama, llama3.2:3b, port 11434 |
 | TTS | Kokoro-82M | Pi #1 | Fast neural TTS, 24kHz output |
 | VAD | Silero VAD | Pi #1 | CPU-based, model pool (3) for concurrent calls |
@@ -205,6 +205,17 @@ Streaming LLM→TTS pipeline tested end-to-end. Issues discovered and fixed:
 | TTS reads `*chuckles*` literally | LLM outputs asterisk actions that TTS speaks as words | Added prompt rule: "Never use asterisk actions" |
 | Phone numbers spoken as "five hundred fifty-five" | LLM says numbers naturally instead of digit-by-digit | Added prompt rule: "Say phone numbers one digit at a time" |
 
+### Third Hardware Test Results (2026-02-10)
+
+Hailo-10H NPU Whisper STT deployed and tested end-to-end. Issues discovered and fixed:
+
+| Issue | Root Cause | Fix |
+|-------|-----------|-----|
+| `Input base-whisper-encoder-10s/input_layer1 not found!` | `create_infer_model` defaulted to decoder (first NG alphabetically) | Use `name=ng_name` parameter to select specific network group |
+| `HAILO_NOT_IMPLEMENTED` from `VDevice.configure(hef)` | Multi-NG HEFs not supported via lower-level configure API | Use `create_infer_model(hef_path, name=ng_name)` InferModel API instead |
+| Wyoming `Broken pipe` / `Connection lost` | Client held persistent connection from startup; server closes after each transcription | Per-transcription reconnect in `stt.py`: `disconnect()` then `connect()` each time |
+| Decoder returns 0 tokens (immediate EOT) for real speech | `onnx_add_input_base.npy` (24x512) is NOT positional embeddings — adding it corrupted decoder input. HEF has positional embeddings baked in | Removed positional embedding addition; pass only token embeddings to decoder |
+
 ### Ollama Prompt Caching
 
 Ollama caches the KV state of prompt prefixes. The first call with a new system prompt pays full prompt eval cost (~20s for 223 tokens on Pi 5 CPU). Subsequent calls with the same system prompt prefix complete prompt eval in ~1s. The `initialize()` warm-up now runs a chat with the operator system prompt to pre-populate this cache, so the first real call benefits from cached eval.
@@ -229,7 +240,7 @@ Audio (16kHz PCM) → Mel Spectrogram (CPU) → Encoder (Hailo NPU) → Decoder 
   - Encoder: `base-whisper-encoder-10s` (1,1000,80) → (1,500,512)
   - Decoder: `base-whisper-decoder-10s-out-seq-64` (1,500,512)+(1,64,512) → 4 split outputs → (1,64,51865)
 - `token_embedding_weight_base.npy` — CPU-side vocab embeddings (51865, 512), in `models/`
-- `onnx_add_input_base.npy` — CPU-side positional embeddings (24, 512), in `models/`
+- `onnx_add_input_base.npy` — externalized ONNX constant (24, 512), in `models/` — **NOT used at runtime** (see note below)
 
 **HailoRT API pattern**: Multi-NG HEFs require `create_infer_model(hef_path, name=ng_name)` to select individual network groups. `VDevice.configure(hef)` returns `HAILO_NOT_IMPLEMENTED`.
 
@@ -244,17 +255,22 @@ sudo systemctl daemon-reload && sudo systemctl enable --now wyoming-whisper
 ln -s /usr/lib/python3/dist-packages/hailo_platform .venv/lib/python3.13/site-packages/
 ```
 
-**Performance** (measured on Pi 5 + Hailo-10H):
-- Encoder: ~70ms on NPU
-- Decoder: ~213ms per step on NPU (2 tokens for empty/short, up to 64 steps)
-- Total for silence: ~280ms
+**Important: positional embeddings are baked into the HEF**. The `onnx_add_input_base.npy` file is an externalized ONNX constant that is NOT positional embeddings (shape 24x512 doesn't match any Whisper dimension). Adding it to token embeddings corrupts the decoder input, causing immediate EOT with 0 tokens. Only `token_embedding_weight_base.npy` is needed at runtime for CPU-side vocab lookup.
+
+**Wyoming client connection model**: The server closes the TCP connection after each transcription response (one-shot per connection). The client in `stt.py` reconnects fresh for each `transcribe()` call — do not hold a persistent connection.
+
+**Performance** (measured on Pi 5 + Hailo-10H with real speech):
+- Encoder: ~73-95ms on NPU
+- Decoder: ~228-439ms on NPU (varies with token count, up to 64 steps)
+- Total for 5-token utterance: ~534ms
+- Total for 2-token utterance: ~301ms
 
 The app auto-detects the Wyoming server at localhost:10300 when `STT_BACKEND=auto` or `STT_BACKEND=hailo`.
 
 ### Known Limitations
 
-- **Hailo Whisper positional embeddings**: The official base NPY positional embeddings are 24 tokens (vs 64-token decoder sequence). Transcriptions >24 tokens may degrade. Adequate for typical phone utterances.
 - **Whisper-Base only**: Only Whisper-Base HEF is available from `hailo-apps` for Hailo-10H. Tiny model would require DFC compilation.
+- **Max 64 tokens per transcription**: Decoder sequence length is fixed at 64 in the HEF. Adequate for phone utterances.
 
 ## Infrastructure Status
 
