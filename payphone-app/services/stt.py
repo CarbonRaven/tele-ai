@@ -555,15 +555,15 @@ class WhisperSTT:
             return_tensors="pt",
         )
 
-        # Move to device
-        input_features = inputs.input_features.to(self._device)
+        # Move to device — Moonshine uses input_values (not input_features)
+        input_values = inputs.input_values.to(self._device)
         if self._device == "cuda":
-            input_features = input_features.half()
+            input_values = input_values.half()
 
         # Generate transcription
         with torch.no_grad():
             generated_ids = self._model.generate(
-                input_features,
+                input_values,
                 max_new_tokens=256,
             )
 

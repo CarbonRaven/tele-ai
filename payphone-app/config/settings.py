@@ -21,7 +21,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class AudioSettings(BaseSettings):
     """Audio processing configuration."""
 
-    model_config = SettingsConfigDict(env_prefix="AUDIO_")
+    model_config = SettingsConfigDict(env_prefix="AUDIO_", env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # AudioSocket settings
     audiosocket_host: str = "0.0.0.0"
@@ -58,7 +58,7 @@ class VADSettings(BaseSettings):
     Alternative: TEN VAD (via sherpa-onnx) for potentially lower latency.
     """
 
-    model_config = SettingsConfigDict(env_prefix="VAD_")
+    model_config = SettingsConfigDict(env_prefix="VAD_", env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # Silero VAD v5 settings (v6.2 recommended upgrade) - optimized for telephony
     threshold: float = 0.5  # Balanced sensitivity for phone audio
@@ -100,7 +100,7 @@ class STTSettings(BaseSettings):
     - "large-v3-turbo" (best accuracy)
     """
 
-    model_config = SettingsConfigDict(env_prefix="STT_")
+    model_config = SettingsConfigDict(env_prefix="STT_", env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # Backend selection: "moonshine", "hailo", "whisper", or "auto"
     # "auto" tries moonshine -> hailo/wyoming -> faster-whisper
@@ -143,7 +143,7 @@ class LLMSettings(BaseSettings):
     Use Q4_K_M quantization for best speed/quality balance on Pi 5.
     """
 
-    model_config = SettingsConfigDict(env_prefix="LLM_")
+    model_config = SettingsConfigDict(env_prefix="LLM_", env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # Ollama settings - default to Pi #2 (pi-ollama)
     # Change to localhost:11434 if running single-Pi setup
@@ -182,7 +182,7 @@ class TTSSettings(BaseSettings):
     Set mode="remote" and configure remote_host to offload TTS to Pi #2.
     """
 
-    model_config = SettingsConfigDict(env_prefix="TTS_")
+    model_config = SettingsConfigDict(env_prefix="TTS_", env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # TTS mode: "local" or "remote"
     mode: Literal["local", "remote"] = "local"
@@ -212,7 +212,7 @@ class TTSSettings(BaseSettings):
 class TimeoutSettings(BaseSettings):
     """Timeout configuration for conversation flow."""
 
-    model_config = SettingsConfigDict(env_prefix="TIMEOUT_")
+    model_config = SettingsConfigDict(env_prefix="TIMEOUT_", env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     silence_prompt: int = 10  # Seconds before "Are you still there?"
     silence_goodbye: int = 30  # Additional seconds before auto-hangup

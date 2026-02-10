@@ -78,10 +78,16 @@ class VADModel:
     used by a single session without locking or state save/restore.
     """
 
+    # Silero VAD v5 requires EXACTLY 512 samples at 16kHz (or 256 at 8kHz).
+    # AudioSocket sends 20ms frames → 320 samples at 16kHz after resampling.
+    # We accumulate into a ring buffer and extract exact 512-sample windows.
+    WINDOW_SIZE = {16000: 512, 8000: 256}
+
     def __init__(self, model, utils, settings: VADSettings):
         self._model = model
         self._utils = utils
         self.settings = settings
+        self._accum = np.empty(0, dtype=np.float32)
 
     async def process_chunk(
         self,
@@ -93,6 +99,7 @@ class VADModel:
         """Process an audio chunk and return VAD result.
 
         No lock needed — this model instance is exclusively owned by one session.
+        Accumulates samples and feeds exact-sized windows to Silero.
 
         Args:
             audio: Audio samples as float32 array in range [-1.0, 1.0].
@@ -103,14 +110,28 @@ class VADModel:
         Returns:
             VADResult with speech state and probability.
         """
+        window = self.WINDOW_SIZE.get(sample_rate, 512)
+
+        # Append new audio to accumulator
+        self._accum = np.concatenate([self._accum, audio]) if len(self._accum) > 0 else audio.copy()
+
+        if len(self._accum) < window:
+            return VADResult(state=SpeechState.SILENCE, probability=0.0, audio_chunk=None)
+
+        # Extract exactly `window` samples; keep remainder
+        chunk = self._accum[:window]
+        self._accum = self._accum[window:].copy() if len(self._accum) > window else np.empty(0, dtype=np.float32)
+
         loop = asyncio.get_running_loop()
         prob = await loop.run_in_executor(
             None,
             self._run_inference,
-            audio,
+            chunk,
             sample_rate,
         )
 
+        # Use original audio (not just the window) for the audio_chunk so callers
+        # get the full audio data for STT buffering
         if session_state is not None:
             threshold = threshold_override if threshold_override is not None else self.settings.threshold
             state = self._update_session_state(session_state, prob, len(audio), sample_rate, threshold)
@@ -132,8 +153,9 @@ class VADModel:
         return speech_prob
 
     def reset_states(self) -> None:
-        """Reset the model's LSTM hidden state."""
+        """Reset the model's LSTM hidden state and accumulation buffer."""
         self._model.reset_states()
+        self._accum = np.empty(0, dtype=np.float32)
 
     @staticmethod
     def _samples_to_ms(samples: int, sample_rate: int = 16000) -> int:

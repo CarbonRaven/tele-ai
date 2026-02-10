@@ -89,7 +89,7 @@ For manual installation or customization, follow the detailed steps below.
 |--------|----------|------------|------|
 | Pi 5 #1 | pi-voice | 10.10.10.10 | Voice pipeline + Hailo Whisper STT |
 | Pi 5 #2 | pi-ollama | 10.10.10.11 | LLM server (standard Ollama) |
-| HT801 ATA | ata | 10.10.10.20 | Payphone SIP adapter |
+| HT801 ATA | ata | 10.10.10.12 | Payphone SIP adapter |
 
 ### Port Reference
 
@@ -386,226 +386,220 @@ ls -la kokoro-v1.0.onnx voices-v1.0.bin
 
 ---
 
-## FreePBX Configuration
+## Asterisk Configuration
 
-### Step 1: Verify AudioSocket Module
+Asterisk 22.8.2 is built from source on Pi #1 (not available in Debian Trixie arm64 repos). The configuration uses PJSIP with AudioSocket to connect calls to the voice pipeline.
 
-SSH into your FreePBX server and verify the AudioSocket module is available:
+### Step 1: Verify AudioSocket Modules
 
 ```bash
-# Check if module is loaded
 asterisk -rx "module show like audiosocket"
-
-# If not loaded, load it
-asterisk -rx "module load app_audiosocket"
-
-# Verify it loaded
-asterisk -rx "module show like audiosocket"
-# Should show: app_audiosocket.so
+# Should show 3 modules: app_audiosocket, chan_audiosocket, res_audiosocket
 ```
 
-If the module doesn't exist, you may need Asterisk 16+ (AudioSocket was added in Asterisk 16). FreePBX 16/17 includes it by default.
+### Step 2: PJSIP Configuration
 
-### Step 2: Create Custom Dialplan
-
-**Via SSH** - Add to `/etc/asterisk/extensions_custom.conf`:
+Create `/etc/asterisk/pjsip_custom.conf`:
 
 ```ini
-[from-internal-custom]
-; ============================================
-; AI Payphone Voice Pipeline
-; Routes calls to the AudioSocket server
-; ============================================
+; --- UDP Transport ---
+[transport-udp]
+type=transport
+protocol=udp
+bind=0.0.0.0:5060
 
-; Direct dial to AI (extension 2255 = "CALL")
-exten => 2255,1,NoOp(AI Payphone - Direct)
- same => n,Answer()
- same => n,Wait(0.5)
- same => n,Set(CHANNEL(audioreadformat)=slin16)
- same => n,Set(CHANNEL(audiowriteformat)=slin16)
- same => n,AudioSocket(${UNIQUEID},10.10.10.10:9092)
- same => n,Hangup()
+; --- Payphone Endpoint (HT801 ATA) ---
+[payphone]
+type=endpoint
+context=payphone
+disallow=all
+allow=ulaw
+allow=alaw
+auth=payphone-auth
+aors=payphone
+dtmf_mode=rfc4733
+rtp_symmetric=yes
+force_rport=yes
+rewrite_contact=yes
 
-; Dial-A-Joke shortcut (extension 5653 = "JOKE")
-exten => 5653,1,NoOp(AI Payphone - Jokes)
- same => n,Answer()
- same => n,Wait(0.5)
- same => n,Set(CHANNEL(audioreadformat)=slin16)
- same => n,Set(CHANNEL(audiowriteformat)=slin16)
- same => n,Set(AI_FEATURE=jokes)
- same => n,AudioSocket(${UNIQUEID},10.10.10.10:9092)
- same => n,Hangup()
+[payphone-auth]
+type=auth
+auth_type=userpass
+username=payphone
+password=payphone123
 
-; Catch-all: Route ANY call from payphone extension (100) to AI
-; Uncomment if you want the payphone to always connect to AI
-;exten => _X.,1,GotoIf($["${CALLERID(num)}" = "100"]?ai-route,1)
-; same => n,Goto(from-internal,${EXTEN},1)
-;exten => _X.(ai-route),1,NoOp(Routing payphone to AI)
-; same => n,Goto(2255,1)
+[payphone]
+type=aor
+max_contacts=1
+remove_existing=yes
+qualify_frequency=0
 ```
 
-**Reload the dialplan:**
+Add include to `/etc/asterisk/pjsip.conf`:
+
+```ini
+#include pjsip_custom.conf
+```
+
+### Step 3: Dialplan
+
+Create `/etc/asterisk/extensions_custom.conf`:
+
+```ini
+[payphone]
+; All calls route through AudioSocket with a generated UUID.
+; AudioSocket requires a valid UUID — custom strings are rejected.
+; The voice pipeline starts in operator mode; callers use DTMF
+; shortcuts or voice to navigate to features.
+
+; Operator (dial 0)
+exten => 0,1,Answer()
+ same => n,Set(CALL_UUID=${SHELL(cat /proc/sys/kernel/random/uuid | tr -d '\n')})
+ same => n,AudioSocket(${CALL_UUID},10.10.10.10:9092)
+ same => n,Hangup()
+
+; Quick access 2255 (CALL)
+exten => 2255,1,Answer()
+ same => n,Set(CALL_UUID=${SHELL(cat /proc/sys/kernel/random/uuid | tr -d '\n')})
+ same => n,AudioSocket(${CALL_UUID},10.10.10.10:9092)
+ same => n,Hangup()
+
+; Single-digit DTMF shortcuts (1-9)
+exten => _[1-9],1,Answer()
+ same => n,Set(CALL_UUID=${SHELL(cat /proc/sys/kernel/random/uuid | tr -d '\n')})
+ same => n,AudioSocket(${CALL_UUID},10.10.10.10:9092)
+ same => n,Hangup()
+
+; 7-digit numbers (phone directory)
+exten => _NXXXXXX,1,Answer()
+ same => n,Set(CALL_UUID=${SHELL(cat /proc/sys/kernel/random/uuid | tr -d '\n')})
+ same => n,AudioSocket(${CALL_UUID},10.10.10.10:9092)
+ same => n,Hangup()
+
+; 10-digit numbers (with area code)
+exten => _NXXNXXXXXX,1,Answer()
+ same => n,Set(CALL_UUID=${SHELL(cat /proc/sys/kernel/random/uuid | tr -d '\n')})
+ same => n,AudioSocket(${CALL_UUID},10.10.10.10:9092)
+ same => n,Hangup()
+
+; Catch-all
+exten => _X.,1,Answer()
+ same => n,Set(CALL_UUID=${SHELL(cat /proc/sys/kernel/random/uuid | tr -d '\n')})
+ same => n,AudioSocket(${CALL_UUID},10.10.10.10:9092)
+ same => n,Hangup()
+```
+
+> **Note**: Asterisk's `app_audiosocket.c` requires the first argument to be a valid UUID (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`). Passing custom strings like `EXTEN:UNIQUEID` will fail with "Failed to parse UUID". We generate UUIDs via `/proc/sys/kernel/random/uuid`.
+
+Add include to `/etc/asterisk/extensions.conf`:
+
+```ini
+#include extensions_custom.conf
+```
+
+### Step 4: Reload and Verify
 
 ```bash
+# Reload
+asterisk -rx "module reload res_pjsip.so"
 asterisk -rx "dialplan reload"
 
-# Verify it loaded
-asterisk -rx "dialplan show 2255@from-internal-custom"
+# Verify transport
+asterisk -rx "pjsip show transports"
+
+# Verify endpoint
+asterisk -rx "pjsip show endpoints"
+
+# Verify dialplan (should show 7 extensions, 21 priorities)
+asterisk -rx "dialplan show payphone"
 ```
 
-### Step 3: Create Payphone Extension (GUI)
+### How Call Routing Works
 
-1. **Navigate to Extensions**
-   ```
-   Applications → Extensions → Add Extension → Add New PJSIP Extension
-   ```
+All calls enter the voice pipeline in operator mode. The app plays a greeting and the caller navigates using:
+- **DTMF shortcuts** (1-9): Press during a call to switch features (e.g., 1=Jokes, 2=Trivia)
+- **Voice commands**: Say what you want and the AI routes you
+- **Pre-dial**: The HT801 dial plan collects digits before connecting; Asterisk matches them to the `[payphone]` context
 
-2. **Extension Settings**
+The `audiosocket.py` protocol handler supports an optional `EXTEN:UUID` format for pre-routing, but Asterisk's `app_audiosocket.c` requires strict UUID validation, so extension-based pre-routing requires either a custom Asterisk build or the `chan_audiosocket` channel driver.
 
-   | Field | Value |
-   |-------|-------|
-   | User Extension | 100 |
-   | Display Name | Payphone |
-   | Secret | (click Generate) - save this! |
-
-3. **Advanced Tab**
-
-   | Field | Value |
-   |-------|-------|
-   | DTMF Signaling | RFC 4733 |
-
-4. **Click Submit, then Apply Config**
-
-### Step 4: Create Custom Destination (Optional)
-
-To make the AI accessible from IVR menus:
-
-1. **Navigate to Admin → Custom Destinations**
-
-2. **Add Custom Destination**
-
-   | Field | Value |
-   |-------|-------|
-   | Target | 2255@from-internal-custom |
-   | Description | AI Payphone |
-
-3. **Now you can select "AI Payphone" as a destination in IVRs, Ring Groups, etc.**
-
-### Step 5: Create Inbound Route for Payphone
-
-If you want external callers to reach the AI:
-
-1. **Navigate to Connectivity → Inbound Routes**
-
-2. **Add Inbound Route**
-
-   | Field | Value |
-   |-------|-------|
-   | Description | AI Payphone Inbound |
-   | DID Number | (your DID or leave blank for catch-all) |
-   | Set Destination | Custom Destinations → AI Payphone |
-
-### Step 6: Firewall Configuration
-
-Allow the AudioSocket connection from FreePBX to the Pi:
-
-**On FreePBX (if firewall enabled):**
-```
-Connectivity → Firewall → Networks → Add Network
-```
-
-| Field | Value |
-|-------|-------|
-| Network | 10.10.10.10/32 |
-| Zone | Trusted |
-| Description | AI Payphone Server |
-
-**On Pi #1 (voice pipeline):**
-```bash
-sudo ufw allow 9092/tcp comment "AudioSocket"
-```
-
-### Step 7: Test the Configuration
-
-1. **Check AudioSocket is reachable from FreePBX:**
-   ```bash
-   # From FreePBX server
-   nc -zv 10.10.10.10 9092
-   ```
-
-2. **Make a test call:**
-   - Pick up payphone (or use softphone registered as ext 100)
-   - Dial 2255
-   - You should hear the AI greeting
-
-3. **Monitor Asterisk logs:**
-   ```bash
-   # On FreePBX
-   asterisk -rvvv
-
-   # When call connects, you'll see:
-   # -- AudioSocket(uuid,10.10.10.10:9092)
-   ```
-
-### Troubleshooting FreePBX
+### Troubleshooting Asterisk
 
 | Issue | Solution |
 |-------|----------|
-| "AudioSocket: Could not connect" | Check Pi is running, firewall allows 9092 |
-| No audio | Ensure `slin16` format settings, check codecs |
-| Call drops immediately | Check dialplan syntax with `dialplan show` |
-| Extension not registering | Verify HT801 credentials match FreePBX |
-
-**Useful Commands:**
+| "AudioSocket: Could not connect" | Check payphone service is running: `systemctl status payphone` |
+| No audio after connect | Verify AudioSocket port: `ss -tlnp \| grep 9092` |
+| HT801 not registering | Check `pjsip show endpoints`, verify PJSIP credentials match HT801 |
+| "will exceed max contacts" | Ensure `remove_existing=yes` in AOR config, restart Asterisk |
+| Call drops immediately | Check dialplan: `asterisk -rx "dialplan show payphone"` |
 
 ```bash
-# Check PJSIP registrations
-asterisk -rx "pjsip show endpoints"
-
-# Check active channels
-asterisk -rx "core show channels"
-
-# Debug AudioSocket
-asterisk -rx "core set verbose 5"
-asterisk -rx "core set debug 5"
-
-# Reload after changes
-fwconsole reload
+# Useful debug commands
+asterisk -rx "pjsip show endpoints"       # Registration status
+asterisk -rx "pjsip show contacts"        # Contact details
+asterisk -rx "core show channels"         # Active calls
+asterisk -rx "pjsip set logger on"        # SIP message tracing
 ```
 
 ---
 
 ## HT801 ATA Configuration
 
+The Grandstream HT801 v2 converts the analog payphone to SIP.
+
 1. **Access Web Interface**
 
-   Default: http://10.10.10.20 (admin/admin)
+   Navigate to `https://10.10.10.12` (note: HTTPS, not HTTP — it redirects).
 
-2. **SIP Settings (FXS Port)**
+   The admin password is printed on the device label (bottom sticker). Newer firmware requires changing the default password on first login.
 
-   | Setting | Value |
-   |---------|-------|
-   | SIP Server | 10.10.10.10 (FreePBX/Asterisk on Pi #1) |
-   | SIP User ID | 100 |
-   | Authenticate ID | 100 |
-   | Authenticate Password | (set in FreePBX) |
-   | Preferred Vocoder | PCMU (G.711 μ-law) |
+2. **FXS Port Settings (Account 1)**
 
-3. **Audio Settings**
+   > **IMPORTANT**: You must check **"Account Active: Yes"** first, or no other settings will be saved. This is easy to miss and is the most common configuration issue.
 
    | Setting | Value |
    |---------|-------|
-   | Preferred Vocoder | PCMU |
+   | **Account Active** | **Yes** (must enable first!) |
+   | SIP Server | `10.10.10.10` |
+   | SIP User ID | `payphone` |
+   | Authenticate ID | `payphone` |
+   | Authenticate Password | `payphone123` |
+   | SIP Transport | UDP |
+   | Preferred Vocoder | PCMU (ulaw) |
+   | DTMF Mode | RFC4733 (RFC2833) |
+
+3. **Dialing Settings**
+
+   | Setting | Value |
+   |---------|-------|
+   | Dial Plan | `{ x+ \| \*x+ \| #x+ }` |
+   | No Key Entry Timeout | 4 seconds |
+   | Offhook Auto-Dial | *(leave empty)* |
+   | Enable Call Features | No |
+
+   The dial plan `{ x+ | *x+ | #x+ }` accepts any digit string and sends after the no-key timeout. This lets users dial 7-digit numbers, single-digit shortcuts (1-9), or 0 for operator.
+
+4. **Audio Settings**
+
+   | Setting | Value |
+   |---------|-------|
+   | Preferred Vocoder | PCMU first, PCMA second |
    | Silence Suppression | No |
-   | Echo Cancellation | Yes |
-   | Jitter Buffer | Fixed, 60ms |
+   | Echo Canceller | Yes |
+   | Jitter Buffer Type | Adaptive |
 
-4. **Create Extension in FreePBX**
+5. **Network** (should already be configured)
 
-   - Extensions → Add Extension → PJSIP
-   - Extension: 100
-   - Display Name: Payphone
-   - Secret: (generate password)
+   | Setting | Value |
+   |---------|-------|
+   | IP Address | `10.10.10.12` (static) |
+
+6. **Save and Apply**, then verify registration:
+
+   ```bash
+   asterisk -rx "pjsip show endpoints"
+   # Should show: payphone ... with a Contact line
+   ```
 
 ---
 
@@ -708,12 +702,23 @@ After=network.target
 
 [Service]
 Type=simple
-User=pi
-WorkingDirectory=/home/pi/tele-ai/payphone-app
-Environment=PATH=/home/pi/tele-ai/payphone-app/.venv/bin
-ExecStart=/home/pi/tele-ai/payphone-app/.venv/bin/python main.py
+User=tom
+WorkingDirectory=/home/tom/tele-ai/payphone-app
+Environment=PATH=/home/tom/tele-ai/payphone-app/.venv/bin:/usr/bin:/bin
+ExecStart=/home/tom/tele-ai/payphone-app/.venv/bin/python main.py
 Restart=always
 RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=payphone
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/tom/tele-ai/payphone-app /home/tom/.cache
 
 [Install]
 WantedBy=multi-user.target
@@ -805,19 +810,26 @@ asyncio.run(test())
 
 ```bash
 # Check AudioSocket server
-netstat -tlnp | grep 9092
+ss -tlnp | grep 9092
 
-# Check Ollama
-curl http://localhost:11434/api/tags
+# Check Ollama (from Pi #1)
+curl http://10.10.10.11:11434/api/tags
 
 # Check Asterisk AudioSocket module
 asterisk -rx "module show like audiosocket"
 
-# Test dialplan
-asterisk -rx "dialplan show 2255@from-internal-custom"
+# Check HT801 registration
+asterisk -rx "pjsip show endpoints"
+asterisk -rx "pjsip show contacts"
 
-# View live Asterisk logs
-asterisk -rvvv
+# Test dialplan
+asterisk -rx "dialplan show payphone"
+
+# View payphone app logs
+journalctl -u payphone -f
+
+# Enable SIP message tracing
+asterisk -rx "pjsip set logger on"
 ```
 
 ### Performance Tuning
@@ -861,6 +873,8 @@ sudo systemctl disable avahi-daemon
 - [ ] Pull qwen3:4b model
 
 ### Network & Telephony
-- [ ] Configure HT801 ATA (10.10.10.20)
+- [ ] Configure Asterisk PJSIP (`pjsip_custom.conf`) and dialplan (`extensions_custom.conf`)
+- [ ] Configure HT801 ATA (10.10.10.12) — **enable Account Active first!**
+- [ ] Verify registration: `asterisk -rx "pjsip show endpoints"`
 - [ ] Test from Pi #1: `curl http://10.10.10.11:11434/api/tags`
-- [ ] Test with phone call to extension 2255
+- [ ] Test with phone call (pick up payphone, dial a number)

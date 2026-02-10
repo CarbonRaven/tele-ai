@@ -6,7 +6,7 @@ over a TCP connection. This module implements the server-side protocol handler.
 Protocol Format:
 - Frame: [type:1byte][length:2bytes BE][payload]
 - Message types:
-  - UUID (0x01): Call identifier (36-byte ASCII UUID)
+  - UUID (0x01): Call identifier (16-byte binary or 36-byte ASCII UUID)
   - AUDIO (0x10): Audio data (signed 16-bit PCM, 8kHz mono)
   - DTMF (0x03): DTMF digit (1 byte ASCII)
   - HANGUP (0x00): Call ended
@@ -52,8 +52,14 @@ class AudioSocketMessage:
 
     @property
     def as_uuid(self) -> str | None:
-        """Get payload as UUID string if message type is UUID."""
+        """Get payload as UUID string if message type is UUID.
+
+        Asterisk sends the UUID as raw 16 bytes (binary), not as a
+        36-character ASCII string. Handle both formats for robustness.
+        """
         if self.type == MessageType.UUID:
+            if len(self.payload) == 16:
+                return str(uuid.UUID(bytes=self.payload))
             return self.payload.decode("ascii").strip()
         return None
 
