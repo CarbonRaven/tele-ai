@@ -161,7 +161,7 @@ class LLMSettings(BaseSettings):
 
     # Streaming timeout settings
     # First token can take longer due to model loading/prompt processing
-    first_token_timeout: float = 15.0  # Timeout for first token
+    first_token_timeout: float = 25.0  # Timeout for first token (cold-start prompt eval ~20s on Pi 5)
     inter_token_timeout: float = 5.0  # Timeout between subsequent tokens
 
     # Streaming: overlap LLM generation with TTS for lower perceived latency

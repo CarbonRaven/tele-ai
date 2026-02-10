@@ -144,11 +144,17 @@ class OllamaClient:
                 )
                 await self._client.pull(self.settings.model)
 
-            # Warm up the model
+            # Warm up the model with the operator system prompt so Ollama
+            # caches the prompt prefix. Without this, the first real call
+            # pays ~20-25s for cold prompt eval on Pi 5 CPU.
             logger.info(f"Warming up model: {self.settings.model}")
-            await self._client.generate(
+            warmup_messages = [
+                {"role": "system", "content": get_system_prompt()},
+                {"role": "user", "content": "Hello"},
+            ]
+            await self._client.chat(
                 model=self.settings.model,
-                prompt="Hello",
+                messages=warmup_messages,
                 options={"num_predict": 1},
                 keep_alive=self.settings.keep_alive,
             )
@@ -299,26 +305,35 @@ class OllamaClient:
                 timeout=self.settings.first_token_timeout,
             )
 
-            async for part in stream:
-                current_time = time.perf_counter()
+            # Iterate with per-token timeouts. The `async for` pattern
+            # blocks indefinitely on __anext__(), so a slow first token
+            # (e.g. 20s prompt eval on Pi 5) would never hit the timeout
+            # check inside the loop body. Manual iteration with wait_for
+            # ensures we bail out promptly.
+            stream_iter = stream.__aiter__()
+            while True:
+                token_timeout = (
+                    self.settings.first_token_timeout if is_first_token
+                    else self.settings.inter_token_timeout
+                )
 
-                # Use different timeout for first token vs subsequent tokens
-                # First token takes longer due to prompt processing/model loading
-                if is_first_token:
-                    token_timeout = self.settings.first_token_timeout
-                else:
-                    token_timeout = self.settings.inter_token_timeout
-
-                # Check for token timeout (no tokens received for too long)
-                if current_time - last_token_time > token_timeout:
+                try:
+                    part = await asyncio.wait_for(
+                        stream_iter.__anext__(),
+                        timeout=token_timeout,
+                    )
+                except StopAsyncIteration:
+                    break
+                except asyncio.TimeoutError:
+                    elapsed = time.perf_counter() - last_token_time
                     logger.warning(
-                        f"Streaming timed out after {current_time - last_token_time:.1f}s "
+                        f"Streaming timed out after {elapsed:.1f}s "
                         f"({'first token' if is_first_token else 'between tokens'})"
                     )
                     yield " I need to pause here."
                     break
 
-                last_token_time = current_time
+                last_token_time = time.perf_counter()
                 is_first_token = False
                 token = part["message"]["content"]
                 response_parts.append(token)

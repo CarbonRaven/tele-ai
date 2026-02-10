@@ -20,7 +20,9 @@ IMPORTANT RULES (never violate these):
 - Never output code, URLs, or technical content
 - Use natural, conversational language appropriate for voice
 - Avoid special characters, bullet points, or formatting
+- Never use asterisk actions like *chuckles* or *laughs* — your words are spoken aloud by TTS
 - Respond directly and concisely
+- Say phone numbers one digit at a time (e.g. "five, five, five, five, six, five, three" not "five hundred fifty-five")
 
 Press star at any time to return to the main menu."""
 

@@ -548,6 +548,22 @@ class WhisperSTT:
 
         duration = len(audio) / 16000
 
+        # Moonshine's encoder has conv1d layers with kernel_size=7.
+        # Audio shorter than ~100ms (1600 samples at 16kHz) causes a
+        # RuntimeError because the padded input is smaller than the kernel.
+        min_samples = 1600  # 100ms at 16kHz
+        if len(audio) < min_samples:
+            logger.debug(
+                f"Audio too short for Moonshine ({len(audio)} samples, "
+                f"need {min_samples}), returning empty"
+            )
+            return TranscriptionResult(
+                text="",
+                language=self.settings.language,
+                confidence=0.0,
+                duration_seconds=duration,
+            )
+
         # Prepare inputs for Moonshine
         inputs = self._processor(
             audio,
