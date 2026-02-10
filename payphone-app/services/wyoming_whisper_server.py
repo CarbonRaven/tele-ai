@@ -202,10 +202,10 @@ class HailoWhisperEngine:
 
         # Runtime state (populated by initialize())
         self._vdevice = None
-        self._encoder_configured = None
-        self._decoder_configured = None
         self._encoder_model = None
         self._decoder_model = None
+        self._encoder_configured = None
+        self._decoder_configured = None
         self._token_embeddings: np.ndarray | None = None
         self._pos_embeddings: np.ndarray | None = None
         self._tokenizer = None
@@ -243,6 +243,12 @@ class HailoWhisperEngine:
             f"Loaded embeddings: tokens={self._token_embeddings.shape}, "
             f"positions={self._pos_embeddings.shape}"
         )
+        # d_model sanity check — embeddings must match HEF dimensions
+        if self._token_embeddings.shape[1] != self._pos_embeddings.shape[1]:
+            raise ValueError(
+                f"Embedding dimension mismatch: tokens={self._token_embeddings.shape[1]}, "
+                f"positions={self._pos_embeddings.shape[1]}"
+            )
 
         # Load tokenizer (transformers already installed for Moonshine)
         from transformers import WhisperTokenizer
@@ -271,23 +277,23 @@ class HailoWhisperEngine:
         ng_names = hef.get_network_group_names()
         logger.info(f"HEF network groups: {ng_names}")
 
-        # Identify encoder and decoder network groups
-        encoder_ng = None
-        decoder_ng = None
+        # Identify encoder and decoder network groups by name
+        encoder_ng_name = None
+        decoder_ng_name = None
         for name in ng_names:
             if "encoder" in name.lower():
-                encoder_ng = name
+                encoder_ng_name = name
             elif "decoder" in name.lower():
-                decoder_ng = name
+                decoder_ng_name = name
 
-        if not encoder_ng or not decoder_ng:
+        if not encoder_ng_name or not decoder_ng_name:
             raise RuntimeError(
                 f"Could not identify encoder/decoder in HEF network groups: "
                 f"{ng_names}. Expected names containing 'encoder' and 'decoder'."
             )
 
         # Log all I/O shapes for debugging
-        for ng_name in [encoder_ng, decoder_ng]:
+        for ng_name in [encoder_ng_name, decoder_ng_name]:
             inputs = hef.get_input_vstream_infos(ng_name)
             outputs = hef.get_output_vstream_infos(ng_name)
             for info in inputs:
@@ -302,16 +308,12 @@ class HailoWhisperEngine:
         logger.info("Hailo VDevice created")
 
         # --- Encoder setup ---
-        # For multi-network-group HEFs, create_infer_model takes the HEF path
-        # and we select the network group by name
+        # create_infer_model with name= selects the specific network group
         self._encoder_model = self._vdevice.create_infer_model(
-            str(self.hef_path)
+            str(self.hef_path), name=encoder_ng_name
         )
-        # Get encoder I/O names (with network group prefix)
-        enc_inputs = hef.get_input_vstream_infos(encoder_ng)
-        enc_outputs = hef.get_output_vstream_infos(encoder_ng)
-        self._encoder_input_name = enc_inputs[0].name
-        self._encoder_output_name = enc_outputs[0].name
+        self._encoder_input_name = self._encoder_model.input_names[0]
+        self._encoder_output_name = self._encoder_model.output_names[0]
 
         self._encoder_model.input(self._encoder_input_name).set_format_type(
             FormatType.FLOAT32
@@ -321,8 +323,12 @@ class HailoWhisperEngine:
         )
         self._encoder_configured = self._encoder_model.configure()
 
-        self._encoder_input_shape = tuple(enc_inputs[0].shape)
-        self._encoder_output_shape = tuple(enc_outputs[0].shape)
+        self._encoder_input_shape = tuple(
+            self._encoder_model.input(self._encoder_input_name).shape
+        )
+        self._encoder_output_shape = tuple(
+            self._encoder_model.output(self._encoder_output_name).shape
+        )
         logger.info(
             f"Encoder ready: input={self._encoder_input_shape}, "
             f"output={self._encoder_output_shape}"
@@ -330,16 +336,12 @@ class HailoWhisperEngine:
 
         # --- Decoder setup ---
         self._decoder_model = self._vdevice.create_infer_model(
-            str(self.hef_path)
+            str(self.hef_path), name=decoder_ng_name
         )
 
-        dec_inputs = hef.get_input_vstream_infos(decoder_ng)
-        dec_outputs = hef.get_output_vstream_infos(decoder_ng)
+        self._decoder_input_names = list(self._decoder_model.input_names)
+        self._decoder_output_names = sorted(self._decoder_model.output_names)
 
-        self._decoder_input_names = [info.name for info in dec_inputs]
-        self._decoder_output_names = sorted([info.name for info in dec_outputs])
-
-        # Set format types
         for name in self._decoder_input_names:
             self._decoder_model.input(name).set_format_type(FormatType.FLOAT32)
         for name in self._decoder_output_names:
@@ -349,21 +351,23 @@ class HailoWhisperEngine:
 
         # Determine decoder sequence length from output shape
         # Outputs are split: e.g. 4 x (1, 64, ~12966) -> concat to (1, 64, 51865)
-        self._decoder_seq_len = dec_outputs[0].shape[1]
+        self._decoder_seq_len = tuple(
+            self._decoder_model.output(self._decoder_output_names[0]).shape
+        )[1]
 
-        # Map decoder inputs: input_layer1 = encoder output, input_layer2 = token embeds
-        # Identified by shape: encoder output matches (1, 500, 512), tokens match (1, 64, 512)
+        # Map decoder inputs by shape:
+        # input_layer1 (1, 500, 512) = encoder features (shape[1] matches encoder output)
+        # input_layer2 (1, 64, 512)  = token embeddings
         self._enc_input_name = None
         self._tok_input_name = None
-        for info in dec_inputs:
-            # The encoder output input has same total size as encoder output
-            if info.shape[1] == self._encoder_output_shape[1]:
-                self._enc_input_name = info.name
+        for name in self._decoder_input_names:
+            shape = tuple(self._decoder_model.input(name).shape)
+            if shape[1] == self._encoder_output_shape[1]:
+                self._enc_input_name = name
             else:
-                self._tok_input_name = info.name
+                self._tok_input_name = name
 
         if not self._enc_input_name or not self._tok_input_name:
-            # Fallback to alphabetical order (input_layer1 < input_layer2)
             sorted_names = sorted(self._decoder_input_names)
             self._enc_input_name = sorted_names[0]
             self._tok_input_name = sorted_names[1]
@@ -379,9 +383,17 @@ class HailoWhisperEngine:
             f"outputs={len(self._decoder_output_names)} split tensors"
         )
 
+        # Warn if positional embeddings don't cover full decoder sequence
+        if self._pos_embeddings.shape[0] < self._decoder_seq_len:
+            logger.warning(
+                f"Positional embeddings ({self._pos_embeddings.shape[0]}) shorter "
+                f"than decoder seq_len ({self._decoder_seq_len}). Transcriptions "
+                f">{self._pos_embeddings.shape[0]} tokens may lose accuracy."
+            )
+
         logger.info(
             f"Hailo Whisper engine initialized (variant={self.variant}, "
-            f"encoder={encoder_ng}, decoder={decoder_ng})"
+            f"encoder={encoder_ng_name}, decoder={decoder_ng_name})"
         )
 
     def transcribe_sync(self, audio: np.ndarray) -> str:
@@ -409,11 +421,10 @@ class HailoWhisperEngine:
         # --- Encoder inference (NPU) ---
         enc_bindings = self._encoder_configured.create_bindings()
         enc_bindings.input(self._encoder_input_name).set_buffer(mel_input)
-
         enc_output = np.zeros(self._encoder_output_shape, dtype=np.float32)
         enc_bindings.output(self._encoder_output_name).set_buffer(enc_output)
 
-        self._encoder_configured.run([enc_bindings], 30_000)  # 30s timeout ms
+        self._encoder_configured.run([enc_bindings], 30_000)
         encoded_features = np.ascontiguousarray(
             enc_bindings.output(self._encoder_output_name).get_buffer()
         )
@@ -436,12 +447,22 @@ class HailoWhisperEngine:
         num_initial = len(initial_tokens)
 
         for step in range(num_initial, seq_len):
-            # CPU: token embedding lookup — (1, seq_len) -> (1, seq_len, d_model)
-            token_embeds = self._token_embeddings[decoder_input_ids].astype(
+            # CPU: token embedding + positional embedding lookup
+            # token_embeddings[ids]: (1, seq_len, d_model)
+            # pos_embeddings[:seq_len]: (seq_len, d_model) — added element-wise
+            token_embeds = self._token_embeddings[decoder_input_ids[0]].astype(
                 np.float32
-            )
+            )  # (seq_len, d_model)
 
-            # Set decoder input buffers
+            # Add positional embeddings (learned, from onnx_add_input NPY)
+            pos_len = min(seq_len, len(self._pos_embeddings))
+            token_embeds[:pos_len] += self._pos_embeddings[:pos_len]
+            # Positions beyond pos_embeddings length use token embeddings only
+            # (typical phone utterances stay within pos_len)
+
+            token_embeds = token_embeds[np.newaxis, :, :]  # (1, seq_len, d_model)
+
+            # Run decoder on NPU via InferModel bindings
             dec_bindings = self._decoder_configured.create_bindings()
             dec_bindings.input(self._enc_input_name).set_buffer(
                 np.ascontiguousarray(encoded_features)
@@ -517,14 +538,10 @@ class HailoWhisperEngine:
 
     def cleanup(self) -> None:
         """Release Hailo NPU resources."""
-        for configured in [self._encoder_configured, self._decoder_configured]:
-            if configured is not None:
-                try:
-                    configured.release()
-                except Exception:
-                    pass
         self._encoder_configured = None
         self._decoder_configured = None
+        self._encoder_model = None
+        self._decoder_model = None
         if self._vdevice is not None:
             try:
                 self._vdevice.release()
