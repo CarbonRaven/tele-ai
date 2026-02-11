@@ -36,7 +36,7 @@ Technical architecture for the AI Payphone project - a self-contained, locally-h
 | Component | Model | Purpose | Qty |
 |-----------|-------|---------|-----|
 | Pi #1 (Voice Pipeline) | Raspberry Pi 5 (16GB) | Whisper STT, Piper TTS, VAD, Asterisk | 1 |
-| Pi #2 (LLM Server) | Raspberry Pi 5 (16GB) | Ollama with qwen3:4b | 1 |
+| Pi #2 (LLM Server) | Raspberry Pi 5 (16GB) | Ollama with qwen3:4b-instruct | 1 |
 | AI Accelerator | Raspberry Pi AI HAT+ 2 | Hailo-10H NPU for Whisper STT (Pi #1 only) | 1 |
 | Analog Telephone Adapter | Grandstream HT801 v2 | Payphone to SIP bridge | 1 |
 | Network Switch | 5-port Gigabit | Internal network | 1 |
@@ -71,7 +71,7 @@ Two Pi 5s provide the best balance of performance and model quality. Pi #1 handl
 │                    10.10.10.11                                 │
 ├─────────────────────────────────────────────────────────────────┤
 │  • Ollama (standard, CPU-based) - port 11434                    │
-│  • Model: qwen3:4b (recommended)                              │
+│  • Model: qwen3:4b-instruct (recommended)                              │
 │  • Full 16GB RAM available for larger models                    │
 ├─────────────────────────────────────────────────────────────────┤
 │  Benefits of separate LLM server:                               │
@@ -158,7 +158,7 @@ For cost-constrained deployments, a single Pi 5 with AI HAT+ 2 can run everythin
 | Whisper (Wyoming) | 10300 | TCP | pi-voice | Hailo-accelerated STT |
 | Piper (Wyoming) | 10200 | TCP | pi-voice | TTS service |
 | openWakeWord (Wyoming) | 10400 | TCP | pi-voice | Wake word detection |
-| Ollama API | 11434 | TCP | pi-ollama | LLM inference (qwen3:4b) |
+| Ollama API | 11434 | TCP | pi-ollama | LLM inference (qwen3:4b-instruct) |
 
 ---
 
@@ -188,7 +188,7 @@ For cost-constrained deployments, a single Pi 5 with AI HAT+ 2 can run everythin
 │  │    (STT)    │ │   (TTS)   │ │  │    (LLM)    │               │
 │  │             │ │           │ │  │             │               │
 │  │ Hailo-10H   │ │   CPU     │ │  │ CPU (3B+)   │               │
-│  │ Accelerated │ │           │ │  │ qwen3:4b  │               │
+│  │ Accelerated │ │           │ │  │ qwen3:4b-instruct  │               │
 │  └─────────────┘ └───────────┘ │  └─────────────┘               │
 │         ▲              │       │         ▲                      │
 │         │              │       │         │                      │
@@ -1282,7 +1282,7 @@ services:
 volumes:
   ollama-data:
 
-# After starting: docker exec -it ollama ollama pull qwen3:4b
+# After starting: docker exec -it ollama ollama pull qwen3:4b-instruct
 ```
 
 ### Systemd Services (Non-Docker)
@@ -1335,7 +1335,7 @@ WantedBy=multi-user.target
 **Large Language Model (Ollama)**
 | Model | Size | Speed | Quality | Recommendation |
 |-------|------|-------|---------|----------------|
-| `qwen3:4b` | ~3GB | Fast | Excellent | **Production recommended** |
+| `qwen3:4b-instruct` | ~3GB | Fast | Excellent | **Production recommended** (non-thinking variant) |
 | `llama3.2:3b` | 2GB | Fast | Good | Fallback option |
 | `llama3.2:1b` | 1.3GB | Fastest | Basic | Simple features only |
 | `phi-3-mini` | 2.3GB | Fast | Good reasoning | Alternative |
@@ -1723,7 +1723,7 @@ async def health_check() -> dict:
         },
         "models_loaded": {
             "whisper": ollama_model_loaded("whisper"),
-            "llm": ollama_model_loaded("qwen3:4b"),
+            "llm": ollama_model_loaded("qwen3:4b-instruct"),
         }
     }
 ```

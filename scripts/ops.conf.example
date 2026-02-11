@@ -33,7 +33,7 @@ ASTERISK_SIP_PORT=5060
 # =============================================================================
 
 # Model to verify is loaded
-OLLAMA_MODEL=qwen3:4b
+OLLAMA_MODEL=qwen3:4b-instruct
 
 # =============================================================================
 # Ready Call Configuration

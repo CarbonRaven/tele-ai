@@ -6,7 +6,7 @@ Organized from basic connectivity through adversarial "break it" scenarios.
 ## Prerequisites
 
 - Pi #1 (pi-voice, 10.10.10.10): Asterisk/FreePBX, VAD, STT, TTS running
-- Pi #2 (pi-ollama, 10.10.10.11): Ollama with qwen3:4b loaded, port 11434
+- Pi #2 (pi-ollama, 10.10.10.11): Ollama with qwen3:4b-instruct loaded, port 11434
 - HT801 ATA connected to physical payphone, registered with Asterisk
 - 5-port switch linking both Pis and ATA
 - AudioSocket configured on port 9092
@@ -20,8 +20,8 @@ Verify each service is reachable before testing the full pipeline.
 | # | Test | Command / Action | Expected |
 |---|------|------------------|----------|
 | 1.1 | Pi-to-Pi network | `ping -c 5 10.10.10.11` from Pi #1 | 0% loss, <1ms latency |
-| 1.2 | Ollama health | `curl http://10.10.10.11:11434/api/tags` | JSON with qwen3:4b listed |
-| 1.3 | Ollama inference | `curl -X POST http://10.10.10.11:11434/api/generate -d '{"model":"qwen3:4b","prompt":"hello","stream":false}'` | JSON with response text |
+| 1.2 | Ollama health | `curl http://10.10.10.11:11434/api/tags` | JSON with qwen3:4b-instruct listed |
+| 1.3 | Ollama inference | `curl -X POST http://10.10.10.11:11434/api/generate -d '{"model":"qwen3:4b-instruct","prompt":"hello","stream":false}'` | JSON with response text |
 | 1.4 | Asterisk running | `asterisk -rx 'core show channels'` on Pi #1 | No error, shows channel count |
 | 1.5 | SIP registration | `asterisk -rx 'pjsip show endpoints'` | HT801 endpoint shows "Avail" |
 | 1.6 | AudioSocket dialplan | `asterisk -rx 'dialplan show'` | AudioSocket app on port 9092 |

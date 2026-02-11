@@ -278,7 +278,7 @@ For best performance, run Ollama on a dedicated Pi (Pi #2) separate from the voi
 ssh pi@10.10.10.11
 
 curl -fsSL https://ollama.com/install.sh | sh
-ollama pull qwen3:4b
+ollama pull qwen3:4b-instruct
 ```
 
 2. **Configure Ollama for Network Access**:
@@ -471,7 +471,7 @@ sudo systemctl edit ollama
 # Add: Environment="OLLAMA_HOST=0.0.0.0"
 
 sudo systemctl restart ollama
-ollama pull qwen3:4b  # Or larger models
+ollama pull qwen3:4b-instruct  # Or larger models
 ```
 
 **Benefits:**
@@ -609,7 +609,7 @@ print(f"Transcribed: {transcript}")
 
 **Recommended Dual-Pi Configuration:**
 - **Pi #1 (pi-voice)**: AI HAT+ 2 for Whisper STT + Piper TTS + VAD (model pool for concurrent calls)
-- **Pi #2 (pi-ollama)**: Standard Ollama with qwen3:4b (full 16GB for LLM)
+- **Pi #2 (pi-ollama)**: Standard Ollama with qwen3:4b-instruct (full 16GB for LLM)
 
 ### Optimization Tips
 
@@ -644,7 +644,7 @@ beam_size = 0  # Greedy decoding (fastest)
 
 ```bash
 # Use smaller models
-ollama pull qwen3:4b      # Recommended (best balance)
+ollama pull qwen3:4b-instruct      # Recommended (best balance)
 ollama pull llama3.2:3b   # Fallback option
 
 # Reduce context length

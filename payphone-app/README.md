@@ -10,7 +10,7 @@ A fully local AI voice assistant designed for vintage payphones. Connects via As
 - **Concurrent Calls**: VAD model pool (3 models) gives each session exclusive access — no lock contention
 - **Voice Activity Detection**: Silero VAD with per-session models for accurate speech detection
 - **Speech-to-Text**: Moonshine (5x faster than Whisper) with Hailo/Whisper fallback
-- **Language Model**: Ollama with qwen3:4b (recommended) or llama3.2:3b (fallback)
+- **Language Model**: Ollama with qwen3:4b-instruct (recommended) or llama3.2:3b (fallback)
 - **Text-to-Speech**: Kokoro-82M with optional remote offloading
 - **Streaming Pipeline**: Overlapped LLM+TTS for reduced latency
 - **Voice & DTMF Barge-In**: Interrupt AI by speaking (VAD threshold 0.8) or pressing keys
@@ -26,7 +26,7 @@ A fully local AI voice assistant designed for vintage payphones. Connects via As
                                     │           10.10.10.11              │
                                     │                                     │
                                     │    ┌─────────────────────────┐     │
-                                    │    │  Ollama (qwen3:4b)       │     │
+                                    │    │  Ollama (qwen3:4b-instruct)       │     │
                                     │    │       Port 11434        │     │
                                     │    └─────────────────────────┘     │
                                     │                                     │
@@ -76,7 +76,7 @@ Payphone → HT801 ATA → Asterisk → AudioSocket ─────┼───�
 - Raspberry Pi 5 (16GB)
 - Raspberry Pi OS Lite 64-bit (Bookworm) - headless, no desktop
 - Static IP: 10.10.10.11
-- Ollama with qwen3:4b (~3GB RAM, recommended) or llama3.2:3b (fallback) or ministral:8b (~5GB RAM)
+- Ollama with qwen3:4b-instruct (~3GB RAM, recommended) or llama3.2:3b (fallback) or ministral:8b (~5GB RAM)
 
 **Telephony:**
 - Grandstream HT801 ATA (or similar)
@@ -113,7 +113,7 @@ cp .env.example .env
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `LLM_HOST` | Ollama server (Pi #2) | `http://10.10.10.11:11434` |
-| `LLM_MODEL` | Language model | `qwen3:4b` |
+| `LLM_MODEL` | Language model | `qwen3:4b-instruct` |
 | `STT_BACKEND` | STT backend (`moonshine`, `hailo`, `whisper`, `auto`) | `auto` |
 | `STT_MOONSHINE_MODEL` | Moonshine model | `UsefulSensors/moonshine-tiny` |
 | `STT_WHISPER_MODEL` | Whisper model (fallback) | `tiny` |
@@ -356,7 +356,7 @@ pip install "transformers>=4.48" torch
 
 | Model | TPS (Pi 5) | RAM | Notes |
 |-------|-----------|-----|-------|
-| **Qwen3 4B** | 4-5 | ~3GB | **Recommended** - best balance of speed and quality |
+| **Qwen3 4B Instruct** | 4-5 | ~3GB | **Recommended** - best balance of speed and quality (non-thinking variant) |
 | Llama 3.2 3B | 5-6 | ~3GB | Fallback option, good latency |
 | Ministral 8B | 2-3 | ~5GB | Best conversational quality (Dec 2025) |
 | Gemma 2 2B | 6-7 | ~2GB | Maximum speed option |
@@ -396,7 +396,7 @@ Use Q4_K_M quantization for best speed/quality balance.
 | Board | Raspberry Pi 5 (16GB) |
 | Storage | 512GB microSD card |
 | Network | Gigabit Ethernet |
-| RAM Usage | ~3GB for qwen3:4b (or ~5GB for ministral:8b) + ~200MB for TTS |
+| RAM Usage | ~3GB for qwen3:4b-instruct (or ~5GB for ministral:8b) + ~200MB for TTS |
 
 ## API Endpoints (TTS Server)
 

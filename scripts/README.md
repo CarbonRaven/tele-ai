@@ -130,7 +130,7 @@ PI_OLLAMA_IP=10.10.10.11
 PAYPHONE_EXTENSION=100
 
 # LLM model to verify
-OLLAMA_MODEL=qwen3:4b
+OLLAMA_MODEL=qwen3:4b-instruct
 ```
 
 Or use environment variables:

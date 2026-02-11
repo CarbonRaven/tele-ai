@@ -49,7 +49,7 @@ For manual installation or customization, follow the detailed steps below.
 | Component | Model | Purpose |
 |-----------|-------|---------|
 | Pi #1 (pi-voice) | Raspberry Pi 5 (16GB) + **AI HAT+ 2** | Voice pipeline: Moonshine/Whisper STT, Kokoro TTS, VAD, Asterisk |
-| Pi #2 (pi-ollama) | Raspberry Pi 5 (16GB) | LLM server: Standard Ollama with qwen3:4b |
+| Pi #2 (pi-ollama) | Raspberry Pi 5 (16GB) | LLM server: Standard Ollama with qwen3:4b-instruct |
 | AI Accelerator | Raspberry Pi AI HAT+ 2 (Hailo-10H, 40 TOPS) | Whisper STT acceleration on Pi #1 |
 | Network Switch | 5-port Gigabit | Internal network |
 | ATA | Grandstream HT801 v2 | Converts analog phone to SIP |
@@ -101,7 +101,7 @@ For manual installation or customization, follow the detailed steps below.
 | 10400 | TCP | pi-voice | Wyoming openWakeWord |
 | 5060 | UDP | pi-voice | SIP signaling (Asterisk) |
 | 10000-20000 | UDP | pi-voice | RTP media |
-| 11434 | HTTP | pi-ollama | Ollama API (qwen3:4b) |
+| 11434 | HTTP | pi-ollama | Ollama API (qwen3:4b-instruct) |
 
 ---
 
@@ -343,7 +343,7 @@ ls -la kokoro-v1.0.onnx voices-v1.0.bin
 
    ```bash
    # Recommended: Qwen3 4B (best balance of speed and quality)
-   ollama pull qwen3:4b
+   ollama pull qwen3:4b-instruct
 
    # Alternative models:
    # ollama pull llama3.2:3b      # Fallback, good latency
@@ -378,7 +378,7 @@ ls -la kokoro-v1.0.onnx voices-v1.0.bin
 
    ```bash
    curl http://10.10.10.11:11434/api/generate -d '{
-     "model": "qwen3:4b",
+     "model": "qwen3:4b-instruct",
      "prompt": "Hello, how are you?",
      "stream": false
    }'
@@ -639,7 +639,7 @@ The Grandstream HT801 v2 converts the analog payphone to SIP.
 
    # LLM (Standard Ollama on Pi #2)
    LLM_HOST=http://10.10.10.11:11434
-   LLM_MODEL=qwen3:4b
+   LLM_MODEL=qwen3:4b-instruct
    LLM_TEMPERATURE=0.7
    LLM_MAX_TOKENS=150
 
@@ -667,7 +667,7 @@ Expected output (with Moonshine - recommended):
 2026-01-20 10:00:02 - INFO - Loading Moonshine model: UsefulSensors/moonshine-tiny
 2026-01-20 10:00:04 - INFO - Using Moonshine STT (UsefulSensors/moonshine-tiny) on cpu - 5x faster than Whisper tiny
 2026-01-20 10:00:04 - INFO - Connecting to Ollama at http://10.10.10.11:11434...
-2026-01-20 10:00:05 - INFO - Ollama client initialized (model: qwen3:4b)
+2026-01-20 10:00:05 - INFO - Ollama client initialized (model: qwen3:4b-instruct)
 2026-01-20 10:00:05 - INFO - Loading Kokoro TTS...
 2026-01-20 10:00:07 - INFO - Kokoro TTS model loaded successfully
 2026-01-20 10:00:07 - INFO - All services initialized successfully
@@ -799,7 +799,7 @@ asyncio.run(test())
 |-------|----------|
 | "AudioSocket connection refused" | Check firewall: `sudo ufw allow 9092/tcp` |
 | "Ollama connection refused" | Verify OLLAMA_HOST=0.0.0.0 and restart |
-| "Model not found" | Run `ollama pull qwen3:4b` |
+| "Model not found" | Run `ollama pull qwen3:4b-instruct` |
 | "Out of memory" | Use smaller model or add swap |
 | "No audio from payphone" | Check HT801 SIP registration |
 | "Slow response" | Check network latency, consider smaller models |
@@ -870,7 +870,7 @@ sudo systemctl disable avahi-daemon
 - [ ] Set static IP: 10.10.10.11
 - [ ] Install Ollama (`curl -fsSL https://ollama.com/install.sh | sh`)
 - [ ] Configure Ollama for network access (OLLAMA_HOST=0.0.0.0)
-- [ ] Pull qwen3:4b model
+- [ ] Pull qwen3:4b-instruct model
 
 ### Network & Telephony
 - [ ] Configure Asterisk PJSIP (`pjsip_custom.conf`) and dialplan (`extensions_custom.conf`)
