@@ -626,14 +626,15 @@ The Grandstream HT801 v2 converts the analog payphone to SIP.
    AUDIO_AUDIOSOCKET_PORT=9092
 
    # Speech-to-Text
-   # Backend: "moonshine" (fastest), "hailo", "whisper", or "auto" (tries all)
+   # Backend: "hailo" (most accurate), "moonshine", "whisper", or "auto" (tries all)
+   # Auto mode tries: hailo/wyoming -> moonshine -> faster-whisper
    STT_BACKEND=auto
-   # Moonshine settings (recommended - 5x faster than Whisper tiny)
-   STT_MOONSHINE_MODEL=UsefulSensors/moonshine-tiny
-   # Wyoming/Hailo settings (fallback if Moonshine unavailable)
+   # Wyoming/Hailo settings (primary - most accurate on telephone audio)
    STT_WYOMING_HOST=localhost
    STT_WYOMING_PORT=10300
-   # faster-whisper settings (CPU fallback)
+   # Moonshine settings (CPU fallback - 5x faster than Whisper tiny)
+   STT_MOONSHINE_MODEL=UsefulSensors/moonshine-tiny
+   # faster-whisper settings (CPU last resort)
    STT_WHISPER_MODEL=tiny
    STT_COMPUTE_TYPE=int8
 
@@ -657,16 +658,16 @@ source venv/bin/activate
 python main.py
 ```
 
-Expected output (with Moonshine - recommended):
+Expected output (with Hailo Whisper - primary):
 
 ```
 2026-01-20 10:00:00 - INFO - Starting AI Payphone application...
 2026-01-20 10:00:00 - INFO - Registered features: ['operator', 'jokes']
 2026-01-20 10:00:01 - INFO - Loading Silero VAD...
 2026-01-20 10:00:02 - INFO - Silero VAD model loaded successfully
-2026-01-20 10:00:02 - INFO - Loading Moonshine model: UsefulSensors/moonshine-tiny
-2026-01-20 10:00:04 - INFO - Using Moonshine STT (UsefulSensors/moonshine-tiny) on cpu - 5x faster than Whisper tiny
-2026-01-20 10:00:04 - INFO - Connecting to Ollama at http://10.10.10.11:11434...
+2026-01-20 10:00:02 - INFO - Connected to Wyoming Whisper at localhost:10300
+2026-01-20 10:00:02 - INFO - Using Hailo-accelerated Whisper via Wyoming at localhost:10300
+2026-01-20 10:00:02 - INFO - Connecting to Ollama at http://10.10.10.11:11434...
 2026-01-20 10:00:05 - INFO - Ollama client initialized (model: qwen3:4b-instruct)
 2026-01-20 10:00:05 - INFO - Loading Kokoro TTS...
 2026-01-20 10:00:07 - INFO - Kokoro TTS model loaded successfully
@@ -856,10 +857,10 @@ sudo systemctl disable avahi-daemon
 - [ ] Flash Pi OS Lite (64-bit Bookworm)
 - [ ] Set static IP: 10.10.10.10
 - [ ] Enable PCIe Gen 3 (raspi-config)
-- [ ] Install Hailo drivers (`sudo apt install hailo-all`) - optional if using Moonshine
-- [ ] Install Wyoming Hailo Whisper (`sudo apt install wyoming-hailo-whisper`) - optional
+- [ ] Install Hailo drivers (`sudo apt install hailo-h10-all`) - recommended for primary STT
+- [ ] Install Wyoming Hailo Whisper (`sudo apt install wyoming-hailo-whisper`) - recommended
 - [ ] Clone repo and run `install.sh`
-- [ ] Install Moonshine: `pip install "transformers>=4.48"` (recommended)
+- [ ] Install Moonshine: `pip install "transformers>=4.48"` (CPU fallback STT)
 - [ ] Download Kokoro model files
 - [ ] Configure .env (STT_BACKEND=auto, points to Pi #2 for LLM)
 - [ ] Install/configure Asterisk with AudioSocket dialplan

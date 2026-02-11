@@ -98,7 +98,7 @@ tts_server.py              # Standalone TTS server (for Pi #2 offloading)
 │   └── state_machine.py   # Conversation flow control
 ├── services/
 │   ├── vad.py             # Silero VAD v5 with model pool + voice barge-in
-│   ├── stt.py             # Moonshine (5x faster) + Wyoming/Hailo + faster-whisper
+│   ├── stt.py             # Wyoming/Hailo Whisper (primary) + Moonshine (fallback) + faster-whisper
 │   ├── wyoming_whisper_server.py  # Standalone Wyoming STT server for Hailo-10H NPU
 │   ├── llm.py             # Ollama client with streaming timeout
 │   └── tts.py             # Kokoro-82M synthesis
@@ -281,7 +281,7 @@ ln -s /usr/lib/python3/dist-packages/hailo_platform .venv/lib/python3.13/site-pa
 - Total for 5-token utterance: ~534ms
 - Total for 2-token utterance: ~301ms
 
-The app auto-detects the Wyoming server at localhost:10300 when `STT_BACKEND=auto` or `STT_BACKEND=hailo`.
+**STT Backend Priority** (when `STT_BACKEND=auto`): Wyoming/Hailo → Moonshine → faster-whisper. Hailo Whisper-Base is primary because it's more accurate on 8kHz telephone audio. Moonshine Tiny serves as automatic CPU fallback when Wyoming is unavailable (e.g., after reboot).
 
 ### Known Limitations
 

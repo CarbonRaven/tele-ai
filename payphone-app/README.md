@@ -123,9 +123,9 @@ cp .env.example .env
 | `AUDIO_AUDIOSOCKET_PORT` | AudioSocket port | `9092` |
 
 **STT Backend Priority** (when `STT_BACKEND=auto`):
-1. **Moonshine** - If `transformers>=4.48` installed (5x faster than Whisper tiny)
-2. **Wyoming/Hailo** - If server reachable at configured host:port
-3. **faster-whisper** - CPU fallback (always available)
+1. **Wyoming/Hailo** - If server reachable (most accurate on telephone audio)
+2. **Moonshine** - If `transformers>=4.48` installed (fast CPU fallback)
+3. **faster-whisper** - CPU last resort (always available)
 
 ### Remote TTS (Optional)
 
@@ -177,7 +177,7 @@ payphone-app/
 │   └── state_machine.py    # Conversation state machine
 ├── services/
 │   ├── vad.py              # Silero VAD (model pool + voice barge-in)
-│   ├── stt.py              # Moonshine / Wyoming Whisper / faster-whisper
+│   ├── stt.py              # Wyoming/Hailo Whisper / Moonshine / faster-whisper
 │   ├── llm.py              # Ollama client with streaming
 │   └── tts.py              # Kokoro TTS (local + remote)
 └── features/

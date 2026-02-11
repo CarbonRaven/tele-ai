@@ -137,8 +137,8 @@ All features have system prompts and phone directory entries. They work via LLM 
 | Component | Status | Performance |
 |-----------|--------|-------------|
 | VAD (Silero v5) | Working | Model pool (3), barge-in threshold 0.8 |
-| STT (Whisper-Base, Hailo) | **Working** | ~300-534ms on NPU (encoder ~80ms, decoder ~230-440ms) |
-| STT (Moonshine tiny) | Fallback | Available if Hailo unavailable (`STT_BACKEND=moonshine`) |
+| STT (Whisper-Base, Hailo) | **Primary** | ~300-534ms on NPU (encoder ~80ms, decoder ~230-440ms), most accurate on telephone audio |
+| STT (Moonshine Tiny) | **Fallback** | Installed on Pi #1, auto-activates when Wyoming unavailable (e.g., after reboot) |
 | LLM (qwen3:4b-instruct) | Working | ~4.5 tok/s, MMLU 73.0, streaming with per-token timeout |
 | TTS (Kokoro-82M) | Working | af_bella voice, 24kHz → 8kHz resampled |
 | Streaming LLM → TTS | Working | SentenceBuffer chunks tokens, producer-consumer TTS |
@@ -206,6 +206,26 @@ All features have system prompts and phone directory entries. They work via LLM 
 ---
 
 ## Session Log
+
+### 2026-02-11: Moonshine STT Installed + STT Priority Flip
+
+**What was accomplished:**
+
+1. **Installed Moonshine Tiny on Pi #1** — `transformers` and `torch` were already installed; downloaded and verified the `UsefulSensors/moonshine-tiny` model. Provides automatic CPU-based STT fallback when Wyoming/Hailo is unavailable.
+
+2. **Discovered Moonshine accuracy issue on telephone audio** — Moonshine Tiny mistranscribed "give me the number for jokes" as "One of her jokes." (confidence 0.90). Hailo Whisper-Base produces accurate transcriptions on 8kHz telephone audio.
+
+3. **Flipped STT backend priority** — Changed auto-detection order from Moonshine → Hailo → faster-whisper to **Hailo → Moonshine → faster-whisper**. Hailo Whisper-Base is now primary (most accurate on telephone audio), Moonshine serves as automatic CPU fallback when Wyoming is down (e.g., after reboots).
+
+4. **Removed llama3.2:3b from Pi #2** — Freed ~2GB disk space. Only qwen3:4b-instruct remains on Ollama.
+
+5. **Enabled persistent journaling on Pi #1** — Created `/var/log/journal` so boot logs survive reboots, enabling investigation of the reboot issue.
+
+6. **Investigated Pi reboot issue** — Pi #1 keeps rebooting. No undervoltage (`throttled=0x0`), no thermal issues (36.7°C), no kernel panics, no failed services. Previous boot logs were unavailable (no persistent journal before this session). Persistent journal now enabled for next reboot.
+
+**Current state:** Hailo Whisper primary STT, Moonshine Tiny installed as fallback. Pi rebooting intermittently — cause still unknown, persistent journal now enabled to capture it.
+
+---
 
 ### 2026-02-11: LLM Switch to qwen3:4b-instruct + Whisper Hallucination Filter
 

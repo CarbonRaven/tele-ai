@@ -81,17 +81,17 @@ class STTSettings(BaseSettings):
     """Speech-to-Text configuration.
 
     Supports three backends:
-    1. Moonshine - 5x faster than Whisper tiny, optimized for edge (recommended)
-    2. Hailo-accelerated Whisper via Wyoming protocol (for Pi #1 with AI HAT+)
-    3. faster-whisper for CPU-only fallback
+    1. Hailo-accelerated Whisper via Wyoming protocol (most accurate on telephone audio)
+    2. Moonshine - 5x faster than Whisper tiny, CPU fallback
+    3. faster-whisper for CPU-only last resort
 
     Backend priority (when backend="auto"):
-    1. Moonshine (if installed) - fastest option
-    2. Wyoming/Hailo (if available) - NPU accelerated
-    3. faster-whisper (fallback) - CPU based
+    1. Wyoming/Hailo (if available) - most accurate on telephone audio
+    2. Moonshine (if installed) - fast CPU fallback
+    3. faster-whisper (last resort) - CPU based
 
     Moonshine models (January 2026):
-    - "moonshine-tiny" (27M params) - 5x faster than Whisper tiny, recommended
+    - "moonshine-tiny" (27M params) - 5x faster than Whisper tiny
     - "moonshine-base" (61M params) - better accuracy, still fast
 
     Whisper models:
@@ -103,13 +103,13 @@ class STTSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="STT_", env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # Backend selection: "moonshine", "hailo", "whisper", or "auto"
-    # "auto" tries moonshine -> hailo/wyoming -> faster-whisper
+    # "auto" tries hailo/wyoming -> moonshine -> faster-whisper
     backend: Literal["moonshine", "hailo", "whisper", "auto"] = "auto"
 
     # Device for model inference: "cpu", "cuda", or "auto"
     device: Literal["cpu", "cuda", "auto"] = "auto"
 
-    # Moonshine settings (recommended - 5x faster than Whisper tiny)
+    # Moonshine settings (CPU fallback - 5x faster than Whisper tiny)
     # Models: "UsefulSensors/moonshine-tiny" (27M), "UsefulSensors/moonshine-base" (61M)
     moonshine_model: str = "UsefulSensors/moonshine-tiny"
 

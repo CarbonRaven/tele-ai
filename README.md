@@ -36,7 +36,7 @@
 
 | Component | Model | Purpose |
 |-----------|-------|---------|
-| Pi #1 (pi-voice) | Raspberry Pi 5 (16GB) + AI HAT+ 2 | Voice pipeline: Moonshine/Whisper STT, Kokoro TTS, VAD |
+| Pi #1 (pi-voice) | Raspberry Pi 5 (16GB) + AI HAT+ 2 | Voice pipeline: Hailo Whisper/Moonshine STT, Kokoro TTS, VAD |
 | Pi #2 (pi-ollama) | Raspberry Pi 5 (16GB) | LLM server: Standard Ollama with qwen3:4b-instruct |
 | AI Accelerator | AI HAT+ 2 (Hailo-10H, 40 TOPS) | Whisper STT acceleration |
 | ATA | Grandstream HT801 v2 | Converts analog phone to SIP |
@@ -47,13 +47,13 @@
 | Component | Technology | Port | Location |
 |-----------|------------|------|----------|
 | Wake Word | openWakeWord | 10400 | Pi #1 |
-| STT | Moonshine (5x faster) / Whisper | 10300 | Pi #1 |
+| STT | Hailo Whisper (NPU) / Moonshine (CPU fallback) | 10300 | Pi #1 |
 | LLM | Ollama (qwen3:4b-instruct) | 11434 | Pi #2 |
 | TTS | Kokoro-82M | - | Pi #1 |
 | VAD | Silero VAD v5 (pool of 3) | - | Pi #1 |
 | Entry Point | AudioSocket | 9092 | Pi #1 |
 
-**STT Backend Priority** (auto mode): Moonshine → Wyoming/Hailo → faster-whisper
+**STT Backend Priority** (auto mode): Wyoming/Hailo → Moonshine → faster-whisper
 
 ## Repository Structure
 
@@ -75,7 +75,7 @@ tele-ai/
 │   │   └── state_machine.py     # Conversation state machine
 │   ├── services/
 │   │   ├── vad.py               # Silero VAD (model pool + voice barge-in)
-│   │   ├── stt.py               # Moonshine / Hailo Whisper / faster-whisper
+│   │   ├── stt.py               # Hailo Whisper / Moonshine / faster-whisper
 │   │   ├── llm.py               # Ollama client
 │   │   └── tts.py               # Kokoro TTS
 │   └── features/
