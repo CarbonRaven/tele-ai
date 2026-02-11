@@ -157,12 +157,14 @@ class VoicePipeline:
 
         # Transcribe
         audio = audio_buffer.get_all()
-        session.metrics.total_speech_duration_ms += audio_buffer.get_duration_ms()
+        duration_ms = audio_buffer.get_duration_ms()
+        session.metrics.total_speech_duration_ms += duration_ms
+        logger.info(f"Speech captured: {duration_ms:.0f}ms ({audio_buffer.num_samples} samples)")
 
         result = await self.stt.transcribe(audio, sample_rate=16000)
 
         if result.is_empty:
-            logger.debug("Transcription empty")
+            logger.info(f"Transcription empty/hallucination (discarded): '{result.text}'")
             return audio, None
 
         logger.info(f"Transcribed: '{result.text}' (confidence: {result.confidence:.2f})")

@@ -51,10 +51,31 @@ class TranscriptionResult:
     confidence: float
     duration_seconds: float
 
+    # Whisper hallucination tokens that appear on silence/noise
+    _HALLUCINATION_PATTERNS = frozenset([
+        "[BLANK_AUDIO]",
+        "(BLANK_AUDIO)",
+        "[silence]",
+        "(silence)",
+        "[noise]",
+        "(noise)",
+        "[music]",
+        "(music)",
+        "[laughter]",
+        "(laughter)",
+        "Thank you.",
+        "Thanks for watching.",
+        "Thank you for watching.",
+        "you",
+        "You",
+    ])
+
     @property
     def is_empty(self) -> bool:
-        """Check if transcription is empty or just whitespace."""
-        return not self.text or not self.text.strip()
+        """Check if transcription is empty, whitespace, or a Whisper hallucination."""
+        if not self.text or not self.text.strip():
+            return True
+        return self.text.strip() in self._HALLUCINATION_PATTERNS
 
 
 class WyomingSTTClient:

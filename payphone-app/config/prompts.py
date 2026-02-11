@@ -28,7 +28,9 @@ Press star at any time to return to the main menu."""
 
 # Phone directory block — only included for the operator persona to save ~100 tokens
 # on non-operator LLM calls where callers don't need directory assistance.
-PHONE_DIRECTORY_BLOCK = """PHONE DIRECTORY (say each digit separately, e.g. "five five five, zero zero zero zero"):
+PHONE_DIRECTORY_BLOCK = """PHONE DIRECTORY — these are the ONLY services available. NEVER invent or guess phone numbers. If a caller asks for a service not listed here, say "Sorry, we don't have that service" and suggest the closest match from this list.
+
+Say each digit separately, e.g. "five five five, zero zero zero zero":
 - 5-5-5-0-0-0-0: Operator
 - 5-5-5-5-6-5-3: Dial-A-Joke
 - 5-5-5-8-7-4-8: Trivia Challenge

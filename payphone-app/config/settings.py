@@ -136,9 +136,14 @@ class LLMSettings(BaseSettings):
     Standard Ollama runs on Pi #2 (10.10.10.11) for better model flexibility.
 
     Recommended models (February 2026):
-    - Recommended: qwen3:4b (~4-5 TPS on Pi 5, best balance)
+    - Recommended: qwen3:4b-instruct (~4.5 TPS on Pi 5, best quality/speed)
     - Fallback: llama3.2:3b (~5-6 TPS, good latency)
     - Quality priority: ministral:8b (~2-3 TPS, best conversational quality)
+
+    NOTE: Use qwen3:4b-instruct (NOT qwen3:4b). The default qwen3:4b has
+    mandatory thinking mode that wastes all tokens on internal reasoning,
+    causing timeouts on Pi 5. The -instruct variant is a separate model
+    with no thinking mode.
 
     Use Q4_K_M quantization for best speed/quality balance on Pi 5.
     """
@@ -149,9 +154,9 @@ class LLMSettings(BaseSettings):
     # Change to localhost:11434 if running single-Pi setup
     host: str = "http://10.10.10.11:11434"
 
-    # Default to Qwen3 4B for best balance of speed and quality
-    # Alternatives: llama3.2:3b (fallback), ministral:8b (quality)
-    model: str = "qwen3:4b"
+    # Default to Qwen3 4B Instruct (non-thinking variant) for best quality
+    # Alternatives: llama3.2:3b (fallback), gemma3:1b (speed)
+    model: str = "qwen3:4b-instruct"
 
     # Generation parameters
     temperature: float = 0.7
