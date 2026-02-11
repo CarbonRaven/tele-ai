@@ -34,7 +34,7 @@ Payphone → HT801 ATA (SIP) → Asterisk 22.8.2
 ┌────────────────────────────────────────────────────────────┼─────────────┐
 │ Pi #2 (pi-ollama) 10.10.10.11                             │             │
 │                     Ollama (LLM) ─────────────────────────┘             │
-│                       :11434 / llama3.2:3b                               │
+│                       :11434 / qwen3:4b-instruct                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -70,7 +70,7 @@ Payphone → HT801 ATA (SIP) → Asterisk 22.8.2
 |-----------|------------|----------|-------|
 | Wake Word | openWakeWord | Pi #1 | Wyoming protocol, port 10400 |
 | STT | Whisper-Base (Hailo) | Pi #1 | Hailo-10H NPU via Wyoming protocol, Moonshine fallback |
-| LLM | Ollama | Pi #2 | Standard Ollama, llama3.2:3b, port 11434 |
+| LLM | Ollama | Pi #2 | Standard Ollama, qwen3:4b-instruct, port 11434 |
 | TTS | Kokoro-82M | Pi #1 | Fast neural TTS, 24kHz output |
 | VAD | Silero VAD | Pi #1 | CPU-based, model pool (3) for concurrent calls |
 | Telephony | Asterisk 22.8.2 | Pi #1 | Built from source, AudioSocket protocol |
@@ -153,6 +153,7 @@ tts_server.py              # Standalone TTS server (for Pi #2 offloading)
 - **Lazy dtype conversion**: TTS/resampling skip copy when dtype already matches
 - **Ollama prompt warm-up**: `initialize()` chats with the operator system prompt so Ollama's KV cache is hot for the first real call (~20s → ~1s prompt eval)
 - **Moonshine min audio guard**: Audio <100ms (1600 samples) returns empty result instead of crashing `conv1d` kernel
+- **Whisper hallucination filter**: `TranscriptionResult.is_empty` catches 16 known Whisper noise tokens (`[BLANK_AUDIO]`, `Thank you.`, etc.) before they reach the LLM
 
 ## Build & Test
 
@@ -215,6 +216,21 @@ Hailo-10H NPU Whisper STT deployed and tested end-to-end. Issues discovered and 
 | `HAILO_NOT_IMPLEMENTED` from `VDevice.configure(hef)` | Multi-NG HEFs not supported via lower-level configure API | Use `create_infer_model(hef_path, name=ng_name)` InferModel API instead |
 | Wyoming `Broken pipe` / `Connection lost` | Client held persistent connection from startup; server closes after each transcription | Per-transcription reconnect in `stt.py`: `disconnect()` then `connect()` each time |
 | Decoder returns 0 tokens (immediate EOT) for real speech | `onnx_add_input_base.npy` (24x512) is NOT positional embeddings — adding it corrupted decoder input. HEF has positional embeddings baked in | Removed positional embedding addition; pass only token embeddings to decoder |
+
+### Fourth Hardware Test Results (2026-02-11)
+
+Switched LLM from llama3.2:3b to qwen3:4b-instruct. Added Whisper hallucination filter. Issues discovered and fixed:
+
+| Issue | Root Cause | Fix |
+|-------|-----------|-----|
+| LLM hallucinated phone numbers | Operator prompt didn't explicitly forbid inventing numbers | Added "NEVER invent or guess phone numbers" + "suggest closest match" to `PHONE_DIRECTORY_BLOCK` |
+| `[BLANK_AUDIO]` sent to LLM as user message | Whisper outputs hallucination tokens on silence/noise; `is_empty` only checked for whitespace | Added `_HALLUCINATION_PATTERNS` frozenset (16 patterns) to `TranscriptionResult.is_empty` |
+| Repeated "hello there" greetings | Garbled STT (`'Dr.'`, `'Gargelka'`) treated as real input; LLM couldn't make sense of it and greeted anew | Hallucination filter + audio duration logging to diagnose short captures |
+| Cold-start warm-up took ~96s for new model | First-ever prompt eval for qwen3:4b-instruct on Pi 5 CPU | Expected one-time cost; subsequent warm-ups ~1.4s via Ollama KV cache |
+
+### Whisper Hallucination Filter
+
+`TranscriptionResult.is_empty` in `services/stt.py` now filters 16 known Whisper hallucination patterns that appear on silence, noise, or very short audio. These include `[BLANK_AUDIO]`, `(silence)`, `Thank you.`, `Thanks for watching.`, `you`, etc. Filtered transcriptions are logged at INFO level and discarded before reaching the LLM.
 
 ### Ollama Prompt Caching
 
@@ -292,12 +308,14 @@ Both Pis run Debian Trixie (13.3) aarch64 with kernel 6.12.62+rpt-rpi-2712.
 | Service | Version | Status | Notes |
 |---------|---------|--------|-------|
 | Ollama | 0.15.5 | Running on `0.0.0.0:11434` | CPU-only mode, systemd override for network binding |
-| Model | llama3.2:3b (2.0GB) | Active, ~6 tok/s | Replaced qwen3:4b (thinking mode unusable) |
+| Model | qwen3:4b-instruct (2.5GB) | Active, ~4.5 tok/s | Best quality in class (MMLU 73.0), no thinking mode |
 
 ### Model Selection Notes
 
-- **qwen3:4b**: Not suitable — mandatory thinking mode consumes all tokens before generating a response. At ~3.3 tok/s on Pi 5 CPU, it cannot produce useful output within phone-appropriate timeouts.
-- **llama3.2:3b**: Current choice — no thinking mode, ~6 tok/s, natural stop tokens, good conversational quality. With streaming LLM→TTS, first audio in ~4-7s (cached prompt) vs ~5-10s sequential.
+- **qwen3:4b-instruct**: Current choice — the `-instruct` variant is a separate model with NO thinking mode. MMLU 73.0 (best in class for 4B), ~4.5 tok/s on Pi 5 CPU. Better instruction following than llama3.2:3b (shorter responses, accurate phone directory lookups). With streaming LLM→TTS, first audio in ~5-8s (cached prompt).
+- **qwen3:4b** (default): NOT suitable — mandatory thinking mode consumes all tokens before generating a response. The `-instruct` suffix is critical.
+- **llama3.2:3b**: Previous choice, viable fallback — no thinking mode, ~6 tok/s, MMLU 63.4. Faster but weaker instruction following.
+- **gemma3:1b**: Speed alternative — ~10-12 tok/s, MMLU 38.8. Good for simple features if latency is critical.
 
 ### Asterisk Source Build
 
