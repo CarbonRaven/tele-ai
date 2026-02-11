@@ -1,9 +1,9 @@
 """Speech-to-Text service with multiple backend support.
 
 Supports three backends:
-1. Moonshine - 5x faster than Whisper tiny, optimized for edge devices (recommended)
-2. Hailo-accelerated Whisper via Wyoming protocol (for Pi #1 with AI HAT+ 2)
-3. faster-whisper for CPU-only fallback or development
+1. Hailo-accelerated Whisper via Wyoming protocol (most accurate on telephone audio)
+2. Moonshine - 5x faster than Whisper tiny, CPU fallback for when Hailo is unavailable
+3. faster-whisper for CPU-only last resort or development
 
 Moonshine (UsefulSensors) uses an encoder-decoder transformer with RoPE
 instead of absolute position embeddings, trained without zero-padding
@@ -333,12 +333,14 @@ class WhisperSTT:
     """Speech-to-Text service with pluggable backends.
 
     Backend priority (when backend="auto"):
-    1. Moonshine - 5x faster than Whisper tiny, recommended for edge
-    2. Wyoming/Hailo - NPU accelerated Whisper on AI HAT+ 2
-    3. faster-whisper - CPU-based fallback
+    1. Wyoming/Hailo - NPU accelerated Whisper, most accurate on telephone audio
+    2. Moonshine - 5x faster than Whisper tiny, CPU fallback
+    3. faster-whisper - CPU-based last resort
 
-    Moonshine uses encoder-decoder transformer with RoPE and no zero-padding,
-    achieving 5x speedup over Whisper tiny with equivalent accuracy.
+    Hailo Whisper-Base is preferred because it produces more accurate
+    transcriptions on 8kHz telephone audio than Moonshine Tiny.
+    Moonshine serves as an automatic fallback when Wyoming is unavailable
+    (e.g., after a reboot before the Wyoming service recovers).
     """
 
     def __init__(self, settings: STTSettings | None = None):
@@ -357,9 +359,9 @@ class WhisperSTT:
         """Initialize the STT service.
 
         Backend selection order (for backend="auto"):
-        1. Moonshine (if transformers available) - fastest
-        2. Wyoming/Hailo (if server reachable) - NPU accelerated
-        3. faster-whisper (always available) - CPU fallback
+        1. Wyoming/Hailo (if server reachable) - most accurate on telephone audio
+        2. Moonshine (if transformers available) - fast CPU fallback
+        3. faster-whisper (always available) - last resort CPU fallback
         """
         if self._initialized:
             return
@@ -375,14 +377,14 @@ class WhisperSTT:
             except ImportError:
                 self._device = "cpu"
 
-        # Try Moonshine first (fastest option)
-        if backend in ("moonshine", "auto"):
-            if await self._try_moonshine():
-                return
-
-        # Try Hailo Wyoming (NPU accelerated)
+        # Try Hailo Wyoming first (most accurate on telephone audio)
         if backend in ("hailo", "auto"):
             if await self._try_wyoming():
+                return
+
+        # Try Moonshine (fast CPU fallback)
+        if backend in ("moonshine", "auto"):
+            if await self._try_moonshine():
                 return
 
         # Fallback to faster-whisper
