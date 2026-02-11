@@ -228,6 +228,17 @@ Switched LLM from llama3.2:3b to qwen3:4b-instruct. Added Whisper hallucination 
 | Repeated "hello there" greetings | Garbled STT (`'Dr.'`, `'Gargelka'`) treated as real input; LLM couldn't make sense of it and greeted anew | Hallucination filter + audio duration logging to diagnose short captures |
 | Cold-start warm-up took ~96s for new model | First-ever prompt eval for qwen3:4b-instruct on Pi 5 CPU | Expected one-time cost; subsequent warm-ups ~1.4s via Ollama KV cache |
 
+### Fifth Hardware Test Results (2026-02-11)
+
+SD card filesystem corruption diagnosed and repaired. Persistent journaling configured.
+
+| Issue | Root Cause | Fix |
+|-------|-----------|-----|
+| Pi #1 rebooting repeatedly | EXT4 filesystem corruption on 512GB SD card: corrupt inode bitmap (block_group 80), cross-linked inodes (`.pyc` → systemd dir), deleted inode references, block/inode count mismatches | `fsck.mode=force` added to `/boot/firmware/cmdline.txt`, initramfs ran `fsck -y` on boot. Two passes to clean all errors. Filesystem state: `clean with errors` → `clean` |
+| Persistent journal not working (attempt 1) | RPi OS ships `/usr/lib/systemd/journald.conf.d/40-rpi-volatile-storage.conf` with `Storage=volatile`, overriding `Storage=persistent` in main `journald.conf` | Created `/etc/systemd/journald.conf.d/99-persistent.conf` with `Storage=persistent` (higher priority drop-in) |
+| Persistent journal directory in corrupted area | `fsck` noted journal dir inode in "unused inodes area" — writes weren't persisting | Recreated `/var/log/journal/<machine-id>/` after fsck repair, flushed with `journalctl --flush` |
+| Hardware watchdog resets | BCM2835 watchdog (1-min timeout) resets Pi when kernel hangs on corrupt filesystem blocks | Root cause was the filesystem corruption; fsck repair resolved it |
+
 ### Whisper Hallucination Filter
 
 `TranscriptionResult.is_empty` in `services/stt.py` now filters 16 known Whisper hallucination patterns that appear on silence, noise, or very short audio. These include `[BLANK_AUDIO]`, `(silence)`, `Thank you.`, `Thanks for watching.`, `you`, etc. Filtered transcriptions are logged at INFO level and discarded before reaching the LLM.
@@ -302,6 +313,7 @@ Both Pis run Debian Trixie (13.3) aarch64 with kernel 6.12.62+rpt-rpi-2712.
 | AudioSocket | `res_audiosocket.so` + `app_` + `chan_` | 3 modules loaded | Working end-to-end with voice pipeline |
 | Payphone App | Python 3.13 | Running (systemd) | VAD pool (3), Hailo Whisper STT via Wyoming, Kokoro TTS |
 | HT801 ATA | v2, 10.10.10.12 | Registered (NonQual) | PJSIP endpoint, ulaw, RFC4733 DTMF |
+| Persistent Journal | systemd-journald | Active | `/etc/systemd/journald.conf.d/99-persistent.conf` overrides RPi volatile default |
 
 ### Pi #2 (pi-ollama) — 10.10.10.11
 

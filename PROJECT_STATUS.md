@@ -128,6 +128,7 @@ All features have system prompts and phone directory entries. They work via LLM 
 | Network (10.10.10.0/24) | Working | 5-port gigabit switch |
 | AudioSocket protocol | Working | Binary UUID, end-to-end audio |
 | systemd services | Running | `payphone` + `wyoming-whisper` on Pi #1, `ollama` on Pi #2 |
+| Persistent journal | Active | `/etc/systemd/journald.conf.d/99-persistent.conf` overrides RPi volatile default; captures boot logs for crash diagnosis |
 | Hailo-10H NPU | **Active** | Whisper-Base encoder+decoder running on NPU via Wyoming protocol |
 
 ---
@@ -202,10 +203,27 @@ All features have system prompts and phone directory entries. They work via LLM 
 | Extension not passed from Asterisk | Info | AudioSocket sends binary UUID only; all calls show `extension: None` |
 | Hailo decoder max 64 tokens | Info | HEF fixed at 64-token sequence; adequate for phone utterances |
 | Hailo Whisper decoder stale after reboot | Medium | After pi-voice reboots, Wyoming Whisper decoder produces 1-token garbage (`-`, `and`). Restarting `wyoming-whisper.service` fixes it. App then hangs at 80% CPU from the bad STT loop and must also be restarted. |
+| SD card filesystem corruption | **Fixed** | 512GB SD card had corrupt inode bitmap, cross-linked files, deleted inode references causing watchdog-triggered reboots. Fixed with two `fsck.mode=force` boot passes. Filesystem now clean. |
 
 ---
 
 ## Session Log
+
+### 2026-02-11: SD Card Filesystem Repair + Persistent Journal
+
+**What was accomplished:**
+
+1. **Diagnosed SD card filesystem corruption as reboot cause** — Pi #1's 512GB SD card had significant EXT4 corruption: corrupt inode bitmap (block_group 80), cross-linked inodes (a `.pyc` file linked to a systemd private directory), deleted inode references, block/inode count mismatches. The BCM2835 hardware watchdog (1-min timeout) was resetting the Pi when the kernel hung on corrupt blocks.
+
+2. **Repaired filesystem with forced fsck** — Added `fsck.mode=force` to `/boot/firmware/cmdline.txt` (alongside existing `fsck.repair=yes`). The initramfs ran `fsck -y` during boot and fixed the major corruption. A second pass cleaned up remaining block/inode count bookkeeping errors. Filesystem state went from `clean with errors` → `clean`. Removed `fsck.mode=force` after repair.
+
+3. **Fixed persistent journaling** — Previous attempt failed because RPi OS ships a drop-in config `/usr/lib/systemd/journald.conf.d/40-rpi-volatile-storage.conf` that sets `Storage=volatile`, overriding our `Storage=persistent` in the main `journald.conf`. Created `/etc/systemd/journald.conf.d/99-persistent.conf` with `[Journal]\nStorage=persistent` to override the RPi default. After `journalctl --flush`, both `system.journal` and `user-1000.journal` are now persisted in `/var/log/journal/<machine-id>/`.
+
+**Key discovery:** On Raspberry Pi OS, persistent journal requires a drop-in in `/etc/systemd/journald.conf.d/` — editing `/etc/systemd/journald.conf` alone is insufficient because the RPi-specific `40-rpi-volatile-storage.conf` drop-in takes precedence.
+
+**Current state:** Filesystem clean, persistent journal active, payphone service running. No ext4 errors in dmesg after repair. If the Pi reboots again, previous boot logs will be available via `journalctl -b -1`.
+
+---
 
 ### 2026-02-11: Moonshine STT Installed + STT Priority Flip
 
