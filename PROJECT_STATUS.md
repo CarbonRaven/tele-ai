@@ -201,6 +201,7 @@ All features have system prompts and phone directory entries. They work via LLM 
 | max_call_duration not enforced | Low | State machine checks it but was marked as "not enforced" in test plan |
 | Extension not passed from Asterisk | Info | AudioSocket sends binary UUID only; all calls show `extension: None` |
 | Hailo decoder max 64 tokens | Info | HEF fixed at 64-token sequence; adequate for phone utterances |
+| Hailo Whisper decoder stale after reboot | Medium | After pi-voice reboots, Wyoming Whisper decoder produces 1-token garbage (`-`, `and`). Restarting `wyoming-whisper.service` fixes it. App then hangs at 80% CPU from the bad STT loop and must also be restarted. |
 
 ---
 
