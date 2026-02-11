@@ -1,6 +1,6 @@
 # Project Status — AI Payphone
 
-**Last updated**: 2026-02-10
+**Last updated**: 2026-02-11
 
 ---
 
@@ -123,7 +123,7 @@ All features have system prompts and phone directory entries. They work via LLM 
 | Component | Status | Details |
 |-----------|--------|---------|
 | Pi #1 (pi-voice) | Running | Asterisk 22.8.2, Hailo Whisper STT, Kokoro TTS, Silero VAD |
-| Pi #2 (pi-ollama) | Running | Ollama 0.15.5, llama3.2:3b (~6 tok/s) |
+| Pi #2 (pi-ollama) | Running | Ollama 0.15.5, qwen3:4b-instruct (~4.5 tok/s, MMLU 73.0) |
 | HT801 ATA | Configured | PJSIP endpoint, ulaw, RFC4733 DTMF |
 | Network (10.10.10.0/24) | Working | 5-port gigabit switch |
 | AudioSocket protocol | Working | Binary UUID, end-to-end audio |
@@ -139,11 +139,12 @@ All features have system prompts and phone directory entries. They work via LLM 
 | VAD (Silero v5) | Working | Model pool (3), barge-in threshold 0.8 |
 | STT (Whisper-Base, Hailo) | **Working** | ~300-534ms on NPU (encoder ~80ms, decoder ~230-440ms) |
 | STT (Moonshine tiny) | Fallback | Available if Hailo unavailable (`STT_BACKEND=moonshine`) |
-| LLM (llama3.2:3b) | Working | ~6 tok/s, streaming with per-token timeout |
+| LLM (qwen3:4b-instruct) | Working | ~4.5 tok/s, MMLU 73.0, streaming with per-token timeout |
 | TTS (Kokoro-82M) | Working | af_bella voice, 24kHz → 8kHz resampled |
 | Streaming LLM → TTS | Working | SentenceBuffer chunks tokens, producer-consumer TTS |
 | Telephone bandpass filter | Working | 300-3400 Hz applied to all output audio |
 | Prompt warm-up | Working | Operator system prompt cached in Ollama KV at init |
+| Whisper hallucination filter | Working | 16 known patterns filtered (e.g. `[BLANK_AUDIO]`, `Thank you.`) |
 
 ---
 
@@ -204,6 +205,30 @@ All features have system prompts and phone directory entries. They work via LLM 
 ---
 
 ## Session Log
+
+### 2026-02-11: LLM Switch to qwen3:4b-instruct + Whisper Hallucination Filter
+
+**What was accomplished:**
+
+1. **Switched LLM from llama3.2:3b to qwen3:4b-instruct** — Researched small LLM candidates (phi4-mini, gemma3, qwen3 variants, SmolLM3, etc.) for Pi 5 CPU-only. The `-instruct` variant of qwen3:4b has no thinking mode (unlike the default `qwen3:4b` which was previously rejected). Benchmarked side-by-side on Pi #2: ~4.5 tok/s generation (vs ~5.9 for llama3.2:3b), but MMLU 73.0 vs 63.4 and better instruction following (shorter responses, accurate directory lookups).
+
+2. **Added Whisper hallucination filter** — Whisper-Base outputs hallucination tokens like `[BLANK_AUDIO]`, `Thank you.`, and `you` on silence or noise. These were passing through as real user messages, causing the LLM to respond with repeated greetings. Added a frozenset of 16 known hallucination patterns to `TranscriptionResult.is_empty` in `stt.py`.
+
+3. **Tightened operator phone directory prompt** — LLM was hallucinating phone numbers for services that don't exist (e.g. "555-3678" for a non-existent job line). Added explicit instructions: "NEVER invent or guess phone numbers" and "suggest the closest match from this list". Verified: now correctly says "Sorry, we don't have that service" for unknown requests and gives accurate numbers from the directory.
+
+4. **Added audio duration logging** — `pipeline.py` now logs captured speech duration and sample count at INFO level before sending to STT, plus logs discarded hallucination transcriptions. Helps diagnose STT accuracy issues.
+
+**Key discovery:** The `.env` file on pi-voice overrides `settings.py` defaults via Pydantic Settings. Changing the default in `settings.py` alone is not sufficient — must also update `LLM_MODEL` in `.env`.
+
+**Current state:** System running with qwen3:4b-instruct. End-to-end verified: asked for non-existent service (correctly refused), asked for joke line number (correctly gave 555-5653). Hallucination filter catching `[BLANK_AUDIO]` on silence between utterances.
+
+**Next session priorities:**
+- Fine-tune operator and feature prompts for qwen3:4b-instruct response style
+- Hardware test more phone numbers
+- DTMF navigation testing
+- Wire more sound effects
+
+---
 
 ### 2026-02-10: Initial Hardware Bring-Up + Hailo STT Deployment
 
