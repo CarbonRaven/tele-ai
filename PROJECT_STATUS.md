@@ -221,7 +221,7 @@ All features have system prompts and phone directory entries. They work via LLM 
 
 **Key discovery:** On Raspberry Pi OS, persistent journal requires a drop-in in `/etc/systemd/journald.conf.d/` — editing `/etc/systemd/journald.conf` alone is insufficient because the RPi-specific `40-rpi-volatile-storage.conf` drop-in takes precedence.
 
-**Current state:** Filesystem clean, persistent journal active, payphone service running. No ext4 errors in dmesg after repair. If the Pi reboots again, previous boot logs will be available via `journalctl -b -1`.
+**Current state:** Filesystem clean, persistent journal active. Pi was stable for 2.5 hours after fsck repair (no reboots, 0 ext4 errors, load 0.00). Both Pis cleanly shut down at end of session. If Pi reboots unexpectedly in future, previous boot logs will be available via `journalctl -b -1`.
 
 ---
 
