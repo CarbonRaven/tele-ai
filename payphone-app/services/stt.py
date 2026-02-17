@@ -1,13 +1,14 @@
 """Speech-to-Text service with multiple backend support.
 
 Supports three backends:
-1. Hailo-accelerated Whisper via Wyoming protocol (most accurate on telephone audio)
-2. Moonshine - 5x faster than Whisper tiny, CPU fallback for when Hailo is unavailable
+1. Hailo-accelerated Whisper via Wyoming protocol (NPU-accelerated)
+2. Moonshine v2 - native streaming STT, 7.84% WER, ONNX on CPU (arxiv.org/abs/2602.12241)
 3. faster-whisper for CPU-only last resort or development
 
-Moonshine (UsefulSensors) uses an encoder-decoder transformer with RoPE
-instead of absolute position embeddings, trained without zero-padding
-for greater encoder efficiency.
+Moonshine v2 uses an ergodic streaming encoder with sliding-window self-attention
+and 80ms lookahead at boundary layers. Runs via ONNX runtime on CPU.
+Falls back to legacy Moonshine v1 (HuggingFace transformers) if moonshine-onnx
+is not installed.
 """
 
 __all__ = [
@@ -350,7 +351,8 @@ class WhisperSTT:
 
         self._backend: STTBackend | None = None
         self._model = None  # For faster-whisper or Moonshine
-        self._processor = None  # For Moonshine
+        self._processor = None  # For Moonshine v1 (transformers)
+        self._moonshine_onnx = False  # True if using Moonshine v2 ONNX
         self._wyoming_client: WyomingSTTClient | None = None
         self._initialized = False
         self._device: str = "cpu"
@@ -395,19 +397,24 @@ class WhisperSTT:
         raise RuntimeError(f"No STT backend available for backend={backend}")
 
     async def _try_moonshine(self) -> bool:
-        """Try to initialize Moonshine backend."""
+        """Try to initialize Moonshine backend.
+
+        Tries Moonshine v2 (ONNX runtime) first for better WER and native streaming.
+        Falls back to legacy Moonshine v1 (HuggingFace transformers) if unavailable.
+        """
         try:
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self._load_moonshine)
             self._backend = STTBackend.MOONSHINE
             self._initialized = True
+            backend_type = "v2 ONNX" if self._moonshine_onnx else "v1 transformers"
             logger.info(
-                f"Using Moonshine STT ({self.settings.moonshine_model}) "
-                f"on {self._device} - 5x faster than Whisper tiny"
+                f"Using Moonshine STT ({self.settings.moonshine_model}, {backend_type}) "
+                f"on {self._device}"
             )
             return True
         except ImportError as e:
-            logger.warning(f"Moonshine unavailable (install transformers>=4.48): {e}")
+            logger.warning(f"Moonshine unavailable: {e}")
             return False
         except Exception as e:
             logger.warning(f"Moonshine initialization failed: {e}")
@@ -448,14 +455,37 @@ class WhisperSTT:
         logger.info(f"Using faster-whisper ({self.settings.whisper_model}) on {self._device}")
 
     def _load_moonshine(self) -> None:
-        """Load the Moonshine model (blocking)."""
+        """Load the Moonshine model (blocking).
+
+        Tries Moonshine v2 ONNX first (moonshine-onnx package), then falls back
+        to legacy v1 via HuggingFace transformers.
+        """
+        model_id = self.settings.moonshine_model
+
+        # Try Moonshine v2 ONNX first (for moonshine/tiny, moonshine/small, moonshine/medium)
+        if model_id.startswith("moonshine/"):
+            try:
+                from moonshine_onnx import MoonshineOnnxModel
+
+                logger.info(f"Loading Moonshine v2 ONNX model: {model_id}")
+                self._model = MoonshineOnnxModel(model_name=model_id)
+                self._moonshine_onnx = True
+                return
+            except ImportError:
+                logger.warning(
+                    "moonshine-onnx not installed, falling back to transformers. "
+                    "Install with: pip install moonshine-onnx"
+                )
+            except Exception as e:
+                logger.warning(f"Moonshine v2 ONNX load failed: {e}, trying transformers")
+
+        # Legacy Moonshine v1 via HuggingFace transformers
         from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
         import torch
 
-        model_id = self.settings.moonshine_model
         torch_dtype = torch.float16 if self._device == "cuda" else torch.float32
 
-        logger.info(f"Loading Moonshine model: {model_id}")
+        logger.info(f"Loading Moonshine model (transformers): {model_id}")
 
         self._processor = AutoProcessor.from_pretrained(model_id)
         self._model = AutoModelForSpeechSeq2Seq.from_pretrained(
@@ -573,14 +603,13 @@ class WhisperSTT:
     def _transcribe_moonshine(
         self, audio: NDArray[np.float32]
     ) -> TranscriptionResult:
-        """Synchronous transcription via Moonshine (blocking)."""
-        import torch
+        """Synchronous transcription via Moonshine (blocking).
 
+        Routes to ONNX or transformers path based on how the model was loaded.
+        """
         duration = len(audio) / 16000
 
-        # Moonshine's encoder has conv1d layers with kernel_size=7.
-        # Audio shorter than ~100ms (1600 samples at 16kHz) causes a
-        # RuntimeError because the padded input is smaller than the kernel.
+        # Minimum audio guard — conv1d kernels need ~100ms minimum
         min_samples = 1600  # 100ms at 16kHz
         if len(audio) < min_samples:
             logger.debug(
@@ -593,6 +622,30 @@ class WhisperSTT:
                 confidence=0.0,
                 duration_seconds=duration,
             )
+
+        if self._moonshine_onnx:
+            return self._transcribe_moonshine_onnx(audio, duration)
+        return self._transcribe_moonshine_transformers(audio, duration)
+
+    def _transcribe_moonshine_onnx(
+        self, audio: NDArray[np.float32], duration: float
+    ) -> TranscriptionResult:
+        """Transcribe via Moonshine v2 ONNX runtime."""
+        # moonshine-onnx expects (samples,) float32 array at 16kHz
+        text = self._model.generate(audio)
+
+        return TranscriptionResult(
+            text=text.strip() if text else "",
+            language=self.settings.language,
+            confidence=0.9,
+            duration_seconds=duration,
+        )
+
+    def _transcribe_moonshine_transformers(
+        self, audio: NDArray[np.float32], duration: float
+    ) -> TranscriptionResult:
+        """Transcribe via legacy Moonshine v1 (HuggingFace transformers)."""
+        import torch
 
         # Prepare inputs for Moonshine
         inputs = self._processor(
@@ -621,7 +674,7 @@ class WhisperSTT:
         return TranscriptionResult(
             text=text.strip(),
             language=self.settings.language,
-            confidence=0.9,  # Moonshine doesn't provide confidence scores
+            confidence=0.9,
             duration_seconds=duration,
         )
 

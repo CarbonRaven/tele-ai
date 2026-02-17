@@ -82,17 +82,21 @@ class STTSettings(BaseSettings):
 
     Supports three backends:
     1. Hailo-accelerated Whisper via Wyoming protocol (most accurate on telephone audio)
-    2. Moonshine - 5x faster than Whisper tiny, CPU fallback
+    2. Moonshine v2 - native streaming, ~2x better WER than Whisper-Base, ONNX on CPU
     3. faster-whisper for CPU-only last resort
 
     Backend priority (when backend="auto"):
-    1. Wyoming/Hailo (if available) - most accurate on telephone audio
-    2. Moonshine (if installed) - fast CPU fallback
+    1. Wyoming/Hailo (if available) - NPU-accelerated Whisper
+    2. Moonshine v2 (if installed) - best WER in class, native streaming, CPU via ONNX
     3. faster-whisper (last resort) - CPU based
 
-    Moonshine models (January 2026):
-    - "moonshine-tiny" (27M params) - 5x faster than Whisper tiny
-    - "moonshine-base" (61M params) - better accuracy, still fast
+    Moonshine v2 models (February 2026 - arxiv.org/abs/2602.12241):
+    - "moonshine/tiny" (34M params) - 80-150ms latency, 12.01% WER
+    - "moonshine/small" (123M params) - 250-450ms latency, 7.84% WER (recommended)
+    - "moonshine/medium" (245M params) - 450-800ms latency, 6.65% WER
+
+    Legacy Moonshine v1 (HuggingFace transformers):
+    - "UsefulSensors/moonshine-tiny" (27M) - original, via transformers
 
     Whisper models:
     - "tiny" (~0.7-1.2s latency for 3-5s audio on Pi 5)
@@ -109,9 +113,10 @@ class STTSettings(BaseSettings):
     # Device for model inference: "cpu", "cuda", or "auto"
     device: Literal["cpu", "cuda", "auto"] = "auto"
 
-    # Moonshine settings (CPU fallback - 5x faster than Whisper tiny)
-    # Models: "UsefulSensors/moonshine-tiny" (27M), "UsefulSensors/moonshine-base" (61M)
-    moonshine_model: str = "UsefulSensors/moonshine-tiny"
+    # Moonshine settings (CPU fallback via ONNX runtime)
+    # Moonshine v2 (ONNX): "moonshine/tiny", "moonshine/small", "moonshine/medium"
+    # Legacy v1 (transformers): "UsefulSensors/moonshine-tiny", "UsefulSensors/moonshine-base"
+    moonshine_model: str = "moonshine/small"
 
     # Wyoming server settings (for Hailo-accelerated Whisper on Pi #1)
     wyoming_host: str = "localhost"
@@ -136,16 +141,18 @@ class LLMSettings(BaseSettings):
     Standard Ollama runs on Pi #2 (10.10.10.11) for better model flexibility.
 
     Recommended models (February 2026):
-    - Recommended: qwen3:4b-instruct (~4.5 TPS on Pi 5, best quality/speed)
-    - Fallback: llama3.2:3b (~5-6 TPS, good latency)
-    - Quality priority: ministral:8b (~2-3 TPS, best conversational quality)
+    - Recommended: smollm3:3b (IFEval 76.7, ~5-5.5 TPS, best instruction-following)
+    - Fallback: qwen3:4b-instruct (~4.5 TPS, best general knowledge/reasoning)
+    - Speed: gemma3:1b (~11.6 TPS, lowest latency)
 
-    NOTE: Use qwen3:4b-instruct (NOT qwen3:4b). The default qwen3:4b has
-    mandatory thinking mode that wastes all tokens on internal reasoning,
-    causing timeouts on Pi 5. The -instruct variant is a separate model
-    with no thinking mode.
+    SmolLM3-3B scores 8 points above Qwen3-4B on IFEval (instruction-following),
+    which matters most for a phone operator that must follow persona instructions
+    precisely. Being 3B vs 4B, it's also ~10-20% faster.
 
-    Use Q4_K_M quantization for best speed/quality balance on Pi 5.
+    NOTE: If using qwen3 as fallback, use qwen3:4b-instruct (NOT qwen3:4b).
+    The default qwen3:4b has mandatory thinking mode that wastes all tokens.
+
+    Use Q5_K_M quantization for best quality/speed balance with 16GB RAM.
     """
 
     model_config = SettingsConfigDict(env_prefix="LLM_", env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -154,9 +161,9 @@ class LLMSettings(BaseSettings):
     # Change to localhost:11434 if running single-Pi setup
     host: str = "http://10.10.10.11:11434"
 
-    # Default to Qwen3 4B Instruct (non-thinking variant) for best quality
-    # Alternatives: llama3.2:3b (fallback), gemma3:1b (speed)
-    model: str = "qwen3:4b-instruct"
+    # SmolLM3-3B: best instruction-following (IFEval 76.7) in 3-4B class
+    # Alternatives: qwen3:4b-instruct (reasoning), gemma3:1b (speed)
+    model: str = "smollm3:3b"
 
     # Generation parameters
     temperature: float = 0.7
@@ -180,13 +187,13 @@ class TTSSettings(BaseSettings):
     """Text-to-Speech configuration.
 
     Supports two modes:
-    1. Local: Kokoro-82M runs on Pi #1 (default)
+    1. Local: Kokoro-82M v1.0 runs on Pi #1 (default)
     2. Remote: TTS service runs on Pi #2, reducing Pi #1 CPU load
 
-    Kokoro-82M remains the gold standard for edge TTS (January 2026).
+    Kokoro v1.0 (February 2026): 54 voices, voice blending, ONNX optimized.
     For better performance, use Int8 quantized model (2x speedup).
+    Speed fallback: Piper v1.4.1 (10-20x real-time, ARM64 pip wheel).
 
-    Future: Qwen3-TTS (0.6B) offers ~97ms latency and voice cloning.
     Set mode="remote" and configure remote_host to offload TTS to Pi #2.
     """
 
@@ -207,7 +214,7 @@ class TTSSettings(BaseSettings):
     # - kokoro-v1.0-int4.onnx (4x faster, test quality for your use case)
     model_path: str = "kokoro-v1.0.onnx"
     voices_path: str = "voices-v1.0.bin"
-    voice: str = "af_bella"  # American female voice (valid: af_bella, af_nicole, af_sarah, af_sky)
+    voice: str = "af_nova"  # Default voice (see services/tts.py VOICE_MAP for all 54 v1.0 voices)
 
     # Synthesis settings
     speed: float = 1.0

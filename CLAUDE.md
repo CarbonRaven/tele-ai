@@ -24,8 +24,8 @@ Payphone → HT801 ATA (SIP) → Asterisk 22.8.2
 ┌────────────────────────────────────┼────────────────────────────────────┐
 │ Pi #1 (pi-voice) 10.10.10.10      │         + AI HAT+ 2               │
 │                                    ▼                                    │
-│              Silero VAD → Whisper (STT) ──────────→ Kokoro (TTS)       │
-│               (CPU)       :10300 (Hailo)               (CPU)           │
+│              Silero VAD → Whisper/Moonshine (STT) ──→ Kokoro v1.0 (TTS)│
+│               (CPU)       :10300 (Hailo)/ONNX(CPU)       (CPU)        │
 │                                │                         ▲              │
 │                                ▼                         │              │
 └────────────────────────────────┼─────────────────────────┼──────────────┘
@@ -34,7 +34,7 @@ Payphone → HT801 ATA (SIP) → Asterisk 22.8.2
 ┌────────────────────────────────────────────────────────────┼─────────────┐
 │ Pi #2 (pi-ollama) 10.10.10.11                             │             │
 │                     Ollama (LLM) ─────────────────────────┘             │
-│                       :11434 / qwen3:4b-instruct                         │
+│                       :11434 / smollm3:3b                                │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -69,9 +69,9 @@ Payphone → HT801 ATA (SIP) → Asterisk 22.8.2
 | Component | Technology | Location | Notes |
 |-----------|------------|----------|-------|
 | Wake Word | openWakeWord | Pi #1 | Wyoming protocol, port 10400 |
-| STT | Whisper-Base (Hailo) | Pi #1 | Hailo-10H NPU via Wyoming protocol, Moonshine fallback |
-| LLM | Ollama | Pi #2 | Standard Ollama, qwen3:4b-instruct, port 11434 |
-| TTS | Kokoro-82M | Pi #1 | Fast neural TTS, 24kHz output |
+| STT | Whisper-Base (Hailo) / Moonshine v2 Small | Pi #1 | Hailo NPU primary, Moonshine v2 ONNX fallback (7.84% WER) |
+| LLM | Ollama | Pi #2 | Standard Ollama, smollm3:3b (IFEval 76.7), port 11434 |
+| TTS | Kokoro-82M v1.0 | Pi #1 | 54 voices, voice blending, ONNX optimized, 24kHz output |
 | VAD | Silero VAD | Pi #1 | CPU-based, model pool (3) for concurrent calls |
 | Telephony | Asterisk 22.8.2 | Pi #1 | Built from source, AudioSocket protocol |
 | Protocol | Wyoming | Pi #1 | Home Assistant voice service integration |
@@ -98,10 +98,10 @@ tts_server.py              # Standalone TTS server (for Pi #2 offloading)
 │   └── state_machine.py   # Conversation flow control
 ├── services/
 │   ├── vad.py             # Silero VAD v5 with model pool + voice barge-in
-│   ├── stt.py             # Wyoming/Hailo Whisper (primary) + Moonshine (fallback) + faster-whisper
+│   ├── stt.py             # Wyoming/Hailo Whisper (primary) + Moonshine v2 ONNX (fallback) + faster-whisper
 │   ├── wyoming_whisper_server.py  # Standalone Wyoming STT server for Hailo-10H NPU
 │   ├── llm.py             # Ollama client with streaming timeout
-│   └── tts.py             # Kokoro-82M synthesis
+│   └── tts.py             # Kokoro-82M v1.0 synthesis (54 voices, voice blending)
 ├── features/
 │   ├── base.py            # Feature base classes
 │   ├── registry.py        # Auto-discovery decorator pattern
@@ -292,7 +292,7 @@ ln -s /usr/lib/python3/dist-packages/hailo_platform .venv/lib/python3.13/site-pa
 - Total for 5-token utterance: ~534ms
 - Total for 2-token utterance: ~301ms
 
-**STT Backend Priority** (when `STT_BACKEND=auto`): Wyoming/Hailo → Moonshine → faster-whisper. Hailo Whisper-Base is primary because it's more accurate on 8kHz telephone audio. Moonshine Tiny serves as automatic CPU fallback when Wyoming is unavailable (e.g., after reboot).
+**STT Backend Priority** (when `STT_BACKEND=auto`): Wyoming/Hailo → Moonshine v2 → faster-whisper. Hailo Whisper-Base is primary (NPU-accelerated). Moonshine v2 Small serves as CPU fallback via ONNX runtime — actually has better WER (7.84% vs ~15%) but Hailo offloads CPU for concurrent TTS.
 
 ### Known Limitations
 
@@ -320,14 +320,25 @@ Both Pis run Debian Trixie (13.3) aarch64 with kernel 6.12.62+rpt-rpi-2712.
 | Service | Version | Status | Notes |
 |---------|---------|--------|-------|
 | Ollama | 0.15.5 | Running on `0.0.0.0:11434` | CPU-only mode, systemd override for network binding |
-| Model | qwen3:4b-instruct (2.5GB) | Active, ~4.5 tok/s | Best quality in class (MMLU 73.0), no thinking mode |
+| Model | smollm3:3b (~2GB) | Active, ~5-5.5 tok/s | Best instruction-following (IFEval 76.7), 3B params |
 
 ### Model Selection Notes
 
-- **qwen3:4b-instruct**: Current choice — the `-instruct` variant is a separate model with NO thinking mode. MMLU 73.0 (best in class for 4B), ~4.5 tok/s on Pi 5 CPU. Better instruction following than llama3.2:3b (shorter responses, accurate phone directory lookups). With streaming LLM→TTS, first audio in ~5-8s (cached prompt).
-- **qwen3:4b** (default): NOT suitable — mandatory thinking mode consumes all tokens before generating a response. The `-instruct` suffix is critical.
-- **llama3.2:3b**: Previous choice, viable fallback — no thinking mode, ~6 tok/s, MMLU 63.4. Faster but weaker instruction following.
-- **gemma3:1b**: Speed alternative — ~10-12 tok/s, MMLU 38.8. Good for simple features if latency is critical.
+- **smollm3:3b**: Current choice — IFEval 76.7 (best instruction-following in 3-4B class), ~5-5.5 tok/s on Pi 5 CPU. 8 points above Qwen3-4B on IFEval, critical for a phone operator that must precisely follow persona instructions. 3B params = ~10-20% faster than 4B models.
+- **qwen3:4b-instruct**: Fallback — the `-instruct` variant (NO thinking mode). MMLU 65.1 (best general knowledge in class), ~4.5 tok/s. Better reasoning depth but weaker instruction-following.
+- **qwen3:4b** (default): NOT suitable — mandatory thinking mode consumes all tokens before generating a response.
+- **gemma3:1b**: Speed alternative — ~11.6 tok/s. Good for simple features if latency is critical.
+
+### STT Model Notes
+
+- **Whisper-Base (Hailo)**: Primary — NPU-accelerated, ~300-534ms, via Wyoming protocol on port 10300.
+- **Moonshine v2 Small**: CPU fallback — 7.84% WER (nearly 2x better than Whisper-Base), 250-450ms on Pi 5 via ONNX. Native streaming, no hallucination on short audio. Released Feb 12, 2026 (arxiv.org/abs/2602.12241).
+- **Moonshine v2 Tiny**: Ultra-fast alternative — 34M params, 80-150ms, 12.01% WER.
+
+### TTS Model Notes
+
+- **Kokoro v1.0**: Current — 82M params, 54 voices across 8 languages, voice blending (e.g., 70% af_bella + 30% af_sarah). ONNX optimized with int8/int4 quantization options.
+- **Piper v1.4.1**: Speed fallback — 10-20x real-time, 100+ downloadable voices, ARM64 pip wheel. No emotion control but extremely fast.
 
 ### Asterisk Source Build
 

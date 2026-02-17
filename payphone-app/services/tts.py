@@ -1,14 +1,16 @@
-"""Text-to-Speech service using Kokoro-82M.
+"""Text-to-Speech service using Kokoro-82M v1.0.
 
-Kokoro-82M provides sub-300ms latency TTS:
-- Only 82M parameters (~150-200MB model)
-- Built on StyleTTS2 + ISTFTNet
+Kokoro-82M v1.0 provides sub-300ms latency TTS:
+- 82M parameters, ONNX optimized (mixed-precision, ~half the size of v0.82)
+- 54 voices across 8 languages with voice blending support
 - CPU-friendly, runs on embedded devices
 - Apache 2.0 license
 
 Supports two modes:
 - Local: Model runs on Pi #1 (default)
 - Remote: Calls TTS server on Pi #2 to offload CPU
+
+Speed fallback: Piper v1.4.1 for ultra-responsive moments (10-20x real-time).
 """
 
 __all__ = [
@@ -429,25 +431,34 @@ def create_tts(settings: TTSSettings | None = None) -> KokoroTTS | RemoteTTS:
 
 
 # Mapping of persona/feature to voice preferences
-# Valid Kokoro voices: af_bella, af_nicole, af_sarah, af_sky (American Female)
-#                      am_adam, am_michael (American Male)
-#                      bf_emma, bf_isabella (British Female)
-#                      bm_george, bm_lewis (British Male)
+# Kokoro v1.0 voices (54 total across 8 languages):
+# American Female: af_alloy, af_aoede, af_bella, af_heart, af_jessica, af_kore,
+#                  af_nicole, af_nova, af_river, af_sarah, af_sky
+# American Male:   am_adam, am_echo, am_eric, am_fenrir, am_liam, am_michael, am_onyx, am_puck
+# British Female:  bf_alice, bf_emma, bf_isabella, bf_lily
+# British Male:    bm_daniel, bm_fable, bm_george, bm_lewis
+# Voice blending supported: e.g. "70% af_bella + 30% af_sarah"
 VOICE_MAP = {
     # Features
-    "operator": "af_bella",  # American female, warm
-    "jokes": "am_adam",  # American male, energetic
-    "fortune": "bf_emma",  # British female, mysterious
-    "horoscope": "bf_emma",
-    "trivia": "am_michael",  # Game show energy
+    "operator": "af_nova",  # Clean, professional
+    "jokes": "am_puck",  # Playful, energetic
+    "fortune": "af_kore",  # Mysterious, atmospheric
+    "horoscope": "af_kore",
+    "trivia": "am_echo",  # Clear, game-show energy
     "time_temp": "af_sky",  # Clear, professional
     "stories": "af_nicole",  # Warm storytelling
-    "compliment": "af_bella",  # Warm and supportive
-    "advice": "af_sarah",  # Thoughtful
+    "compliment": "af_heart",  # Warm and supportive
+    "advice": "af_sarah",  # Thoughtful, measured
+    "weather": "af_river",  # Calm, natural
+    "news": "am_onyx",  # Deep, authoritative
+    "music": "af_aoede",  # Musical, lyrical
     # Personas
-    "detective": "am_adam",  # American male, noir
-    "grandma": "af_sarah",  # American female, older
-    "robot": "am_michael",  # Can be processed for robotic effect
+    "detective": "am_adam",  # Deeper male, noir
+    "grandma": "af_sarah",  # American female, older warmth
+    "robot": "am_fenrir",  # Deeper, processable for robotic effect
+    "comedian": "af_bella",  # Punchy, expressive
+    "storyteller": "af_jessica",  # Engaging narrator
+    "philosopher": "bm_fable",  # Thoughtful British male
 }
 
 
@@ -465,4 +476,4 @@ def get_voice_for_feature(feature: str | None = None, persona: str | None = None
         return VOICE_MAP[persona]
     if feature and feature in VOICE_MAP:
         return VOICE_MAP[feature]
-    return "af_bella"  # Default voice
+    return "af_nova"  # Default voice
