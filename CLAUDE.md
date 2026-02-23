@@ -34,7 +34,7 @@ Payphone → HT801 ATA (SIP) → Asterisk 22.8.2
 ┌────────────────────────────────────────────────────────────┼─────────────┐
 │ Pi #2 (pi-ollama) 10.10.10.11                             │             │
 │                     Ollama (LLM) ─────────────────────────┘             │
-│                       :11434 / smollm3:3b                                │
+│                       :11434 / qwen3:4b-instruct                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -70,7 +70,7 @@ Payphone → HT801 ATA (SIP) → Asterisk 22.8.2
 |-----------|------------|----------|-------|
 | Wake Word | openWakeWord | Pi #1 | Wyoming protocol, port 10400 |
 | STT | Whisper-Base (Hailo) / Moonshine v2 Small | Pi #1 | Hailo NPU primary, Moonshine v2 ONNX fallback (7.84% WER) |
-| LLM | Ollama | Pi #2 | Standard Ollama, smollm3:3b (IFEval 76.7), port 11434 |
+| LLM | Ollama | Pi #2 | Standard Ollama, qwen3:4b-instruct (MMLU 65.1), port 11434 |
 | TTS | Kokoro-82M v1.0 | Pi #1 | 54 voices, voice blending, ONNX optimized, 24kHz output |
 | VAD | Silero VAD | Pi #1 | CPU-based, model pool (3) for concurrent calls |
 | Telephony | Asterisk 22.8.2 | Pi #1 | Built from source, AudioSocket protocol |
@@ -262,7 +262,7 @@ Audio (16kHz PCM) → Mel Spectrogram (CPU) → Encoder (Hailo NPU) → Decoder 
 - Inference serialized via asyncio.Lock for NPU access
 
 **Model files**:
-- `Whisper-Base.hef` — single HEF with encoder + decoder network groups (131 MB, from `hailo-apps`)
+- `Whisper-Base.hef` — single HEF with encoder + decoder network groups (137 MB, from `hailo-apps` via `hailo-download-resources --group whisper_chat --arch hailo10h`)
   - Located at `/usr/local/hailo/resources/models/hailo10h/Whisper-Base.hef`
   - Encoder: `base-whisper-encoder-10s` (1,1000,80) → (1,500,512)
   - Decoder: `base-whisper-decoder-10s-out-seq-64` (1,500,512)+(1,64,512) → 4 split outputs → (1,64,51865)
@@ -301,19 +301,19 @@ ln -s /usr/lib/python3/dist-packages/hailo_platform .venv/lib/python3.13/site-pa
 
 ## Infrastructure Status
 
-Both Pis run Debian Trixie (13) aarch64. Pi #1 kernel: 6.12.47+rpt-rpi-2712 (pending reboot for Hailo activation). Pi #2 kernel: 6.12.62+rpt-rpi-2712.
+Both Pis run Debian Trixie (13) aarch64. Pi #1 kernel: 6.12.62+rpt-rpi-2712. Pi #2 kernel: 6.12.62+rpt-rpi-2712.
 
 ### Pi #1 (pi-voice) — 10.10.10.10
 
 | Service | Version | Status | Notes |
 |---------|---------|--------|-------|
-| Hailo-10H NPU | FW 5.1.1, `hailo-h10-all` 5.1.1 | Installed, **reboot needed** | PCIe Gen 3 configured in config.txt, driver loads after reboot |
-| Wyoming Whisper | Whisper-Base via Hailo-10H | **Pending** (needs Hailo reboot) | Will run on :10300 after NPU activation |
+| Hailo-10H NPU | FW 5.1.1, `hailo-h10-all` 5.1.1 | **Active** | PCIe Gen 3, `/dev/hailo0` present, driver `hailo1x_pci` loaded |
+| Wyoming Whisper | Whisper-Base via Hailo-10H | **Running** (systemd) | Port 10300, encoder+decoder on NPU, `hailo-apps` for HEF download |
 | Asterisk | 22.8.2 | Running (systemd) | Built from source, PJSIP + AudioSocket configured |
 | AudioSocket | `res_audiosocket.so` + `app_` + `chan_` | 3 modules loaded | Working end-to-end with voice pipeline |
-| Payphone App | Python 3.13.5 | Running (systemd) | VAD pool (3), faster-whisper STT (CPU), Kokoro TTS, models in `models/` |
+| Payphone App | Python 3.13.5 | Running (systemd) | VAD pool (3), Hailo Whisper STT (primary), Moonshine (fallback), Kokoro TTS |
 | HT801 ATA | v2, 10.10.10.12 | Not yet configured | PJSIP endpoint ready, awaiting HT801 SIP registration |
-| Persistent Journal | systemd-journald | Not configured | Default RPi volatile journaling |
+| Persistent Journal | systemd-journald | **Active** | `99-persistent.conf` overrides RPi volatile default, 100M cap |
 
 ### Pi #2 (pi-ollama) — 10.10.10.11
 
@@ -332,7 +332,7 @@ Both Pis run Debian Trixie (13) aarch64. Pi #1 kernel: 6.12.47+rpt-rpi-2712 (pen
 ### STT Model Notes
 
 - **Whisper-Base (Hailo)**: Primary — NPU-accelerated, ~300-534ms, via Wyoming protocol on port 10300.
-- **Moonshine v2 Small**: CPU fallback — 7.84% WER (nearly 2x better than Whisper-Base), 250-450ms on Pi 5 via ONNX. Native streaming, no hallucination on short audio. Released Feb 12, 2026 (arxiv.org/abs/2602.12241). **Requires** `pip install "transformers>=4.48"` (not in base payphone-app deps).
+- **Moonshine Tiny (transformers)**: CPU fallback — auto-activates when Wyoming unavailable. Uses HuggingFace `transformers` 5.2.0 (v1 path; `moonshine-onnx` v2 unavailable on arm64). **Requires** `pip install "transformers>=4.48" sentencepiece safetensors`.
 - **Moonshine v2 Tiny**: Ultra-fast alternative — 34M params, 80-150ms, 12.01% WER.
 
 ### TTS Model Notes

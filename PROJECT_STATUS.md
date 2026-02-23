@@ -1,6 +1,6 @@
 # Project Status — AI Payphone
 
-**Last updated**: 2026-02-11
+**Last updated**: 2026-02-22
 
 ---
 
@@ -123,7 +123,7 @@ All features have system prompts and phone directory entries. They work via LLM 
 | Component | Status | Details |
 |-----------|--------|---------|
 | Pi #1 (pi-voice) | Running | Asterisk 22.8.2, Hailo Whisper STT, Kokoro TTS, Silero VAD |
-| Pi #2 (pi-ollama) | Running | Ollama 0.15.5, qwen3:4b-instruct (~4.5 tok/s, MMLU 73.0) |
+| Pi #2 (pi-ollama) | Running | Ollama 0.16.3, qwen3:4b-instruct (~4.5 tok/s, MMLU 73.0) |
 | HT801 ATA | Configured | PJSIP endpoint, ulaw, RFC4733 DTMF |
 | Network (10.10.10.0/24) | Working | 5-port gigabit switch |
 | AudioSocket protocol | Working | Binary UUID, end-to-end audio |
@@ -208,6 +208,58 @@ All features have system prompts and phone directory entries. They work via LLM 
 ---
 
 ## Session Log
+
+### 2026-02-22: Full Software Rebuild (SD Card Replacement)
+
+**What was accomplished:**
+
+1. **Replaced Pi #1 SD card and rebuilt from scratch** — Previous 512GB SD card had recurring filesystem corruption (2026-02-11, 2026-02-19). Fresh Debian Trixie install on new card.
+
+2. **Full software stack installed on Pi #1:**
+   - System packages: `apt upgrade`, build-essential, Python 3.13.5, git, ffmpeg, libsndfile1, etc.
+   - `hailo-h10-all` 5.1.1 (464 packages): Hailo-10H NPU drivers, firmware, runtime
+   - PCIe Gen 3 configured in `/boot/firmware/config.txt`
+   - Python venv with PyTorch, faster-whisper, kokoro-onnx, ollama, pydantic-settings
+   - `transformers` 5.2.0 + `sentencepiece` + `safetensors` for Moonshine STT
+   - Kokoro TTS models: `kokoro-v1.0.onnx` (311MB) + `voices-v1.0.bin` (27MB)
+   - Asterisk 22.8.2 built from source (not in Debian Trixie arm64 repos)
+   - PJSIP + AudioSocket dialplan configured
+   - Persistent journaling (`99-persistent.conf`, 100M cap)
+
+3. **Hailo-10H NPU activated and Wyoming Whisper deployed:**
+   - `hailo-apps` installed from GitHub (provides `hailo-download-resources`)
+   - `Whisper-Base.hef` (137MB) downloaded via `hailo-download-resources --group whisper_chat --arch hailo10h`
+   - NPY embedding files downloaded via `download_hailo_models.py --variant base`
+   - `hailo_platform` symlinked into venv
+   - `wyoming-whisper.service` installed and running on port 10300
+   - Encoder + decoder running on NPU (fw 5.1.1)
+
+4. **Moonshine STT installed as CPU fallback:**
+   - `moonshine-onnx` unavailable on arm64 — using HuggingFace transformers v1 path
+   - `UsefulSensors/moonshine-tiny` model auto-downloads from HuggingFace on first load
+   - Payphone app auto-selects Moonshine when Wyoming is unavailable
+
+5. **Pi #2 (pi-ollama) verified intact:**
+   - Ollama 0.16.3 running on `0.0.0.0:11434`
+   - `qwen3:4b-instruct` model cached and responsive
+   - Cross-Pi connectivity confirmed from Pi #1
+
+6. **All services verified running post-reboot:**
+   - `wyoming-whisper` (active, :10300)
+   - `payphone` (active, :9092, STT: Hailo Wyoming primary)
+   - `asterisk` (active, PJSIP endpoints configured)
+   - `/dev/hailo0` present (after `apt reinstall h10-hailort-pcie-driver` for new kernel)
+
+**Key discoveries:**
+- `hailo-apps-infra` pip package does NOT exist on arm64. Use `hailo-apps` GitHub repo with `./install.sh` instead.
+- `wyoming-hailo-whisper` apt package does NOT exist. The Wyoming server is `services/wyoming_whisper_server.py` in the payphone-app repo.
+- `moonshine-onnx` pip package not available on arm64. Moonshine works via `transformers` (v1 path).
+- After kernel upgrade, Hailo driver must be rebuilt: `sudo apt reinstall h10-hailort-pcie-driver && sudo depmod -a && sudo modprobe hailo1x_pci`
+- Kokoro downloads with `wget -q` produce 0-byte files (GitHub redirect issue). Use `wget -v`.
+
+**Current state:** Full voice pipeline operational. Hailo Whisper-Base is primary STT (NPU-accelerated). Moonshine tiny is CPU fallback. All systemd services enabled and running. HT801 ATA not yet configured (next step).
+
+---
 
 ### 2026-02-19: SD Card Corruption Recurrence
 
