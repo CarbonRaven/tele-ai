@@ -124,8 +124,10 @@ tts_server.py              # Standalone TTS server (for Pi #2 offloading)
 | Pydantic Settings | `config/settings.py` | Type-safe config with env var support |
 | Phone Directory | `config/phone_directory.py` | 44-number TypedDict registry with greetings |
 | Phone Router | `core/phone_router.py` | Number lookup, DTMF shortcuts, birthday regex |
+| Voice Transfer | `core/state_machine.py` | Operator LLM emits `[TRANSFER:feature]`; state machine parses, switches feature, plays greeting |
 | Feature Registry | `features/registry.py` | `@FeatureRegistry.register()` decorator |
 | Wyoming Protocol | `services/stt.py` | Binary framing for audio, JSON for events |
+| Hallucination Filter | `services/stt.py` | Exact-match + prefix-match for Whisper noise tokens; handles Hailo 64-token truncation |
 | Sentence Buffer | `services/llm.py` | Regex-based streaming TTS chunking |
 | Audio Buffer | `core/audio_processor.py` | Memory-bounded sample accumulation |
 | VAD Model Pool | `services/vad.py` | `VADModelPool` gives each session an exclusive `VADModel` — no lock contention |

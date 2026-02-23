@@ -553,10 +553,31 @@ class VoicePipeline:
         )
 
         async def collecting_generator() -> AsyncIterator[str]:
-            """Wraps the LLM stream to collect tokens and track first sentence."""
+            """Wraps the LLM stream to collect tokens and track first sentence.
+
+            Suppresses [TRANSFER:...] signals from reaching TTS while still
+            collecting them in collected_tokens for post-response processing.
+            """
             nonlocal first_sentence_time
+            suppressing = False
             async for token in text_generator:
                 collected_tokens.append(token)
+                if suppressing:
+                    # Already in transfer signal — collect but don't yield
+                    continue
+                if "[TRANSFER:" in token:
+                    # Transfer signal starts within this token — yield text before it
+                    before = token.split("[TRANSFER:")[0]
+                    if before:
+                        yield before
+                    suppressing = True
+                    continue
+                # Check for split across tokens: previous yield ended with "["
+                # and this token starts with "TRANSFER:"
+                so_far = "".join(collected_tokens)
+                if "[TRANSFER:" in so_far and not suppressing:
+                    suppressing = True
+                    continue
                 yield token
 
         try:

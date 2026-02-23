@@ -74,6 +74,10 @@ class TranscriptionResult:
         "(music",
         "[laughter",
         "(laughter",
+        "[Inaudible",
+        "[ Inaudible",
+        "(Inaudible",
+        "( Inaudible",
     )
 
     @property

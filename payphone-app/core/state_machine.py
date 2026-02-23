@@ -16,6 +16,7 @@ __all__ = [
 
 import asyncio
 import logging
+import re
 import time
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -27,7 +28,11 @@ from config.phone_directory import (
     FEATURE_TO_NUMBER,
     PHONE_DIRECTORY,
 )
+from config.prompts import FEATURE_PROMPTS
 from core.phone_router import PhoneRouter, RouteResult
+
+# Regex to detect operator transfer signals: [TRANSFER:feature_name]
+_TRANSFER_PATTERN = re.compile(r"\[TRANSFER:(\w+)\]")
 
 if TYPE_CHECKING:
     from core.session import Session
@@ -372,6 +377,13 @@ class StateMachine:
             response = await pipeline.generate_response(self.session, transcript)
             self.transition_to(State.SPEAKING, "response_ready")
             await pipeline.speak(self.session, response)
+            full_response = response
+
+        # Check for voice-initiated feature transfer from operator
+        transfer_feature = self._check_transfer_signal(full_response)
+        if transfer_feature:
+            await self._voice_transfer(transfer_feature, pipeline)
+            return
 
         # Check for barge-in during speech
         if self.session.barge_in_requested:
@@ -449,6 +461,56 @@ class StateMachine:
             self.session.switch_persona(result.persona_key)
         else:
             self.session.switch_feature(result.feature)
+
+    @staticmethod
+    def _check_transfer_signal(response: str) -> str | None:
+        """Check if an LLM response contains a transfer signal.
+
+        The operator LLM emits [TRANSFER:feature_name] when the caller
+        confirms they want to be connected to a service.
+
+        Args:
+            response: Full LLM response text.
+
+        Returns:
+            Feature name if valid transfer signal found, None otherwise.
+        """
+        match = _TRANSFER_PATTERN.search(response)
+        if not match:
+            return None
+
+        feature = match.group(1)
+        if feature not in FEATURE_PROMPTS:
+            logger.warning(f"Transfer signal with unknown feature: '{feature}'")
+            return None
+
+        return feature
+
+    async def _voice_transfer(
+        self, feature: str, pipeline: "VoicePipeline"
+    ) -> None:
+        """Execute a voice-initiated feature transfer.
+
+        Switches the session to the target feature and plays its greeting.
+
+        Args:
+            feature: Target feature name (validated).
+            pipeline: Voice pipeline for audio playback.
+        """
+        logger.info(f"Session {self.session.call_id}: Voice transfer to '{feature}'")
+
+        # Switch feature (updates system prompt, clears persona)
+        self.session.switch_feature(feature)
+
+        # Clear conversation history so the new feature starts fresh
+        # (switch_feature already set the new system prompt; clear() preserves it)
+        self.session.context.clear()
+
+        # Play the feature greeting
+        greeting = _get_greeting(feature)
+        self.transition_to(State.SPEAKING, f"transfer_greeting_{feature}")
+        await pipeline.speak(self.session, greeting)
+        self.transition_to(State.LISTENING, f"feature_{feature}")
 
     async def _handle_timeout(self, pipeline: "VoicePipeline") -> None:
         """Handle silence timeout."""

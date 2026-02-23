@@ -145,7 +145,8 @@ All features have system prompts and phone directory entries. They work via LLM 
 | Streaming LLM → TTS | Working | SentenceBuffer chunks tokens, producer-consumer TTS |
 | Telephone bandpass filter | Working | 300-3400 Hz applied to all output audio |
 | Prompt warm-up | Working | Operator system prompt cached in Ollama KV at init |
-| Whisper hallucination filter | Working | 16 known patterns filtered (e.g. `[BLANK_AUDIO]`, `Thank you.`) |
+| Whisper hallucination filter | Working | 20 known patterns filtered; prefix-matching for truncated Hailo tokens (e.g. `[BLANK_AUDIO` without `]`) |
+| Voice-initiated feature transfer | Working | Operator LLM emits `[TRANSFER:feature]` signal; state machine parses, switches feature, plays greeting |
 
 ---
 
@@ -201,13 +202,36 @@ All features have system prompts and phone directory entries. They work via LLM 
 | Birthday dates not validated | Low | 555-0230 (Feb 30) accepted as valid birthday |
 | max_call_duration not enforced | Low | State machine checks it but was marked as "not enforced" in test plan |
 | Extension not passed from Asterisk | Info | AudioSocket sends binary UUID only; all calls show `extension: None` |
-| Hailo decoder max 64 tokens | Info | HEF fixed at 64-token sequence; adequate for phone utterances |
+| Hailo decoder max 64 tokens | Info | HEF fixed at 64-token sequence; adequate for phone utterances. Can truncate hallucination tokens (e.g. `[BLANK_AUDIO` without `]`); handled by prefix-matching filter. |
 | Hailo Whisper decoder stale after reboot | Medium | After pi-voice reboots, Wyoming Whisper decoder produces 1-token garbage (`-`, `and`). Restarting `wyoming-whisper.service` fixes it. App then hangs at 80% CPU from the bad STT loop and must also be restarted. |
+| TTS echo triggers false VAD | Low | 20ms audio captures immediately after TTS playback (acoustic echo through phone line). Hallucination filter catches the noise but root cause is HT801 ATA echo cancellation settings. |
+| Short utterance STT accuracy | Medium | Whisper mishears short words like "yes" → garbled output. May need minimum audio duration threshold or VAD sensitivity tuning. |
 | SD card filesystem corruption (round 2) | **Active** | 2026-02-19: SD card corrupt again on pi-voice. Previous fix (2026-02-11) used `fsck.mode=force` boot passes. Recurrence suggests the 512GB SD card may be failing — consider replacement with a fresh card and clean image. |
 
 ---
 
 ## Session Log
+
+### 2026-02-22 (Evening): Voice Transfer + Hallucination Filter Fixes
+
+**What was accomplished:**
+
+1. **Fixed Whisper hallucination filter for truncated Hailo tokens** — Hailo's 64-token decoder limit truncates `[BLANK_AUDIO]` to `[BLANK_AUDIO` (no closing bracket), bypassing the exact-match frozenset filter. Split filter into `_HALLUCINATION_EXACT` (text patterns, frozenset) and `_HALLUCINATION_PREFIXES` (bracket patterns, `startswith()` tuple). Also added `[Inaudible` patterns seen in call logs. Committed as `3350caf`.
+
+2. **Implemented voice-initiated feature transfer** — The operator could tell callers about services but had no mechanism to actually *connect* them. When the caller says "yes" to being connected:
+   - Operator LLM now emits `[TRANSFER:feature_name]` signal (added transfer instructions + valid feature list to operator prompt)
+   - State machine `_check_transfer_signal()` parses the signal with regex, validates against known features
+   - `_voice_transfer()` switches the feature, clears conversation history, plays the target greeting
+   - Streaming token filter in `pipeline.py` suppresses `[TRANSFER:]` from TTS output
+   - Files changed: `config/prompts.py`, `core/state_machine.py`, `core/pipeline.py`, `services/stt.py`
+
+3. **Deployed to Pi #1** — All files transferred via `cat | ssh` (SCP was timing out after reboot). Service restarted and running.
+
+**Known issue from testing:** After first operator response, subsequent speech wasn't captured (process at 72% CPU with no log output). Occurred once after a Pi reboot — likely related to the known "Hailo Whisper decoder stale after reboot" bug. Service restart resolved it. Voice transfer feature not yet verified with a successful end-to-end call.
+
+**Current state:** Voice transfer code deployed but needs live verification. Hallucination filter improved. All services running.
+
+---
 
 ### 2026-02-22: Full Software Rebuild (SD Card Replacement)
 
