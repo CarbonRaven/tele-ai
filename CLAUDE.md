@@ -301,38 +301,38 @@ ln -s /usr/lib/python3/dist-packages/hailo_platform .venv/lib/python3.13/site-pa
 
 ## Infrastructure Status
 
-Both Pis run Debian Trixie (13.3) aarch64 with kernel 6.12.62+rpt-rpi-2712.
+Both Pis run Debian Trixie (13) aarch64. Pi #1 kernel: 6.12.47+rpt-rpi-2712 (pending reboot for Hailo activation). Pi #2 kernel: 6.12.62+rpt-rpi-2712.
 
 ### Pi #1 (pi-voice) — 10.10.10.10
 
 | Service | Version | Status | Notes |
 |---------|---------|--------|-------|
-| Hailo-10H NPU | FW 5.1.1, driver `hailo1x_pci` | `/dev/hailo0` active | `hailo-h10-all` package, Whisper-Base HEF running |
-| Wyoming Whisper | Whisper-Base via Hailo-10H | Running (systemd) :10300 | Encoder 69ms, decoder 213ms on NPU |
+| Hailo-10H NPU | FW 5.1.1, `hailo-h10-all` 5.1.1 | Installed, **reboot needed** | PCIe Gen 3 configured in config.txt, driver loads after reboot |
+| Wyoming Whisper | Whisper-Base via Hailo-10H | **Pending** (needs Hailo reboot) | Will run on :10300 after NPU activation |
 | Asterisk | 22.8.2 | Running (systemd) | Built from source, PJSIP + AudioSocket configured |
 | AudioSocket | `res_audiosocket.so` + `app_` + `chan_` | 3 modules loaded | Working end-to-end with voice pipeline |
-| Payphone App | Python 3.13 | Running (systemd) | VAD pool (3), Hailo Whisper STT via Wyoming, Kokoro TTS |
-| HT801 ATA | v2, 10.10.10.12 | Registered (NonQual) | PJSIP endpoint, ulaw, RFC4733 DTMF |
-| Persistent Journal | systemd-journald | Active | `/etc/systemd/journald.conf.d/99-persistent.conf` overrides RPi volatile default |
+| Payphone App | Python 3.13.5 | Running (systemd) | VAD pool (3), faster-whisper STT (CPU), Kokoro TTS, models in `models/` |
+| HT801 ATA | v2, 10.10.10.12 | Not yet configured | PJSIP endpoint ready, awaiting HT801 SIP registration |
+| Persistent Journal | systemd-journald | Not configured | Default RPi volatile journaling |
 
 ### Pi #2 (pi-ollama) — 10.10.10.11
 
 | Service | Version | Status | Notes |
 |---------|---------|--------|-------|
-| Ollama | 0.15.5 | Running on `0.0.0.0:11434` | CPU-only mode, systemd override for network binding |
-| Model | smollm3:3b (~2GB) | Active, ~5-5.5 tok/s | Best instruction-following (IFEval 76.7), 3B params |
+| Ollama | 0.16.3 | Running on `0.0.0.0:11434` | CPU-only mode, systemd override for network binding |
+| Model | qwen3:4b-instruct (~2.5GB) | Active, ~4.5 tok/s | MMLU 65.1, `-instruct` variant (no thinking mode) |
 
 ### Model Selection Notes
 
-- **smollm3:3b**: Current choice — IFEval 76.7 (best instruction-following in 3-4B class), ~5-5.5 tok/s on Pi 5 CPU. 8 points above Qwen3-4B on IFEval, critical for a phone operator that must precisely follow persona instructions. 3B params = ~10-20% faster than 4B models.
-- **qwen3:4b-instruct**: Fallback — the `-instruct` variant (NO thinking mode). MMLU 65.1 (best general knowledge in class), ~4.5 tok/s. Better reasoning depth but weaker instruction-following.
+- **smollm3:3b**: Intended choice — IFEval 76.7 (best instruction-following in 3-4B class), ~5-5.5 tok/s on Pi 5 CPU. **Not yet available in Ollama registry as of Feb 2026.** 3B params = ~10-20% faster than 4B models.
+- **qwen3:4b-instruct**: Current active model — the `-instruct` variant (NO thinking mode). MMLU 65.1 (best general knowledge in class), ~4.5 tok/s. Good reasoning depth, solid instruction-following.
 - **qwen3:4b** (default): NOT suitable — mandatory thinking mode consumes all tokens before generating a response.
 - **gemma3:1b**: Speed alternative — ~11.6 tok/s. Good for simple features if latency is critical.
 
 ### STT Model Notes
 
 - **Whisper-Base (Hailo)**: Primary — NPU-accelerated, ~300-534ms, via Wyoming protocol on port 10300.
-- **Moonshine v2 Small**: CPU fallback — 7.84% WER (nearly 2x better than Whisper-Base), 250-450ms on Pi 5 via ONNX. Native streaming, no hallucination on short audio. Released Feb 12, 2026 (arxiv.org/abs/2602.12241).
+- **Moonshine v2 Small**: CPU fallback — 7.84% WER (nearly 2x better than Whisper-Base), 250-450ms on Pi 5 via ONNX. Native streaming, no hallucination on short audio. Released Feb 12, 2026 (arxiv.org/abs/2602.12241). **Requires** `pip install "transformers>=4.48"` (not in base payphone-app deps).
 - **Moonshine v2 Tiny**: Ultra-fast alternative — 34M params, 80-150ms, 12.01% WER.
 
 ### TTS Model Notes

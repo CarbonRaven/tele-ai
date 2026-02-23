@@ -203,11 +203,26 @@ All features have system prompts and phone directory entries. They work via LLM 
 | Extension not passed from Asterisk | Info | AudioSocket sends binary UUID only; all calls show `extension: None` |
 | Hailo decoder max 64 tokens | Info | HEF fixed at 64-token sequence; adequate for phone utterances |
 | Hailo Whisper decoder stale after reboot | Medium | After pi-voice reboots, Wyoming Whisper decoder produces 1-token garbage (`-`, `and`). Restarting `wyoming-whisper.service` fixes it. App then hangs at 80% CPU from the bad STT loop and must also be restarted. |
-| SD card filesystem corruption | **Fixed** | 512GB SD card had corrupt inode bitmap, cross-linked files, deleted inode references causing watchdog-triggered reboots. Fixed with two `fsck.mode=force` boot passes. Filesystem now clean. |
+| SD card filesystem corruption (round 2) | **Active** | 2026-02-19: SD card corrupt again on pi-voice. Previous fix (2026-02-11) used `fsck.mode=force` boot passes. Recurrence suggests the 512GB SD card may be failing — consider replacement with a fresh card and clean image. |
 
 ---
 
 ## Session Log
+
+### 2026-02-19: SD Card Corruption Recurrence
+
+**What happened:**
+
+1. **SD card corrupt again on pi-voice** — Second corruption event in 8 days (previous: 2026-02-11). The recurrence strongly suggests the 512GB SD card is failing rather than a one-time corruption event.
+
+**Next steps when resuming:**
+- Consider replacing the 512GB SD card entirely with a fresh card
+- Image the current card (if readable) to preserve the configured system
+- Alternative: try `fsck.mode=force` again, but if it recurs a third time, the card is definitely bad
+- Check `smartctl` or `mmc` health data if available on Pi
+- Consider moving to USB SSD boot for better reliability
+
+---
 
 ### 2026-02-11: SD Card Filesystem Repair + Persistent Journal
 
