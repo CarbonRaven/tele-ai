@@ -6,6 +6,7 @@ Handles audio conversion, streaming, and telephone filtering.
 
 import asyncio
 import logging
+import os
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, AsyncIterator, Callable
@@ -167,6 +168,18 @@ class VoicePipeline:
         duration_ms = audio_buffer.get_duration_ms()
         session.metrics.total_speech_duration_ms += duration_ms
         logger.info(f"Speech captured: {duration_ms:.0f}ms ({audio_buffer.num_samples} samples)")
+
+        # Diagnostic: persist exactly what STT receives (set DEBUG_SAVE_CAPTURES=1)
+        if os.environ.get("DEBUG_SAVE_CAPTURES"):
+            try:
+                capture_dir = Path("/tmp/captures")
+                capture_dir.mkdir(exist_ok=True)
+                ts = time.strftime("%H%M%S")
+                path = capture_dir / f"{ts}-{session.call_id[:8]}-{duration_ms:.0f}ms.wav"
+                sf.write(str(path), audio, 16000)
+                logger.info(f"Capture saved: {path}")
+            except Exception as e:
+                logger.warning(f"Capture save failed: {e}")
 
         result = await self.stt.transcribe(audio, sample_rate=16000)
 
