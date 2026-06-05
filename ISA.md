@@ -102,7 +102,7 @@ All 44 directory numbers hardware-verified on the physical payphone with the ful
 ### Hygiene
 - [x] ISC-33: No secrets committed (audited 2026-06-05)
 - [ ] ISC-34: Pi working tree clean against origin (PENDING — Feb-23 experiments: SmolLM3 + TEN-VAD + int8 Kokoro across 11 files, diff secured at tele-ai-backups/pi-experiments-20260605.diff; decide merge/branch/discard)
-- [ ] ISC-35: Deploy is git-pull based, not cat-pipe (repeatable deploys)
+- [x] ISC-35: Deploy is git-pull based, not cat-pipe (repeatable deploys)
 - [ ] ISC-36: Off-Pi backup automated (manual rescue taken 2026-06-05)
 
 ### STT quality (added 2026-06-05 from live-call A/B diagnosis)
