@@ -173,7 +173,13 @@ class PayphoneApplication:
         consecutive_errors = 0
 
         # Main conversation loop - state machine handles greeting via IDLE -> GREETING
-        while session.is_active and state_machine.state != State.HANGUP:
+        # protocol.is_active guards against busy-spinning on a dead connection
+        # (remote hangup / TCP close) in any state, not just LISTENING.
+        while (
+            session.is_active
+            and session.protocol.is_active
+            and state_machine.state != State.HANGUP
+        ):
             try:
                 # Process based on current state
                 await state_machine.process(self._pipeline)

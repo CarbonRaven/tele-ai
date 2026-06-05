@@ -280,6 +280,14 @@ class StateMachine:
 
     async def _handle_listening(self, pipeline: "VoicePipeline") -> None:
         """Handle listening state - collect audio until speech ends."""
+        # Remote hangup / dead connection: exit instead of spinning. Without
+        # this check, listen_and_transcribe returns (None, None) instantly on
+        # an inactive protocol and the conversation loop re-enters LISTENING
+        # in a zero-await busy loop (100% CPU until service restart).
+        if not self.session.protocol.is_active:
+            self.transition_to(State.HANGUP, "remote_hangup")
+            return
+
         # Start silence timer if not already running
         if self._silence_start is None:
             self._silence_start = time.time()
