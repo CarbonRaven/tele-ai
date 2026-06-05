@@ -1,10 +1,12 @@
-"""Voice Activity Detection using Silero VAD.
+"""Voice Activity Detection using TEN VAD via sherpa-onnx.
 
-Silero VAD is a lightweight, fast, and accurate voice activity detector:
-- 1.8MB model size
-- ~1ms processing per 30ms chunk
-- 95% accuracy in noisy environments
-- MIT License
+TEN VAD is a lightweight, fast, and accurate voice activity detector:
+- 332KB model size
+- ~0.15ms processing per 256-sample chunk on Pi 5
+- 32% lower RTF than Silero VAD
+- ~300ms faster speech-to-silence detection
+- Apache 2.0 License
+- No PyTorch dependency (uses ONNX runtime via sherpa-onnx)
 
 Supports a model pool for concurrent call handling: each session gets
 an exclusive VADModel, eliminating lock contention and state save/restore.
@@ -16,7 +18,8 @@ __all__ = [
     "VADSessionState",
     "VADModel",
     "VADModelPool",
-    "SileroVAD",
+    "TenVAD",
+    "SileroVAD",  # Backwards-compatible alias
 ]
 
 import asyncio
@@ -24,6 +27,7 @@ import logging
 import warnings
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import AsyncIterator
 
 import numpy as np
@@ -32,6 +36,9 @@ from numpy.typing import NDArray
 from config.settings import VADSettings
 
 logger = logging.getLogger(__name__)
+
+# Model path relative to payphone-app root
+_MODEL_PATH = Path(__file__).parent.parent / "models" / "ten-vad-sherpa.onnx"
 
 
 class SpeechState(Enum):
@@ -72,21 +79,30 @@ class VADSessionState:
 
 
 class VADModel:
-    """Wrapper around a single Silero VAD model instance.
+    """Wrapper around a single TEN VAD model instance via sherpa-onnx.
 
-    Each VADModel holds its own model and LSTM state, so it can be
-    used by a single session without locking or state save/restore.
+    Each VADModel holds its own sherpa-onnx VoiceActivityDetector, so it
+    can be used by a single session without locking or state save/restore.
     """
 
-    # Silero VAD v5 requires EXACTLY 512 samples at 16kHz (or 256 at 8kHz).
-    # AudioSocket sends 20ms frames → 320 samples at 16kHz after resampling.
-    # We accumulate into a ring buffer and extract exact 512-sample windows.
-    WINDOW_SIZE = {16000: 512, 8000: 256}
+    # TEN VAD processes 256 samples at 16kHz (16ms).
+    # AudioSocket sends 20ms frames -> 320 samples at 16kHz after resampling.
+    # We accumulate into a buffer and extract exact-sized windows.
+    WINDOW_SIZE = {16000: 256, 8000: 160}
 
-    def __init__(self, model, utils, settings: VADSettings):
-        self._model = model
-        self._utils = utils
+    def __init__(self, settings: VADSettings, model_path: str | None = None):
+        import sherpa_onnx
+
         self.settings = settings
+        self._model_path = model_path or str(_MODEL_PATH)
+
+        config = sherpa_onnx.VadModelConfig()
+        config.ten_vad.model = self._model_path
+        config.sample_rate = 16000
+        config.num_threads = 1
+        config.provider = "cpu"
+
+        self._vad = sherpa_onnx.VoiceActivityDetector(config, buffer_size_in_seconds=30)
         self._accum = np.empty(0, dtype=np.float32)
 
     async def process_chunk(
@@ -98,8 +114,8 @@ class VADModel:
     ) -> VADResult:
         """Process an audio chunk and return VAD result.
 
-        No lock needed — this model instance is exclusively owned by one session.
-        Accumulates samples and feeds exact-sized windows to Silero.
+        No lock needed - this model instance is exclusively owned by one session.
+        Accumulates samples and feeds exact-sized windows to TEN VAD.
 
         Args:
             audio: Audio samples as float32 array in range [-1.0, 1.0].
@@ -110,51 +126,74 @@ class VADModel:
         Returns:
             VADResult with speech state and probability.
         """
-        window = self.WINDOW_SIZE.get(sample_rate, 512)
+        window = self.WINDOW_SIZE.get(sample_rate, 256)
 
         # Append new audio to accumulator
-        self._accum = np.concatenate([self._accum, audio]) if len(self._accum) > 0 else audio.copy()
+        self._accum = (
+            np.concatenate([self._accum, audio])
+            if len(self._accum) > 0
+            else audio.copy()
+        )
 
         if len(self._accum) < window:
             return VADResult(state=SpeechState.SILENCE, probability=0.0, audio_chunk=None)
 
         # Extract exactly `window` samples; keep remainder
         chunk = self._accum[:window]
-        self._accum = self._accum[window:].copy() if len(self._accum) > window else np.empty(0, dtype=np.float32)
+        self._accum = (
+            self._accum[window:].copy()
+            if len(self._accum) > window
+            else np.empty(0, dtype=np.float32)
+        )
 
+        # Run inference - sherpa-onnx accept_waveform takes float32 samples
         loop = asyncio.get_running_loop()
-        prob = await loop.run_in_executor(
+        is_speech = await loop.run_in_executor(
             None,
             self._run_inference,
             chunk,
-            sample_rate,
         )
+
+        # Map sherpa-onnx binary is_speech to probability-like value
+        prob = 1.0 if is_speech else 0.0
 
         # Use original audio (not just the window) for the audio_chunk so callers
         # get the full audio data for STT buffering
         if session_state is not None:
-            threshold = threshold_override if threshold_override is not None else self.settings.threshold
-            state = self._update_session_state(session_state, prob, len(audio), sample_rate, threshold)
+            threshold = (
+                threshold_override
+                if threshold_override is not None
+                else self.settings.threshold
+            )
+            state = self._update_session_state(
+                session_state, prob, len(audio), sample_rate, threshold
+            )
         else:
-            state = SpeechState.SPEECH if prob >= (threshold_override or self.settings.threshold) else SpeechState.SILENCE
+            state = (
+                SpeechState.SPEECH
+                if prob >= (threshold_override or self.settings.threshold)
+                else SpeechState.SILENCE
+            )
 
         return VADResult(
             state=state,
             probability=prob,
-            audio_chunk=audio if state in (SpeechState.SPEECH_START, SpeechState.SPEECH) else None,
+            audio_chunk=audio
+            if state in (SpeechState.SPEECH_START, SpeechState.SPEECH)
+            else None,
         )
 
-    def _run_inference(self, audio: NDArray[np.float32], sample_rate: int) -> float:
-        """Run VAD inference (blocking)."""
-        import torch
+    def _run_inference(self, audio: NDArray[np.float32]) -> bool:
+        """Run VAD inference (blocking).
 
-        audio_tensor = torch.from_numpy(audio)
-        speech_prob = self._model(audio_tensor, sample_rate).item()
-        return speech_prob
+        sherpa-onnx accepts float32 samples directly.
+        """
+        self._vad.accept_waveform(audio)
+        return self._vad.is_speech_detected()
 
     def reset_states(self) -> None:
-        """Reset the model's LSTM hidden state and accumulation buffer."""
-        self._model.reset_states()
+        """Reset the model's internal state and accumulation buffer."""
+        self._vad.reset()
         self._accum = np.empty(0, dtype=np.float32)
 
     @staticmethod
@@ -174,7 +213,7 @@ class VADModel:
 
         Args:
             state: Per-session VAD state object.
-            probability: Speech probability from model.
+            probability: Speech probability from model (1.0 or 0.0).
             chunk_samples: Number of samples in the chunk.
             sample_rate: Audio sample rate.
             threshold: Speech detection threshold.
@@ -227,31 +266,18 @@ class VADModelPool:
         self._lock = asyncio.Lock()  # Only for init/cleanup
 
     async def initialize(self) -> None:
-        """Load pool_size VAD models."""
-        async with self._lock:
-            loop = asyncio.get_running_loop()
+        """Create pool_size VAD model instances.
 
+        TEN VAD models are tiny (332KB) so this is nearly instant.
+        """
+        async with self._lock:
             for i in range(self.pool_size):
-                logger.info(f"Loading VAD model {i + 1}/{self.pool_size}...")
-                model, utils = await loop.run_in_executor(None, self._load_one_model)
-                vad_model = VADModel(model, utils, self.settings)
+                logger.info(f"Creating TEN VAD model {i + 1}/{self.pool_size}...")
+                vad_model = VADModel(self.settings)
                 self._models.append(vad_model)
                 await self._available.put(vad_model)
 
-            logger.info(f"VAD model pool initialized ({self.pool_size} models)")
-
-    @staticmethod
-    def _load_one_model():
-        """Load a single Silero VAD model (blocking)."""
-        import torch
-
-        model, utils = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad",
-            model="silero_vad",
-            force_reload=False,
-            trust_repo=True,
-        )
-        return model, utils
+            logger.info(f"TEN VAD model pool initialized ({self.pool_size} models)")
 
     async def acquire(self) -> VADModel:
         """Get an exclusive model from the pool.
@@ -278,8 +304,8 @@ class VADModelPool:
             self._models.clear()
 
 
-class SileroVAD:
-    """Silero VAD wrapper for voice activity detection.
+class TenVAD:
+    """TEN VAD wrapper for voice activity detection.
 
     Uses a VADModelPool for concurrent call support. Each session acquires
     an exclusive model via acquire_model()/release_model().
@@ -297,8 +323,7 @@ class SileroVAD:
         self._pool: VADModelPool | None = None
 
         # Legacy single model (for backwards-compatible process_chunk)
-        self._model = None
-        self._utils = None
+        self._model: VADModel | None = None
         self._initialized = False
         self._lock = asyncio.Lock()
 
@@ -312,38 +337,17 @@ class SileroVAD:
         if self._initialized:
             return
 
-        logger.info("Loading Silero VAD model pool...")
+        logger.info("Loading TEN VAD model pool...")
 
         # Initialize the pool
         self._pool = VADModelPool(self.settings, pool_size=3)
         await self._pool.initialize()
 
-        # Load legacy single model for backwards-compatible process_chunk
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._load_model)
+        # Create legacy single model for backwards-compatible process_chunk
+        self._model = VADModel(self.settings)
 
         self._initialized = True
-        logger.info("Silero VAD initialized (pool + legacy model)")
-
-    def _load_model(self) -> None:
-        """Load the legacy single Silero VAD model (blocking)."""
-        import torch
-
-        model, utils = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad",
-            model="silero_vad",
-            force_reload=False,
-            trust_repo=True,
-        )
-
-        self._model = model
-        self._utils = utils
-
-        self._get_speech_timestamps = utils[0]
-        self._save_audio = utils[1]
-        self._read_audio = utils[2]
-        self._vad_collector = utils[3]
-        self._collect_chunks = utils[4]
+        logger.info("TEN VAD initialized (pool + legacy model)")
 
     async def cleanup(self) -> None:
         """Clean up resources."""
@@ -352,7 +356,6 @@ class SileroVAD:
             await self._pool.cleanup()
             self._pool = None
         self._model = None
-        self._utils = None
         self._initialized = False
 
     def reset(self) -> None:
@@ -363,7 +366,7 @@ class SileroVAD:
             without acquiring the lock and is unsafe for concurrent use.
         """
         warnings.warn(
-            "SileroVAD.reset() is deprecated and not thread-safe. "
+            "TenVAD.reset() is deprecated and not thread-safe. "
             "Use reset_async() instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -439,89 +442,25 @@ class SileroVAD:
             raise RuntimeError("VAD not initialized. Call initialize() first.")
 
         async with self._lock:
-            loop = asyncio.get_running_loop()
-            prob = await loop.run_in_executor(
-                None,
-                self._run_inference,
-                audio,
-                sample_rate,
-            )
-
-            if session_state is not None:
-                state = self._update_session_state(session_state, prob, len(audio), sample_rate)
+            if session_state is None:
+                # Use legacy shared state via proxy
+                proxy = VADSessionState(
+                    is_speaking=self._is_speaking,
+                    speech_samples=self._speech_samples,
+                    silence_samples=self._silence_samples,
+                )
+                result = await self._model.process_chunk(
+                    audio, sample_rate, session_state=proxy
+                )
+                # Sync proxy state back to shared state
+                self._is_speaking = proxy.is_speaking
+                self._speech_samples = proxy.speech_samples
+                self._silence_samples = proxy.silence_samples
             else:
-                state = self._update_state(prob, len(audio), sample_rate)
+                result = await self._model.process_chunk(
+                    audio, sample_rate, session_state=session_state
+                )
 
-        return VADResult(
-            state=state,
-            probability=prob,
-            audio_chunk=audio if state in (SpeechState.SPEECH_START, SpeechState.SPEECH) else None,
-        )
-
-    def _run_inference(self, audio: NDArray[np.float32], sample_rate: int) -> float:
-        """Run VAD inference on the legacy model (blocking)."""
-        import torch
-
-        audio_tensor = torch.from_numpy(audio)
-        speech_prob = self._model(audio_tensor, sample_rate).item()
-        return speech_prob
-
-    def _update_session_state(
-        self,
-        state: VADSessionState,
-        probability: float,
-        chunk_samples: int,
-        sample_rate: int,
-    ) -> SpeechState:
-        """Update per-session state based on probability."""
-        is_speech = probability >= self.settings.threshold
-
-        if is_speech:
-            state.speech_samples += chunk_samples
-            state.silence_samples = 0
-
-            if not state.is_speaking:
-                speech_ms = self._samples_to_ms(state.speech_samples, sample_rate)
-                if speech_ms >= self.settings.min_speech_duration_ms:
-                    state.is_speaking = True
-                    return SpeechState.SPEECH_START
-
-            return SpeechState.SPEECH if state.is_speaking else SpeechState.SILENCE
-
-        else:
-            state.silence_samples += chunk_samples
-
-            if state.is_speaking:
-                silence_ms = self._samples_to_ms(state.silence_samples, sample_rate)
-                if silence_ms >= self.settings.min_silence_duration_ms:
-                    state.is_speaking = False
-                    state.speech_samples = 0
-                    return SpeechState.SPEECH_END
-
-                return SpeechState.SPEECH
-
-            state.speech_samples = 0
-            return SpeechState.SILENCE
-
-    def _update_state(
-        self,
-        probability: float,
-        chunk_samples: int,
-        sample_rate: int,
-    ) -> SpeechState:
-        """Update internal state based on probability.
-
-        Delegates to _update_session_state using a proxy for the legacy shared state.
-        """
-        proxy = VADSessionState(
-            is_speaking=self._is_speaking,
-            speech_samples=self._speech_samples,
-            silence_samples=self._silence_samples,
-        )
-        result = self._update_session_state(proxy, probability, chunk_samples, sample_rate)
-        self._is_speaking = proxy.is_speaking
-        self._speech_samples = proxy.speech_samples
-        self._silence_samples = proxy.silence_samples
         return result
 
     async def detect_speech_end(
@@ -569,3 +508,7 @@ class SileroVAD:
     def is_speaking(self) -> bool:
         """Check if speech is currently being detected."""
         return self._is_speaking
+
+
+# Backwards-compatible alias
+SileroVAD = TenVAD

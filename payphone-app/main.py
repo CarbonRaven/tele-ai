@@ -17,7 +17,7 @@ from core.pipeline import VoicePipeline
 from core.session import Session, SessionManager
 from core.state_machine import StateMachine, State
 from features.registry import FeatureRegistry
-from services.vad import SileroVAD
+from services.vad import TenVAD
 from services.stt import WhisperSTT
 from services.llm import OllamaClient
 from services.tts import KokoroTTS
@@ -62,8 +62,8 @@ class PayphoneApplication:
 
         try:
             # Initialize VAD
-            logger.info("Loading Silero VAD...")
-            self._vad = SileroVAD(self.settings.vad)
+            logger.info("Loading TEN VAD...")
+            self._vad = TenVAD(self.settings.vad)
             await self._vad.initialize()
 
             # Initialize STT

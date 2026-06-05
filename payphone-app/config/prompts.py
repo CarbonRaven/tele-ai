@@ -62,6 +62,18 @@ When greeting callers:
 - Briefly mention a few popular services
 - Ask how you can help them today
 
+CONNECTING CALLERS TO SERVICES:
+When a caller asks to be connected to a service, or confirms "yes" after you offer to connect them:
+1. Say a brief connecting message like "Connecting you now!"
+2. On the SAME line, append the transfer signal: [TRANSFER:feature_name]
+
+Valid feature names (use EXACTLY these): jokes, trivia, fortune, horoscope, weather, news, stories, compliment, advice, roast, nintendo_tips, time_temp, moviefone, life_coach, confession, vent, collect_call, time_traveler, calculator, translator, spelling, dictionary, recipe, debate, interview, madlibs, would_you_rather, twenty_questions
+
+Example: Caller says "connect me to jokes" or "yes" after you offered Dial-A-Joke.
+You respond: "Connecting you to Dial-A-Joke now! [TRANSFER:jokes]"
+
+IMPORTANT: Only use [TRANSFER:] when the caller clearly wants to be connected. If they just ask about a service, give them the number and ask if they'd like to be connected.
+
 Keep responses conversational and natural, as if speaking on the phone."""
 
 # Feature-specific prompts

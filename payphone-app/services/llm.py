@@ -225,6 +225,9 @@ class OllamaClient:
             elapsed_ms = (time.perf_counter() - start_time) * 1000
             text = response["message"]["content"]
 
+            # Strip <think>...</think> blocks (some models emit these)
+            text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+
             # Update context if provided
             if context:
                 context.add_user_message(prompt)
@@ -337,6 +340,27 @@ class OllamaClient:
                 is_first_token = False
                 token = part["message"]["content"]
                 response_parts.append(token)
+
+                # Strip <think>...</think> blocks (some models emit these)
+                # Accumulate into _think_buf and only yield non-think content
+                think_buf = getattr(self, "_think_buf", "")
+                think_buf += token
+
+                # If we're inside a <think> block, keep buffering
+                if "<think>" in think_buf and "</think>" not in think_buf:
+                    self._think_buf = think_buf
+                    continue
+
+                # If a complete <think>...</think> block is present, strip it
+                if "<think>" in think_buf and "</think>" in think_buf:
+                    cleaned = re.sub(r"<think>.*?</think>", "", think_buf, flags=re.DOTALL)
+                    self._think_buf = ""
+                    if cleaned.strip():
+                        yield cleaned
+                    continue
+
+                # No think tags — yield normally
+                self._think_buf = ""
                 yield token
 
             # Add assistant message only after successful completion

@@ -170,30 +170,60 @@ For manual installation or customization, follow the detailed steps below.
 The AI HAT+ 2 provides Hailo-10H NPU acceleration for Whisper STT on Pi #1. This frees the CPU for TTS and audio processing.
 
 ```bash
-# Enable PCIe Gen 3 for best performance
-sudo raspi-config
-# Advanced Options → PCIe Speed → Gen 3
-# Reboot when prompted
+# 1. Enable PCIe Gen 3 in config.txt
+# Add under [all] section:
+#   dtparam=pciex1
+#   dtparam=pciex1_gen=3
+sudo nano /boot/firmware/config.txt
+sudo reboot
 
-# Install Hailo runtime and drivers
+# 2. Install Hailo-10H runtime and drivers
+# IMPORTANT: Use hailo-h10-all (NOT hailo-all, which is for Hailo-8)
 sudo apt update
-sudo apt install -y hailo-all
+sudo apt install -y hailo-h10-all
 
-# Verify Hailo device is detected
+# 3. Verify Hailo device is detected
 lspci | grep Hailo
 hailortcli fw-control identify
+# Should show: Device Architecture: HAILO10H, Firmware Version: 5.1.1
 
-# Install Wyoming Hailo Whisper server
-# (This provides the Hailo-accelerated Whisper endpoint on port 10300)
-sudo apt install -y wyoming-hailo-whisper
+# 4. Install hailo-apps (provides hailo-download-resources for HEF models)
+cd /tmp
+git clone https://github.com/hailo-ai/hailo-apps.git
+cd hailo-apps
+sudo ./install.sh
 
-# Enable and start the service
-sudo systemctl enable wyoming-hailo-whisper
-sudo systemctl start wyoming-hailo-whisper
+# 5. Download Whisper-Base HEF for Hailo-10H
+source /tmp/hailo-apps/venv_hailo_apps/bin/activate
+hailo-download-resources --group whisper_chat --arch hailo10h
+# Downloads Whisper-Base.hef (~137MB) to /usr/local/hailo/resources/models/hailo10h/
 
-# Verify Wyoming Whisper is running
-systemctl status wyoming-hailo-whisper
-nc -zv localhost 10300  # Should connect
+# 6. Download NPY embedding files (CPU-side vocab lookup)
+cd ~/tele-ai/payphone-app
+source .venv/bin/activate
+python scripts/download_hailo_models.py --variant base
+# Downloads token_embedding_weight_base.npy (~101MB) and onnx_add_input_base.npy to models/
+
+# 7. Symlink hailo_platform system package into the venv
+ln -s /usr/lib/python3/dist-packages/hailo_platform \
+    .venv/lib/python3.13/site-packages/
+
+# 8. Install and start Wyoming Whisper service
+sudo cp wyoming-whisper.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now wyoming-whisper
+
+# 9. Verify Wyoming Whisper is running on port 10300
+systemctl status wyoming-whisper
+ss -tlnp | grep 10300
+```
+
+**Note**: The `wyoming-hailo-whisper` apt package does NOT exist. The Wyoming Whisper server is `services/wyoming_whisper_server.py` in this repo, run via the `wyoming-whisper.service` systemd unit.
+
+**Note**: If the kernel upgrades (e.g., via `apt upgrade`), the Hailo driver module must be rebuilt:
+```bash
+sudo apt reinstall -y h10-hailort-pcie-driver
+sudo depmod -a && sudo modprobe hailo1x_pci
 ```
 
 **Note**: Pi #2 (pi-ollama) does not need the AI HAT+ 2 - it runs standard Ollama on CPU.
@@ -272,9 +302,11 @@ Moonshine models:
 | moonshine-tiny | 27MB | <100ms | **Recommended** - fastest |
 | moonshine-base | 61MB | ~150ms | Better accuracy |
 
-#### 2. Hailo-accelerated Whisper (Wyoming)
+#### 2. Hailo-accelerated Whisper (Wyoming) — Primary
 
-The Hailo NPU provides hardware-accelerated Whisper. The model is managed by the `wyoming-hailo-whisper` service installed above.
+The Hailo-10H NPU provides hardware-accelerated Whisper-Base STT via the Wyoming protocol. Model files are obtained via `hailo-apps` (see AI HAT+ 2 Setup above). The server runs as `wyoming-whisper.service` on port 10300.
+
+When `STT_BACKEND=auto`, the payphone app connects to Wyoming first. If unavailable, it falls back to Moonshine, then faster-whisper.
 
 #### 3. faster-whisper (CPU Fallback)
 
@@ -315,17 +347,19 @@ print('Silero VAD downloaded')
 Download model files manually:
 
 ```bash
-cd ~/tele-ai/payphone-app
+cd ~/tele-ai/payphone-app/models
 
-# Download ONNX model (~200MB)
-wget https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
+# Download ONNX model (~311MB)
+wget -v https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
 
-# Download voices file (~50MB)
-wget https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
+# Download voices file (~27MB)
+wget -v https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
 
 # Verify downloads
 ls -la kokoro-v1.0.onnx voices-v1.0.bin
 ```
+
+**Note**: Use `wget -v` (verbose), not `wget -q`. GitHub release URLs redirect and `wget -q` silently produces 0-byte files.
 
 ---
 
@@ -352,16 +386,14 @@ ls -la kokoro-v1.0.onnx voices-v1.0.bin
 
 3. **Configure for Network Access**
 
-   Edit `/etc/systemd/system/ollama.service`:
-
-   ```ini
-   [Service]
-   Environment="OLLAMA_HOST=0.0.0.0"
-   ```
-
-   Reload and restart:
+   Create a systemd override (don't edit the main service file — it gets overwritten on updates):
 
    ```bash
+   sudo mkdir -p /etc/systemd/system/ollama.service.d
+   sudo tee /etc/systemd/system/ollama.service.d/override.conf <<'EOF'
+   [Service]
+   Environment="OLLAMA_HOST=0.0.0.0"
+   EOF
    sudo systemctl daemon-reload
    sudo systemctl restart ollama
    ```
@@ -645,8 +677,8 @@ The Grandstream HT801 v2 converts the analog payphone to SIP.
    LLM_MAX_TOKENS=150
 
    # TTS (Kokoro on Pi #1)
-   TTS_MODEL_PATH=kokoro-v1.0.onnx
-   TTS_VOICES_PATH=voices-v1.0.bin
+   TTS_MODEL_PATH=models/kokoro-v1.0.onnx
+   TTS_VOICES_PATH=models/voices-v1.0.bin
    TTS_VOICE=af_bella
    ```
 
@@ -857,8 +889,9 @@ sudo systemctl disable avahi-daemon
 - [ ] Flash Pi OS Lite (64-bit Bookworm)
 - [ ] Set static IP: 10.10.10.10
 - [ ] Enable PCIe Gen 3 (raspi-config)
-- [ ] Install Hailo drivers (`sudo apt install hailo-h10-all`) - recommended for primary STT
-- [ ] Install Wyoming Hailo Whisper (`sudo apt install wyoming-hailo-whisper`) - recommended
+- [ ] Install Hailo drivers (`sudo apt install hailo-h10-all`) — NOT `hailo-all`
+- [ ] Install hailo-apps and download Whisper HEF (see AI HAT+ 2 Setup section)
+- [ ] Symlink `hailo_platform` into venv, install `wyoming-whisper.service`
 - [ ] Clone repo and run `install.sh`
 - [ ] Install Moonshine: `pip install "transformers>=4.48"` (CPU fallback STT)
 - [ ] Download Kokoro model files

@@ -52,22 +52,25 @@ class AudioSettings(BaseSettings):
 class VADSettings(BaseSettings):
     """Voice Activity Detection configuration.
 
-    Uses Silero VAD v5 (v6.2 recommended upgrade) - optimized for telephony with native 8kHz support.
-    Settings tuned for conversational telephone AI (January 2026 research).
+    Uses TEN VAD (ten-vad package) - lightweight, fast, no PyTorch dependency.
+    - 324KB model (126KB int8 quantized)
+    - <1ms per 16ms chunk, 32% lower RTF than Silero VAD
+    - ~300ms faster speech-to-silence detection
+    - 256-sample window at 16kHz (16ms) vs Silero's 512 (32ms)
 
-    Alternative: TEN VAD (via sherpa-onnx) for potentially lower latency.
+    Settings tuned for conversational telephone AI.
     """
 
     model_config = SettingsConfigDict(env_prefix="VAD_", env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    # Silero VAD v5 settings (v6.2 recommended upgrade) - optimized for telephony
+    # TEN VAD settings - optimized for telephony
     threshold: float = 0.5  # Balanced sensitivity for phone audio
     min_speech_duration_ms: int = 250  # Minimum speech to trigger
     min_silence_duration_ms: int = 800  # Telephony standard for turn-taking
     speech_pad_ms: int = 300  # Prevent clipping end of utterance
 
-    # Window size for VAD (32ms chunks at 16kHz)
-    window_size_samples: int = 512  # 512 samples at 16kHz = 32ms
+    # Window size for VAD (16ms chunks at 16kHz)
+    window_size_samples: int = 256  # 256 samples at 16kHz = 16ms
 
     # Maximum utterance duration to prevent runaway recordings
     max_utterance_seconds: int = 30
