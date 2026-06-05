@@ -272,7 +272,7 @@ def test_all_features_have_prompts():
 def test_base_prompt_rules():
     """Test that base prompt includes critical rules."""
     prompt = get_system_prompt()
-    assert "one digit at a time" in prompt.lower(), "Missing digit-by-digit phone number rule"
+    assert "each digit separately" in prompt.lower(), "Missing digit-by-digit phone number rule"
     assert "asterisk" in prompt.lower(), "Missing no-asterisk-actions rule"
     assert "under 50 words" in prompt.lower(), "Missing brevity rule"
 
