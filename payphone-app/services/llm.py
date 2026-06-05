@@ -97,9 +97,15 @@ class ConversationContext:
             self.messages = self.messages[:system_end_idx] + self.messages[trim_start:]
             self._non_system_count = keep_count
 
-    def get_messages_for_api(self) -> list[dict]:
+    def get_messages_for_api(
+        self,
+        ephemeral_context: str | None = None,
+    ) -> list[dict]:
         """Get messages formatted for Ollama API."""
-        return [{"role": m.role, "content": m.content} for m in self.messages]
+        api_messages = [{"role": m.role, "content": m.content} for m in self.messages]
+        if ephemeral_context:
+            api_messages.append({"role": "system", "content": ephemeral_context})
+        return api_messages
 
     def clear(self) -> None:
         """Clear conversation history (keeps system message if present)."""
@@ -176,6 +182,7 @@ class OllamaClient:
         prompt: str,
         system_prompt: str | None = None,
         context: ConversationContext | None = None,
+        ephemeral_context: str | None = None,
     ) -> LLMResponse:
         """Generate a response from the LLM.
 
@@ -183,6 +190,8 @@ class OllamaClient:
             prompt: User prompt/question.
             system_prompt: Optional system prompt override.
             context: Optional conversation context for multi-turn.
+            ephemeral_context: Optional one-turn system context that is sent
+                to the API but not stored in conversation history.
 
         Returns:
             LLMResponse with generated text and metadata.
@@ -199,10 +208,14 @@ class OllamaClient:
             messages.append({"role": "system", "content": system_prompt})
 
         if context:
-            context_msgs = context.get_messages_for_api()
+            context_msgs = context.get_messages_for_api(
+                ephemeral_context=ephemeral_context
+            )
             if system_prompt:
                 context_msgs = [m for m in context_msgs if m["role"] != "system"]
             messages.extend(context_msgs)
+        elif ephemeral_context:
+            messages.append({"role": "system", "content": ephemeral_context})
 
         # Add current prompt
         messages.append({"role": "user", "content": prompt})
@@ -251,6 +264,7 @@ class OllamaClient:
         prompt: str,
         system_prompt: str | None = None,
         context: ConversationContext | None = None,
+        ephemeral_context: str | None = None,
     ) -> AsyncIterator[str]:
         """Generate a streaming response from the LLM.
 
@@ -258,6 +272,8 @@ class OllamaClient:
             prompt: User prompt/question.
             system_prompt: Optional system prompt override.
             context: Optional conversation context.
+            ephemeral_context: Optional one-turn system context that is sent
+                to the API but not stored in conversation history.
 
         Yields:
             Token strings as they're generated.
@@ -272,10 +288,14 @@ class OllamaClient:
             messages.append({"role": "system", "content": system_prompt})
 
         if context:
-            context_msgs = context.get_messages_for_api()
+            context_msgs = context.get_messages_for_api(
+                ephemeral_context=ephemeral_context
+            )
             if system_prompt:
                 context_msgs = [m for m in context_msgs if m["role"] != "system"]
             messages.extend(context_msgs)
+        elif ephemeral_context:
+            messages.append({"role": "system", "content": ephemeral_context})
 
         messages.append({"role": "user", "content": prompt})
 

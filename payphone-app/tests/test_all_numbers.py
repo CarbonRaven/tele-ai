@@ -21,7 +21,6 @@ from config.phone_directory import (
 from config.prompts import (
     FEATURE_PROMPTS,
     PERSONA_PROMPTS,
-    PHONE_DIRECTORY_BLOCK,
     get_system_prompt,
 )
 from core.phone_router import PhoneRouter
@@ -240,11 +239,11 @@ def test_dtmf_shortcuts(router):
 # Prompt consistency checks
 # ---------------------------------------------------------------------------
 
-def test_operator_prompt_includes_directory():
-    """Test that operator prompt includes the phone directory."""
+def test_operator_prompt_excludes_directory():
+    """Test that operator prompt no longer embeds the phone directory."""
     prompt = get_system_prompt(feature="operator")
-    assert "PHONE DIRECTORY" in prompt
-    assert "555-5653" in prompt  # Jokes number should be in directory
+    assert "PHONE DIRECTORY" not in prompt
+    assert "555-5653" not in prompt
 
 
 def test_non_operator_excludes_directory():
@@ -268,13 +267,6 @@ def test_all_features_have_prompts():
             assert feature in FEATURE_PROMPTS, f"Easter egg {feature} not in FEATURE_PROMPTS"
         elif feature != "operator":
             assert feature in FEATURE_PROMPTS, f"Feature {feature} not in FEATURE_PROMPTS"
-
-
-def test_phone_directory_block_has_key_numbers():
-    """Test the phone directory block includes key service numbers."""
-    key_numbers = ["555-5653", "555-8748", "555-3678", "767-2676", "867-5309"]
-    for number in key_numbers:
-        assert number in PHONE_DIRECTORY_BLOCK, f"{number} missing from PHONE_DIRECTORY_BLOCK"
 
 
 def test_base_prompt_rules():

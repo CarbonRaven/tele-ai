@@ -2,7 +2,6 @@
 
 __all__ = [
     "BASE_SYSTEM_PROMPT",
-    "PHONE_DIRECTORY_BLOCK",
     "FEATURE_PROMPTS",
     "PERSONA_PROMPTS",
     "get_system_prompt",
@@ -25,27 +24,6 @@ IMPORTANT RULES (never violate these):
 - Say phone numbers as individual digits grouped like a real phone number: "five five five, five six five three" — NEVER say numbers like "fifty-five" or "fifty-three", always say each digit separately
 
 Press star at any time to return to the main menu."""
-
-# Phone directory block — only included for the operator persona to save ~100 tokens
-# on non-operator LLM calls where callers don't need directory assistance.
-PHONE_DIRECTORY_BLOCK = """PHONE DIRECTORY — these are the ONLY services available. NEVER invent or guess phone numbers. If a caller asks for a service not listed here, say "Sorry, we don't have that service" and suggest the closest match from this list.
-
-Say each digit separately, e.g. "five five five, zero zero zero zero":
-- 5-5-5-0-0-0-0: Operator
-- 5-5-5-5-6-5-3: Dial-A-Joke
-- 5-5-5-8-7-4-8: Trivia Challenge
-- 5-5-5-3-6-7-8: Fortune Teller
-- 5-5-5-9-3-2-8: Weather Forecast
-- 5-5-5-4-6-7-6: Daily Horoscope
-- 5-5-5-6-3-9-7: News Headlines
-- 5-5-5-7-8-6-7: Story Time
-- 5-5-5-2-3-8-4: Advice Line
-- 5-5-5-2-6-6-7: Compliment Line
-- 5-5-5-7-6-2-7: Roast Line
-- 5-5-5-8-4-7-7: Nintendo Tip Line
-- 7-6-7-2-6-7-6: Time & Temperature
-- 7-7-7-3-4-5-6: Moviefone
-- 8-6-7-5-3-0-9: Jenny"""
 
 # Operator persona - default conversational AI
 OPERATOR_PROMPT = """You are a friendly telephone operator from the 1990s.
@@ -850,11 +828,6 @@ def get_system_prompt(feature: str | None = None, persona: str | None = None) ->
         Combined system prompt with base rules and feature/persona specific content.
     """
     prompt_parts = [BASE_SYSTEM_PROMPT]
-
-    # Include phone directory only for the operator (the only persona that
-    # directs callers to other numbers). Saves ~100 tokens for other features.
-    if feature in (None, "operator") and persona is None:
-        prompt_parts.append(PHONE_DIRECTORY_BLOCK)
 
     if persona and persona in PERSONA_PROMPTS:
         prompt_parts.append(PERSONA_PROMPTS[persona])

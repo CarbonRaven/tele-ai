@@ -19,6 +19,7 @@ from core.audio_processor import AudioProcessor, AudioBuffer
 from services.vad import SileroVAD, SpeechState
 from services.stt import WhisperSTT
 from services.greeting_cache import GreetingCache
+from services.directory_lookup import lookup as lookup_directory
 from services.llm import OllamaClient, SentenceBuffer, ConversationContext
 from services.tts import KokoroTTS, get_voice_for_feature
 
@@ -190,9 +191,11 @@ class VoicePipeline:
         Returns:
             Generated response text.
         """
+        ephemeral_context = self._get_ephemeral_llm_context(session, transcript)
         response = await self.llm.generate(
             prompt=transcript,
             context=session.context,
+            ephemeral_context=ephemeral_context,
         )
 
         logger.info(
@@ -201,6 +204,25 @@ class VoicePipeline:
         )
 
         return response.text
+
+    def _get_ephemeral_llm_context(
+        self,
+        session: "Session",
+        transcript: str,
+    ) -> str | None:
+        """Build one-turn operator context for directory lookup hints."""
+        if session.current_feature != "operator":
+            return None
+
+        matches = lookup_directory(transcript)
+        if not matches:
+            return None
+
+        details = "; ".join(
+            f"{match.number} — {match.name}: {match.description}"
+            for match in matches
+        )
+        return f"Directory matches for this request: {details}"
 
     async def _monitor_barge_in(self, session: "Session") -> None:
         """Monitor for DTMF and voice input during speech playback.
@@ -603,6 +625,7 @@ class VoicePipeline:
         text_generator = self.llm.generate_streaming(
             prompt=transcript,
             context=session.context,
+            ephemeral_context=self._get_ephemeral_llm_context(session, transcript),
         )
 
         async def collecting_generator() -> AsyncIterator[str]:
