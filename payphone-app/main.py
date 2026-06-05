@@ -102,6 +102,11 @@ class PayphoneApplication:
             settings=self.settings,
         )
 
+        try:
+            await self._pipeline.greeting_cache.prime_operator_greeting()
+        except Exception as exc:
+            logger.warning(f"Failed to prime operator greeting cache: {exc}")
+
         logger.info("All services initialized successfully")
 
     async def handle_call(self, connection: AudioSocketConnection) -> None:

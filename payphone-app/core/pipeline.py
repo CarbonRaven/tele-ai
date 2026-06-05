@@ -18,6 +18,7 @@ from config.settings import Settings
 from core.audio_processor import AudioProcessor, AudioBuffer
 from services.vad import SileroVAD, SpeechState
 from services.stt import WhisperSTT
+from services.greeting_cache import GreetingCache
 from services.llm import OllamaClient, SentenceBuffer, ConversationContext
 from services.tts import KokoroTTS, get_voice_for_feature
 
@@ -55,6 +56,11 @@ class VoicePipeline:
 
         # Audio processor for conversions
         self.audio_processor = AudioProcessor(settings.audio)
+        self.greeting_cache = GreetingCache(
+            tts=self.tts,
+            audio_processor=self.audio_processor,
+            settings=self.settings.tts,
+        )
 
     async def listen_and_transcribe(
         self,
@@ -340,6 +346,53 @@ class VoicePipeline:
                     await barge_in_monitor_task
                 except asyncio.CancelledError:
                     pass
+
+    async def play_greeting(
+        self,
+        session: "Session",
+        greeting_text: str,
+    ) -> bool:
+        """Play a greeting via the processed-audio cache when available.
+
+        Falls back to the live `speak()` path if synthesis returns no audio.
+
+        Args:
+            session: Current call session.
+            greeting_text: Greeting text to play.
+
+        Returns:
+            True if playback completed, False if interrupted or inactive.
+        """
+        if not greeting_text or not greeting_text.strip():
+            return True
+
+        voice = get_voice_for_feature(
+            feature=session.current_feature,
+            persona=session.current_persona,
+        )
+
+        output_bytes = await self.greeting_cache.get_or_synthesize(
+            greeting_text,
+            voice,
+            self.settings.tts.speed,
+        )
+        if not output_bytes:
+            return await self.speak(session, greeting_text)
+
+        if not session.is_active:
+            return False
+
+        session.is_speaking = True
+        session.barge_in_audio = None
+
+        try:
+            return await self.send_audio(
+                session.protocol,
+                output_bytes,
+                should_stop=lambda: not session.is_active,
+            )
+        finally:
+            session.is_speaking = False
 
     async def speak_streaming(
         self,

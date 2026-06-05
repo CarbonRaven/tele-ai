@@ -46,3 +46,5 @@ ENV/
 *.hef
 *.npy
 
+# Runtime audio caches
+payphone-app/cache/

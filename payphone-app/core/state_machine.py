@@ -28,6 +28,7 @@ from config.phone_directory import (
     FEATURE_TO_NUMBER,
     PHONE_DIRECTORY,
 )
+from config.greetings import OPERATOR_GREETING
 from config.prompts import FEATURE_PROMPTS
 from core.phone_router import PhoneRouter, RouteResult
 
@@ -256,21 +257,13 @@ class StateMachine:
             # Play feature-specific greeting
             greeting = _get_greeting(self._route_result.feature)
             self.transition_to(State.SPEAKING, "play_greeting")
-            await pipeline.speak(self.session, greeting)
+            await pipeline.play_greeting(self.session, greeting)
             self.transition_to(State.LISTENING, "greeting_complete")
             return
 
         # Default operator greeting
-        greeting = (
-            "Welcome to the AI Payphone! "
-            "I'm your operator. You can talk to me naturally, "
-            "or dial a number for specific services. "
-            "Press star at any time to return to this menu. "
-            "How can I help you today?"
-        )
-
         self.transition_to(State.SPEAKING, "play_greeting")
-        await pipeline.speak(self.session, greeting)
+        await pipeline.play_greeting(self.session, OPERATOR_GREETING)
         self.transition_to(State.LISTENING, "greeting_complete")
 
     async def _handle_main_menu(self, pipeline: "VoicePipeline") -> None:
@@ -445,7 +438,7 @@ class StateMachine:
         self._apply_route(result)
         self._route_result = result
         greeting = _get_greeting(result.feature)
-        await pipeline.speak(self.session, greeting)
+        await pipeline.play_greeting(self.session, greeting)
         self.transition_to(State.LISTENING, f"feature_{result.feature}")
 
     def _apply_route(self, result: RouteResult) -> None:
@@ -509,7 +502,7 @@ class StateMachine:
         # Play the feature greeting
         greeting = _get_greeting(feature)
         self.transition_to(State.SPEAKING, f"transfer_greeting_{feature}")
-        await pipeline.speak(self.session, greeting)
+        await pipeline.play_greeting(self.session, greeting)
         self.transition_to(State.LISTENING, f"feature_{feature}")
 
     async def _handle_timeout(self, pipeline: "VoicePipeline") -> None:
