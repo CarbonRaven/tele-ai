@@ -1,6 +1,6 @@
 # Project Status — AI Payphone
 
-**Last updated**: 2026-02-22
+**Last updated**: 2026-06-05
 
 ---
 
@@ -143,10 +143,12 @@ All features have system prompts and phone directory entries. They work via LLM 
 | LLM (qwen3:4b-instruct) | Working | ~4.5 tok/s, MMLU 73.0, streaming with per-token timeout |
 | TTS (Kokoro-82M) | Working | af_bella voice, 24kHz → 8kHz resampled |
 | Streaming LLM → TTS | Working | SentenceBuffer chunks tokens, producer-consumer TTS |
+| Greeting audio cache (Phase A3) | **Working (2026-06-05)** | Persistent PCM cache keyed sha256(text+voice+speed+model); operator greeting primed at init. Measured: first audio +0.0s after call start (was +12s) |
+| Directory retrieval (Phase A1) | **Working (2026-06-05)** | 44-number directory removed from operator prompt (~2,000 prefill tokens); stdlib fuzzy lookup injects top-3 matches per turn, ephemeral (never accumulates). App warm-up 2-3min → ~5s |
 | Telephone bandpass filter | Working | 300-3400 Hz applied to all output audio |
 | Prompt warm-up | Working | Operator system prompt cached in Ollama KV at init |
 | Whisper hallucination filter | Working | 20 known patterns filtered; prefix-matching for truncated Hailo tokens (e.g. `[BLANK_AUDIO` without `]`) |
-| Voice-initiated feature transfer | Working | Operator LLM emits `[TRANSFER:feature]` signal; state machine parses, switches feature, plays greeting |
+| Voice-initiated feature transfer | **Hardware-verified 2026-06-05** | Live call: garbled STT, operator inferred intent, emitted `[TRANSFER:jokes]`, switched feature, caller heard the joke |
 
 ---
 
@@ -171,6 +173,8 @@ All features have system prompts and phone directory entries. They work via LLM 
 
 ### High Priority (functional gaps)
 
+0. **Finish Phase A2 (llama.cpp runtime)** — llama-server built + Qwen3-4B GGUF staged on pi-ollama; remaining: smoke test, env-gated client adapter in `services/llm.py` (LLM_RUNTIME setting), B2 benchmark vs Ollama. Then Phase B model bench per `research/edge-llm-decision-2026-06.md` (Qwen3-1.7B / Gemma3-1B; B6-gate the 30B MoE on measured TTFT).
+0b. **VAD pre-roll + STT ceiling** (ISA ISC-48/49) — the "operator couldn't hear me" pair.
 1. **Hardware test all 44 phone numbers** — Only operator and jokes have been tested on the actual payphone. All prompts exist but need hardware verification (Phase 3 of test plan).
 2. **DTMF navigation testing** — Single-digit shortcuts, star key, pound confirm, feature switching during calls (Phase 4).
 3. **Stress testing** — Rapid input, network failures, hangup during various states, concurrent calls (Phase 7).
@@ -203,14 +207,45 @@ All features have system prompts and phone directory entries. They work via LLM 
 | max_call_duration not enforced | Low | State machine checks it but was marked as "not enforced" in test plan |
 | Extension not passed from Asterisk | Info | AudioSocket sends binary UUID only; all calls show `extension: None` |
 | Hailo decoder max 64 tokens | Info | HEF fixed at 64-token sequence; adequate for phone utterances. Can truncate hallucination tokens (e.g. `[BLANK_AUDIO` without `]`); handled by prefix-matching filter. |
-| Hailo Whisper decoder stale after reboot | Medium | After pi-voice reboots, Wyoming Whisper decoder produces 1-token garbage (`-`, `and`). Restarting `wyoming-whisper.service` fixes it. App then hangs at 80% CPU from the bad STT loop and must also be restarted. |
+| Hailo Whisper decoder stale after reboot | Medium | After pi-voice reboots, Wyoming Whisper decoder can produce 1-token garbage (`-`, `and`). Restarting `wyoming-whisper.service` fixes it. (The companion app-hang was the busy-loop bug, FIXED 2026-06-05.) Automate via self-test/restart hook — ISA ISC-5. |
 | TTS echo triggers false VAD | Low | 20ms audio captures immediately after TTS playback (acoustic echo through phone line). Hallucination filter catches the noise but root cause is HT801 ATA echo cancellation settings. |
 | Short utterance STT accuracy | Medium | Whisper mishears short words like "yes" → garbled output. May need minimum audio duration threshold or VAD sensitivity tuning. |
-| SD card filesystem corruption (round 2) | **Active** | 2026-02-19: SD card corrupt again on pi-voice. Previous fix (2026-02-11) used `fsck.mode=force` boot passes. Recurrence suggests the 512GB SD card may be failing — consider replacement with a fresh card and clean image. |
+| SD card filesystem corruption (round 2) | **RESOLVED 2026-06-05** | Root cause was never the cards: PSU undervoltage under load (kernel: `Undervoltage detected!` 2026-06-05 14:50 under 100%-CPU). Official Pi 5 27W PSU installed 2026-06-05; validated under all-core load (`throttled=0x0`). |
+| Busy-loop on remote hangup (call goes deaf) | **FIXED 2026-06-05** | After hangup/TCP-close, conversation loop re-entered LISTENING in a zero-await spin (100% CPU, event loop starved, all later calls unserviced). Fix: honor `protocol.is_active` in loop + state machine (`6d3944e`). Verified: 3 sequential calls on one process. |
+| VAD start-clipping | Medium | Live captures show utterance fronts cut (capture began mid-sentence). Tune speech_pad / pre-roll buffer — ISA ISC-48. |
+| Whisper-base accuracy ceiling on telephone audio | Medium | A/B 2026-06-05: Hailo AND CPU whisper-base both garble healthy-level 8kHz captures equally — model-class limit, not hardware. Candidates: whisper-small on Hailo, Moonshine telephone fine-tune — ISA ISC-49. |
+| Sustained LAN transfers >~80MB stall | Low (infra) | NOT the Pis: both fail sustained TX at variable points; MTU clean. Path Mac→opnsense→192.168.1.22→10.10.10.0/24 (double routed hop) — suspect conn-track/flow-offload on a router. Workaround: chunked transfers. |
 
 ---
 
 ## Session Log
+
+### 2026-06-05: Restart, Rescue, Phase A, Live Transfer Verification (full-day session)
+
+**The restart session.** Project dormant since 2026-02-23; both Pis powered on fresh.
+
+1. **Access + review** — repo cloned to `~/Documents/project/tele-ai`, both Pis verified, all services survived cold boot. Project ISA seeded (`ISA.md`, now system of record; this file remains the session journal).
+2. **Rescue** — Feb-23 uncommitted experiments (SmolLM3 + TEN-VAD + int8-Kokoro, 11 files / 970 lines) found ONLY on pi-voice's SD card; checksummed archive + full diff secured off-Pi; preserved on branch `feb23-experiments`. Working tree reconciled to origin/main.
+3. **Live-call debugging** — "dialed 0, nothing happened" traced through three layers: (a) experimental code never sent greeting audio; (b) busy-loop on remote hangup spun the event loop at 100% CPU making the phone deaf to later calls (the February ghost — root-caused and FIXED, `6d3944e`); (c) PSU undervoltage under load (kernel evidence) = the real cause of February's "failing SD cards" — **official 27W PSU installed and validated same day**.
+4. **June research refresh** (`research/edge-llm-decision-2026-06.md`) — key reframe: TTFT/prefill of the 2,000-token operator prompt dominated perceived latency, not decode tok/s. Feb's SmolLM3 bet obsolete (dead-zone decode). Hailo-10H confirmed NOT viable for LLM (measured ≈ CPU). CPU speculative decoding: skip.
+5. **Phase A shipped to main** (branch `phase-a`, fast-forwarded):
+   - A3 greeting cache: first audio **+0.0s** after call start (was +12s)
+   - A1 directory out of prompt: app warm-up **~5s** (was 2-3 min); RAG-lite per-turn lookup, ephemeral injection; TRANSFER instructions preserved
+   - Busy-loop fix verified: 3 sequential calls serviced by one process
+   - DEBUG_SAVE_CAPTURES diagnostic (per-utterance STT input WAVs; note systemd PrivateTmp puts them in the service namespace)
+   - Test suite: **216/216 green** (first all-green; 3 stale Feb assertions fixed)
+6. **🏆 Voice transfer LIVE-VERIFIED** — the Feb-22 feature worked on a real call: garbled transcripts ("and number for the job"), operator inferred intent, `[TRANSFER:jokes]` fired, caller got the joke.
+7. **STT A/B diagnosis** — captures healthy (RMS 0.06, full length) but Hailo AND CPU whisper-base garble equally → model-class ceiling (ISC-49); VAD clips utterance fronts (ISC-48).
+8. **Infra** — Ollama upgraded 0.16.3 → 0.30.5 (phone path verified); llama.cpp + llama-bench built on pi-ollama, Qwen3-4B GGUF staged; LAN bulk-transfer stalls localized to the inter-VLAN routing path (opnsense → 192.168.1.22), not the Pis.
+
+**Key discoveries:**
+- systemd PrivateTmp=true hides service /tmp writes from login shells (`/tmp/systemd-private-*-payphone.service-*/tmp/`).
+- HF `resolve/main` URLs 401 on nonexistent repos; official Qwen GGUF repo absent — use `unsloth/Qwen3-4B-Instruct-2507-GGUF`.
+- Deploys are git-pull only now (cat-pipe deploys stranded the Feb experiments).
+
+**Current state:** Phone on main = best version ever. Next: A2 smoke + adapter, ISC-48/49, Phase B bench (PSU gate now open).
+
+---
 
 ### 2026-02-22 (Evening): Voice Transfer + Hallucination Filter Fixes
 

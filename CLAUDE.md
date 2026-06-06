@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Current state lives in two places:** `ISA.md` (system of record — criteria, verification, decisions) and `PROJECT_STATUS.md` (session journal). Sections below describe architecture and accumulated knowledge; check ISA.md for what is currently true. Last major session: 2026-06-05 (Phase A latency work, busy-loop fix, PSU root-cause).
+
 ## Project Overview
 
 **payphone-ai** is an AI-powered payphone project. The goal is a self-contained 90s-style payphone running a fully local AI that users can interact with for information, jokes, and services styled after 1990s telephone services.
