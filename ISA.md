@@ -144,6 +144,8 @@ All 44 directory numbers hardware-verified on the physical payphone with the ful
 
 - 2026-06-06: Test-readiness pass (task ISA 20260606-tele-ai-test-readiness, 34/34). Both Pis: full apt upgrade (231+109 pkgs), kernel 6.12.62→6.18.33, bootloader EEPROM Aug2025→May2026 flashed+verified, dkms installed + hailo1x_pci registered (kernel bumps now self-healing). feb23-experiments + scripts/stt-sanity.py (8a24623) pushed to origin. Post-everything: 216/216 pytest, STT fox verbatim on Hailo, SIP registered, cross-Pi API 200, throttled=0x0 both. Phone verified BETTER than starting state. Residual: full off-Pi backup still partial (6/5); ISC-36 open.
 
+- 2026-06-06 (config audit, read-only): Asterisk verified correct — thin-funnel design ([payphone] in /etc/asterisk/extensions_custom.conf routes ALL patterns → AudioSocket :9092; pjsip ulaw; 30min app + 3h dialplan timeouts). Directory verified: 44 = 30 features + 5 easter-egg numbers + 9 personas; all resolve (FEATURE_PROMPTS=35 exact, PERSONA_PROMPTS covers all 9); birthday regex sane; 180 routing tests green. ⚠️ FOOTGUN FOUND: repo scripts/asterisk/*.conf are STALE pre-deploy iterations ([payphone-incoming]) — redeploying them would clobber the working live dialplan. Live /etc/asterisk captured complete to tele-ai-backups/etc-asterisk-full-20260606.tgz (109 files incl. modules.conf). Follow-up (post-first-smoke-dial, repo-only, no Pi deploy): commit live configs into repo + retire stale ones to archive/. Operational note for campaign: no dialplan fallback if payphone app dies (thin-funnel) — watch service liveness; HT801 is NonQual (no proactive drop detection).
+
 ## Changelog
 
 - conjectured: The cat-pipe deploy of 2026-02-22 left the Pi matching origin once commits were pushed.
