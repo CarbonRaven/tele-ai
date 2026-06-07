@@ -103,7 +103,7 @@ All 44 directory numbers hardware-verified on the physical payphone with the ful
 - [x] ISC-33: No secrets committed (audited 2026-06-05)
 - [ ] ISC-34: Pi working tree clean against origin (PENDING — Feb-23 experiments: SmolLM3 + TEN-VAD + int8 Kokoro across 11 files, diff secured at tele-ai-backups/pi-experiments-20260605.diff; decide merge/branch/discard)
 - [x] ISC-35: Deploy is git-pull based, not cat-pipe (repeatable deploys)
-- [ ] ISC-36: Off-Pi backup automated (manual rescue taken 2026-06-05)
+- [ ] ISC-36: Off-Pi backup automated (manual rescue 2026-06-05; FULL verified backup completed 2026-06-06 — 433M md5-verified via 32MB-chunk workaround; automation still open)
 
 ### STT quality (added 2026-06-05 from live-call A/B diagnosis)
 - [ ] ISC-48: VAD pre-roll captures utterance starts (capture #2 began mid-sentence; tune speech_pad/pre-buffer)
