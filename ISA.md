@@ -83,7 +83,7 @@ All 44 directory numbers hardware-verified on the physical payphone with the ful
 - [ ] ISC-28: max_call_duration actually enforced
 - [ ] ISC-29: Concurrent-call behavior defined and tested (VAD pool exhaustion path)
 - [ ] ISC-30: Anti: no call ever reaches a cloud endpoint (network egress audit)
-- [ ] ISC-31: Anti: a Pi reboot never requires manual intervention to restore service
+- [x] ISC-31: Anti: a Pi reboot never requires manual intervention to restore service (2026-06-06: 4 reboots across both Pis — kernel + EEPROM — all auto-recovered to full verified service)
 - [ ] ISC-32: Antecedent: phone book artifact exists so guests can discover numbers (planning/phone-book-content.md)
 
 ### Phase A — latency (added 2026-06-05, branch `phase-a`)
@@ -142,12 +142,19 @@ All 44 directory numbers hardware-verified on the physical payphone with the ful
 
 - 2026-06-05: Edge-LLM research refreshed (June 2026, Extensive mode + intern evaluation + rubric verification) → `research/edge-llm-decision-2026-06.md`. Key reframe: TTFT/prefill of the 2,000-token operator prompt is the latency bottleneck, not decode tok/s. Decisions adopted as candidate work: Phase A (directory→tool-call, llama.cpp migration, canned instant greeting), Phase B (bench Qwen3-1.7B / Gemma3-1B; B6-gate the 30B MoE on measured TTFT), Phase C (Supertonic TTS bench, full STT offload). ISC-34 disposition informed: SmolLM3 confirmed dead-zone — do not resurrect branch wholesale. Hard no: Hailo LLM, CPU speculative decoding. PSU REPLACED 2026-06-05 (~15:06 — the 15:06 'reboot' was the swap itself, not a crash; 14:50 undervoltage on old PSU was real). Validated: 2h+ heavy load + all-core stress, throttled=0x0. Phase B gate OPEN.
 
+- 2026-06-06: Test-readiness pass (task ISA 20260606-tele-ai-test-readiness, 34/34). Both Pis: full apt upgrade (231+109 pkgs), kernel 6.12.62→6.18.33, bootloader EEPROM Aug2025→May2026 flashed+verified, dkms installed + hailo1x_pci registered (kernel bumps now self-healing). feb23-experiments + scripts/stt-sanity.py (8a24623) pushed to origin. Post-everything: 216/216 pytest, STT fox verbatim on Hailo, SIP registered, cross-Pi API 200, throttled=0x0 both. Phone verified BETTER than starting state. Residual: full off-Pi backup still partial (6/5); ISC-36 open.
+
 ## Changelog
 
 - conjectured: The cat-pipe deploy of 2026-02-22 left the Pi matching origin once commits were pushed.
 - refuted_by: md5 cross-check 2026-06-05 — 6+ files differ from BOTH Pi HEAD and origin; an entire un-pushed experiment (SmolLM3/TEN-VAD/int8-Kokoro) existed only on the corruption-prone SD card.
 - learned: Ad-hoc transfer deploys hide unpushed work; the Pi must be treated as a deploy target, never the only home of source.
 - criterion_now: ISC-34 (tree clean vs origin) + ISC-35 (git-pull deploys) + ISC-36 (automated off-Pi backup).
+
+- conjectured: apt full-upgrade would carry the Hailo PCIe driver forward across a kernel major bump (6.12→6.18).
+- refuted_by: pre-reboot probe 2026-06-06 — /lib/modules/6.18.33*/ contained no hailo module; h10-hailort-pcie-driver compiles at install-time against the RUNNING kernel only, and dkms was not installed, so the upgrade silently staged a kernel that would boot without STT.
+- learned: install-time-compiled vendor drivers are invisible to apt's dependency model; the module-for-target-kernel probe must run BEFORE reboot, and DKMS registration is the structural fix that makes the failure class impossible.
+- criterion_now: ISC-31 strengthened and verified — dkms status must list hailo1x_pci for every installed kernel; 4 reboots (kernel + EEPROM × 2 Pis) auto-recovered with zero manual intervention.
 
 ## Verification
 
