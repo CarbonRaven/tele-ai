@@ -109,11 +109,26 @@ All 44 directory numbers hardware-verified on the physical payphone with the ful
 - [ ] ISC-48: VAD pre-roll captures utterance starts (capture #2 began mid-sentence; tune speech_pad/pre-buffer)
 - [ ] ISC-49: Telephone-audio transcription accuracy improved beyond whisper-base ceiling (both Hailo and CPU base garble equally at healthy RMS — model-class limit, candidates: whisper-small on Hailo, Moonshine telephone fine-tune per Feb research)
 
+### Phase B — model bench (added 2026-06-08; gated by Gemma 4 research, PSU gate OPEN)
+> Candidate: **Gemma 4 E2B QAT Q4_0** (NOT 12B = laptop model; NOT E4B = swap-bound 3–5 tok/s on Pi 5). Question the bench answers: does E2B beat qwen3:4b-instruct on the two axes that matter — long-prompt TTFT and tag/tool-call fidelity — without regressing. Research: `obsidian/Core/Research/2026-06-08 Gemma 4 12B and Quantization.md`.
+- [ ] ISC-50: Official Gemma 4 E2B QAT Q4_0 GGUF (Google, shipped 2026-06-05) on pi-ollama; loads in llama-server/ollama; /v1/chat/completions returns valid stream
+- [ ] ISC-51: Gemma 4 chat/turn template correct for the operator prompt (Gemma format, not Qwen) — verified BEFORE any quality comparison
+- [ ] ISC-52: Baseline captured — qwen3:4b-instruct on pi-ollama: TTFT on the REAL ~2000-token operator prompt, decode tok/s, RAM use (3-run median)
+- [ ] ISC-53: E2B measured on identical harness/prompt: TTFT, decode tok/s, RAM, swap watched (3-run median)
+- [ ] ISC-54: [TRANSFER:feature] tag fidelity — ≥20 scripted turns that should emit a transfer tag; count malformed/missed per model
+- [ ] ISC-55: Directory tool-call fidelity — ≥20 lookups; count hallucinated numbers / wrong routing per model (B5-style)
+- [ ] ISC-56: Decision recorded WITH the numbers: E2B adopt / reject / escalate-to-E4B — gated on TTFT delta + zero tag-fidelity regression vs baseline
+- [ ] ISC-57: Anti: bench runs in a throwaway model slot; qwen3:4b-instruct stays live default until a model is explicitly promoted — phone never points at an unvetted model mid-bench
+- [ ] ISC-58: Anti: swap-thrash not masked — if E2B exceeds Pi RAM under real prompt+KV, recorded as a FAIL, not smoothed over
+
 ## Test Strategy
 
 | area | check | tool |
 |------|-------|------|
 | infra | systemctl states post-boot, NTP, SSH | ssh + journalctl |
+| model bench TTFT | qwen3:4b vs E2B: TTFT on real ~2000-tok operator prompt + decode tok/s, 3-run median | curl timing + /usr/bin/time on pi-ollama; llama-bench |
+| model bench RAM | RSS + swap during real prompt+KV; fail if swap engaged | ssh free/vmstat during run |
+| tag fidelity | ≥20 scripted [TRANSFER:]/directory turns, count malformed per model | pytest-style harness on pi-ollama |
 | STT sanity | /tmp/stt_sanity.py loopback (Kokoro→Wyoming) | venv python — keep as scripts/stt-sanity.py |
 | pipeline | live handset calls per 138-test plan in PROJECT_STATUS.md | human + journalctl -f |
 | drift | md5/git status Pi vs origin | ssh + git |
@@ -130,6 +145,7 @@ All 44 directory numbers hardware-verified on the physical payphone with the ful
 | game-logic | ISC-23..25 | — | yes |
 | stress-endurance | ISC-26..29 | campaign | no |
 | phone-book | ISC-32 | — | yes |
+| phase-b-model-bench | ISC-50..58 | llama-server smoke (ISC-44), live-verify-transfer (ISC-17 ✓) | partly (download + baseline parallel; tag/RAM tests serial) |
 
 ## Decisions
 
@@ -145,6 +161,8 @@ All 44 directory numbers hardware-verified on the physical payphone with the ful
 - 2026-06-06: Test-readiness pass (task ISA 20260606-tele-ai-test-readiness, 34/34). Both Pis: full apt upgrade (231+109 pkgs), kernel 6.12.62→6.18.33, bootloader EEPROM Aug2025→May2026 flashed+verified, dkms installed + hailo1x_pci registered (kernel bumps now self-healing). feb23-experiments + scripts/stt-sanity.py (8a24623) pushed to origin. Post-everything: 216/216 pytest, STT fox verbatim on Hailo, SIP registered, cross-Pi API 200, throttled=0x0 both. Phone verified BETTER than starting state. Residual: full off-Pi backup still partial (6/5); ISC-36 open.
 
 - 2026-06-06 (config audit, read-only): Asterisk verified correct — thin-funnel design ([payphone] in /etc/asterisk/extensions_custom.conf routes ALL patterns → AudioSocket :9092; pjsip ulaw; 30min app + 3h dialplan timeouts). Directory verified: 44 = 30 features + 5 easter-egg numbers + 9 personas; all resolve (FEATURE_PROMPTS=35 exact, PERSONA_PROMPTS covers all 9); birthday regex sane; 180 routing tests green. ⚠️ FOOTGUN FOUND: repo scripts/asterisk/*.conf are STALE pre-deploy iterations ([payphone-incoming]) — redeploying them would clobber the working live dialplan. Live /etc/asterisk captured complete to tele-ai-backups/etc-asterisk-full-20260606.tgz (109 files incl. modules.conf). Follow-up (post-first-smoke-dial, repo-only, no Pi deploy): commit live configs into repo + retire stale ones to archive/. Operational note for campaign: no dialplan fallback if payphone app dies (thin-funnel) — watch service liveness; HT801 is NonQual (no proactive drop detection).
+
+- 2026-06-08: Phase B bench scoped from Gemma 4 research (Standard-mode, 2 passes, URL-verified; full note in obsidian Research). Candidate = **Gemma 4 E2B QAT Q4_0**, explicitly NOT the 12B (a 16GB-*laptop* model; on Pi 5 ~1.5–3 tok/s + 30–90s TTFT = breaks the voice loop) and NOT E4B (~5GB → swap-bound 3–5 tok/s on Pi 5). E2B measured 8–12 tok/s ≈ **2× qwen3:4b-instruct's ~4.5**, ~3.1GB Q4 footprint survives Pi RAM. Two UNMEASURED gates drive the bench: (a) ~2000-tok operator-prompt prefill/TTFT on Pi 5 — published nowhere; (b) [TRANSFER:] tag + directory tool-call fidelity for Gemma — unverified. Use official QAT Q4_0 (shipped 2026-06-05), not vanilla community Q4_K_M. **No published head-to-head vs qwen3:4b-instruct exists** (the web compares Qwen *3.5*) — self-bench is the only valid data, hence ISC-52/53 capture our own baseline. MatFormer escape hatch: E2B is a nested submodel of E4B, so escalating to E4B needs no re-architecture if tag fidelity fails. PSU gate is OPEN (replaced 2026-06-05), so Phase B is unblocked.
 
 ## Changelog
 
