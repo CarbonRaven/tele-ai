@@ -164,6 +164,8 @@ All 44 directory numbers hardware-verified on the physical payphone with the ful
 
 - 2026-06-08: Phase B bench scoped from Gemma 4 research (Standard-mode, 2 passes, URL-verified; full note in obsidian Research). Candidate = **Gemma 4 E2B QAT Q4_0**, explicitly NOT the 12B (a 16GB-*laptop* model; on Pi 5 ~1.5–3 tok/s + 30–90s TTFT = breaks the voice loop) and NOT E4B (~5GB → swap-bound 3–5 tok/s on Pi 5). E2B measured 8–12 tok/s ≈ **2× qwen3:4b-instruct's ~4.5**, ~3.1GB Q4 footprint survives Pi RAM. Two UNMEASURED gates drive the bench: (a) ~2000-tok operator-prompt prefill/TTFT on Pi 5 — published nowhere; (b) [TRANSFER:] tag + directory tool-call fidelity for Gemma — unverified. Use official QAT Q4_0 (shipped 2026-06-05), not vanilla community Q4_K_M. **No published head-to-head vs qwen3:4b-instruct exists** (the web compares Qwen *3.5*) — self-bench is the only valid data, hence ISC-52/53 capture our own baseline. MatFormer escape hatch: E2B is a nested submodel of E4B, so escalating to E4B needs no re-architecture if tag fidelity fails. PSU gate is OPEN (replaced 2026-06-05), so Phase B is unblocked.
 
+- 2026-06-08: Kimi (Moonshot) vetted for edge and ruled OUT — Kimi K2.6 is a 1T-param MoE (32B active, INT4), datacenter-class, not Pi-5-viable. (Arose as a "Kilo?" question; "Kilo" is a coding tool, no model exists.) Phase B candidate set stands: E2B QAT Q4_0 vs qwen3:4b-instruct baseline.
+
 ## Changelog
 
 - conjectured: The cat-pipe deploy of 2026-02-22 left the Pi matching origin once commits were pushed.
